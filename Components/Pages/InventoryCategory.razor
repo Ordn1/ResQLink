@@ -1,0 +1,234 @@
+﻿@page "/inventory/category/{categorySlug}"
+@using System.Linq
+@inject NavigationManager Nav
+
+@* Category-focused inventory listing (demo, reads local seeded data) *@
+<div class="inventory-root">
+    <section class="panel">
+        <header class="panel-head">
+            <h2 class="panel-title">Inventory — @DisplayCategory</h2>
+            <div class="panel-actions">
+                <input class="mini-input" placeholder="Search name or SKU…" @bind="search" @bind:event="oninput" />
+                <select class="mini-input" @bind="stockFilter">
+                    <option value="">Stock</option>
+                    <option value="low">Low</option>
+                    <option value="out">Out</option>
+                    <option value="ok">OK</option>
+                </select>
+                <select class="mini-input" @bind="sortBy">
+                    <option value="name_asc">Name A→Z</option>
+                    <option value="qty_desc">Qty High→Low</option>
+                    <option value="qty_asc">Qty Low→High</option>
+                    <option value="value_desc">Value High→Low</option>
+                </select>
+                <button class="mini-btn" @onclick="ToggleView">View: @(isCardView ? "Cards" : "Table")</button>
+                <button class="mini-btn" @onclick="ClearFilters">Clear</button>
+                <button class="mini-btn" @onclick="GoOverview">Overview</button>
+                <button class="mini-btn" @onclick="Refresh">↻</button>
+            </div>
+        </header>
+
+        <!-- KPIs for this category -->
+        <div class="kpi-grid">
+            <div class="kpi-card">
+                <div class="kpi-label">Items</div>
+                <div class="kpi-value text-accent">@BaseItems.Count()</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Low</div>
+                <div class="kpi-value">@LowCount</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Out</div>
+                <div class="kpi-value">@OutCount</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Total Value</div>
+                <div class="kpi-value">@TotalValue.ToString("C0")</div>
+            </div>
+        </div>
+
+        @if (!isCardView)
+        {
+            <div class="table-wrap">
+                <table class="inv-table">
+                    <thead>
+                        <tr>
+                            <th style="width:70px">SKU</th>
+                            <th>Name</th>
+                            <th class="t-right">Qty</th>
+                            <th class="t-right">Reorder</th>
+                            <th>Unit</th>
+                            <th>Status</th>
+                            <th class="t-right">Unit Cost</th>
+                            <th class="t-right">Value</th>
+                            <th>Updated</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var it in FilteredItems)
+                        {
+                            <tr>
+                                <td class="t-center">@it.Sku</td>
+                                <td>@it.Name</td>
+                                <td class="t-right">@it.Quantity</td>
+                                <td class="t-right">@it.ReorderLevel</td>
+                                <td>@it.Unit</td>
+                                <td>
+                                    <span class="status-chip @StatusClass(it)">@StatusText(it)</span>
+                                </td>
+                                <td class="t-right">@it.UnitCost.ToString("C")</td>
+                                <td class="t-right">@it.TotalValue.ToString("C0")</td>
+                                <td>@it.LastUpdated.ToString("MMM dd HH:mm")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="cards-grid">
+                @foreach (var it in FilteredItems)
+                {
+                    <div class="item-card @(IsOut(it) ? "card-out" : IsLow(it) ? "card-low" : "card-ok")">
+                        <div class="ic-top">
+                            <div class="ic-name">@it.Name</div>
+                            <div class="ic-sku">@it.Sku</div>
+                        </div>
+                        <div class="ic-row">
+                            <span class="status-chip @StatusClass(it)">@StatusText(it)</span>
+                            <span class="ic-unit">@it.Unit</span>
+                        </div>
+                        <div class="ic-row ic-qty">
+                            <span><strong>@it.Quantity</strong> qty</span>
+                            <span class="sep">/</span>
+                            <span>reorder <strong>@it.ReorderLevel</strong></span>
+                        </div>
+                        <div class="progress-shell thin" aria-label="Stock %">
+                            <div class="progress-bar" style="width:@StockPercent(it)%"></div>
+                        </div>
+                        <div class="ic-meta">
+                            <span class="val">Unit @it.UnitCost.ToString("C")</span>
+                            <span class="val-strong">@it.TotalValue.ToString("C0")</span>
+                            <span class="time">@it.LastUpdated.ToString("MMM dd HH:mm")</span>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+
+        <footer class="panel-foot">
+            <div>Showing @FilteredItems.Count() of @BaseItems.Count() in @DisplayCategory</div>
+        </footer>
+    </section>
+</div>
+
+@code {
+    [Parameter] public string categorySlug { get; set; } = "";
+
+    private string DisplayCategory =>
+        string.IsNullOrWhiteSpace(categorySlug) ? "All" : Uri.UnescapeDataString(categorySlug).Replace('-', ' ').ToUpperInvariant();
+
+    private class Item
+    {
+        public string Sku { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Category { get; set; } = "";
+        public int Quantity { get; set; }
+        public int ReorderLevel { get; set; }
+        public string Unit { get; set; } = "";
+        public decimal UnitCost { get; set; }
+        public DateTime LastUpdated { get; set; }
+        public decimal TotalValue => UnitCost * Quantity;
+    }
+
+    private List<Item> AllSeed = new();
+
+    // UI state
+    private string search = string.Empty;
+    private string stockFilter = string.Empty; // low|out|ok|""
+    private string sortBy = "name_asc";
+    private bool isCardView = true;
+
+    protected override void OnInitialized()
+    {
+        var now = DateTime.UtcNow;
+        AllSeed.AddRange(new[]
+        {
+            new Item{ Sku="WAT-01", Name="Bottled Water (1L)", Category="Water", Quantity=480, ReorderLevel=300, Unit="bottles", UnitCost=0.80m, LastUpdated=now.AddMinutes(-30)},
+            new Item{ Sku="FOOD-01", Name="Ready Meals", Category="Food", Quantity=120, ReorderLevel=200, Unit="packs", UnitCost=2.10m, LastUpdated=now.AddMinutes(-10)},
+            new Item{ Sku="MED-01", Name="Medical Kits", Category="Medical", Quantity=18, ReorderLevel=40, Unit="kits", UnitCost=25.00m, LastUpdated=now.AddMinutes(-5)},
+            new Item{ Sku="SUP-02", Name="Flashlights", Category="Supplies", Quantity=72, ReorderLevel=60, Unit="pcs", UnitCost=4.20m, LastUpdated=now.AddHours(-1)},
+            new Item{ Sku="PROT-01", Name="Masks", Category="Protective", Quantity=940, ReorderLevel=600, Unit="pcs", UnitCost=0.18m, LastUpdated=now.AddMinutes(-12)},
+            new Item{ Sku="FUEL-01", Name="Fuel (Liter)", Category="Logistics", Quantity=150, ReorderLevel=140, Unit="L", UnitCost=1.00m, LastUpdated=now.AddHours(-2)},
+            new Item{ Sku="TECH-02", Name="Power Banks", Category="Technology", Quantity=64, ReorderLevel=50, Unit="pcs", UnitCost=9.00m, LastUpdated=now.AddMinutes(-20)}
+        });
+    }
+
+    // Base items by category (route)
+    private IEnumerable<Item> BaseItems
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(categorySlug)) return AllSeed;
+            var target = Uri.UnescapeDataString(categorySlug).Replace('-', ' ').ToLowerInvariant();
+            return AllSeed.Where(i => i.Category?.ToLowerInvariant() == target);
+        }
+    }
+
+    // Filters + sorting
+    private IEnumerable<Item> FilteredItems
+    {
+        get
+        {
+            var q = BaseItems;
+
+            if (!string.IsNullOrWhiteSpace(search))
+                q = q.Where(i => i.Name.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                                 i.Sku.Contains(search, StringComparison.OrdinalIgnoreCase));
+
+            if (!string.IsNullOrWhiteSpace(stockFilter))
+            {
+                q = stockFilter switch
+                {
+                    "low" => q.Where(IsLow),
+                    "out" => q.Where(IsOut),
+                    "ok" => q.Where(i => !IsLow(i) && !IsOut(i)),
+                    _ => q
+                };
+            }
+
+            return sortBy switch
+            {
+                "qty_desc" => q.OrderByDescending(i => i.Quantity),
+                "qty_asc" => q.OrderBy(i => i.Quantity),
+                "value_desc" => q.OrderByDescending(i => i.TotalValue),
+                _ => q.OrderBy(i => i.Name) // name_asc
+            };
+        }
+    }
+
+    // KPIs for this category
+    private int LowCount => BaseItems.Count(IsLow);
+    private int OutCount => BaseItems.Count(IsOut);
+    private decimal TotalValue => BaseItems.Sum(i => i.TotalValue);
+
+    // Helpers
+    private static bool IsOut(Item i) => i.Quantity <= 0;
+    private static bool IsLow(Item i) => !IsOut(i) && i.Quantity <= i.ReorderLevel;
+    private static int StockPercent(Item i)
+    {
+        if (IsOut(i)) return 0;
+        var cap = Math.Max(i.ReorderLevel * 2, i.ReorderLevel + 1);
+        return Math.Clamp((int)Math.Round(i.Quantity / (double)cap * 100), 0, 100);
+    }
+    private string StatusText(Item i) => IsOut(i) ? "OUT" : IsLow(i) ? "LOW" : "OK";
+    private string StatusClass(Item i) => IsOut(i) ? "st-out" : IsLow(i) ? "st-low" : "st-ok";
+
+    // Actions
+    private void ToggleView() => isCardView = !isCardView;
+    private void ClearFilters() { search = string.Empty; stockFilter = string.Empty; sortBy = "name_asc"; }
+    private void GoOverview() => Nav.NavigateTo("/inventory");
+    private void Refresh() => StateHasChanged();
+}

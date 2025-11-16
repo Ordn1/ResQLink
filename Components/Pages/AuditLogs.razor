@@ -1,0 +1,218 @@
+﻿@page "/audit-logs"
+@using System.Linq
+
+@* DEMO AUDIT LOGS — local, read-only, temporary UI *@
+<div class="audit-root">
+    <section class="panel">
+        <header class="panel-head">
+            <h2 class="panel-title">Audit Logs</h2>
+            <div class="panel-actions">
+                <input class="mini-input" placeholder="Search user, resource or details…" @bind="search" @bind:event="oninput" />
+                <select class="mini-input" @bind="actorFilter">
+                    <option value="">Actor</option>
+                    @foreach (var a in DistinctActors) { <option>@a</option> }
+                </select>
+                <select class="mini-input" @bind="actionFilter">
+                    <option value="">Action</option>
+                    <option>CREATE</option>
+                    <option>UPDATE</option>
+                    <option>DELETE</option>
+                    <option>LOGIN</option>
+                    <option>LOGOUT</option>
+                </select>
+                <input class="mini-input" type="date" @bind="dateFrom" />
+                <input class="mini-input" type="date" @bind="dateTo" />
+                <button class="mini-btn" @onclick="ClearFilters">Clear</button>
+                <button class="mini-btn" @onclick="Refresh">↻</button>
+                <button class="mini-btn" disabled title="Export not implemented">Export</button>
+            </div>
+        </header>
+
+        <div class="table-wrap">
+            <table class="dash-table">
+                <thead>
+                    <tr>
+                        <th style="width:70px">ID</th>
+                        <th>Timestamp</th>
+                        <th>Actor</th>
+                        <th>Action</th>
+                        <th>Resource</th>
+                        <th>IP</th>
+                        <th style="width:120px">Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var l in PagedLogs)
+                    {
+                        <tr>
+                            <td class="t-center">#@l.Id</td>
+                            <td>@l.Timestamp.ToString("yyyy-MM-dd HH:mm")</td>
+                            <td>@l.Actor</td>
+                            <td><span class="status-chip @ActionClass(l.Action)">@l.Action</span></td>
+                            <td>@l.Resource</td>
+                            <td class="t-center">@l.Ip</td>
+                            <td>
+                                <div class="row-actions">
+                                    <button class="mini-btn" @onclick="() => ToggleDetails(l.Id)">
+                                        @(Expanded.Contains(l.Id) ? "Hide" : "Show")
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        @if (Expanded.Contains(l.Id))
+                        {
+                            <tr class="log-details">
+                                <td colspan="7">
+                                    <div class="details-grid">
+                                        <div><strong>User:</strong> @l.Actor</div>
+                                        <div><strong>Resource:</strong> @l.Resource</div>
+                                        <div><strong>Action:</strong> @l.Action</div>
+                                        <div><strong>IP:</strong> @l.Ip</div>
+                                        <div><strong>When:</strong> @l.Timestamp.ToString("f")</div>
+                                        <div class="details-msg"><strong>Payload / Notes:</strong><pre>@l.Details</pre></div>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <footer class="panel-foot">
+            <div class="foot-left">Showing @StartIndex–@EndIndex of @TotalFiltered</div>
+            <div class="foot-right">
+                <label class="foot-label">Rows</label>
+                <select class="mini-input" @bind="pageSize">
+                    <option>10</option>
+                    <option>20</option>
+                    <option>50</option>
+                </select>
+                <button class="mini-btn" @onclick="PrevPage" disabled="@(_pageIndex == 0)">Prev</button>
+                <span class="page-indicator">Page @(_pageIndex + 1) / @TotalPages</span>
+                <button class="mini-btn" @onclick="NextPage" disabled="@(_pageIndex >= TotalPages - 1)">Next</button>
+            </div>
+        </footer>
+    </section>
+</div>
+
+@code {
+    private class AuditLogItem
+    {
+        public int Id { get; set; }
+        public DateTime Timestamp { get; set; }
+        public string Actor { get; set; } = "";
+        public string Action { get; set; } = "";
+        public string Resource { get; set; } = "";
+        public string Ip { get; set; } = "";
+        public string Details { get; set; } = "";
+    }
+
+    private List<AuditLogItem> AllLogs = new();
+    private HashSet<int> Expanded = new();
+
+    // Filters / paging
+    private string search = string.Empty;
+    private string actorFilter = string.Empty;
+    private string actionFilter = string.Empty;
+    private DateTime dateFrom;
+    private DateTime dateTo;
+    private int _pageIndex = 0;
+    private int pageSize = 10;
+
+    protected override void OnInitialized()
+    {
+        SeedSampleData();
+        // sensible defaults
+        var today = DateTime.UtcNow.Date;
+        if (dateFrom == default) dateFrom = today.AddDays(-30);
+        if (dateTo == default) dateTo = today;
+    }
+
+    private void SeedSampleData()
+    {
+        var now = DateTime.UtcNow;
+        var rand = new Random(123);
+        var actors = new[] { "alice", "bob", "carol", "sysadmin", "service-account" };
+        var actions = new[] { "LOGIN", "LOGOUT", "CREATE", "UPDATE", "DELETE" };
+        var resources = new[] { "Evacuee/123", "Inventory/WAT-01", "Disaster/2002", "Shelter/Shelter A", "Report/2025-11" };
+
+        for (int i = 1; i <= 180; i++)
+        {
+            var t = now.AddMinutes(-rand.Next(0, 60 * 24 * 90));
+            var a = actors[rand.Next(actors.Length)];
+            var act = actions[rand.Next(actions.Length)];
+            var res = resources[rand.Next(resources.Length)];
+            var ip = $"192.168.{rand.Next(0,255)}.{rand.Next(1,254)}";
+            var details = act switch
+            {
+                "LOGIN" => $"Successful login for {a}",
+                "LOGOUT" => $"User {a} logged out",
+                "CREATE" => $"Created resource {res} with id {rand.Next(100,999)}",
+                "UPDATE" => $"Updated fields [status,notes] on {res}",
+                "DELETE" => $"Deleted resource {res}",
+                _ => "Audit detail"
+            };
+
+            AllLogs.Add(new AuditLogItem
+            {
+                Id = i,
+                Timestamp = t,
+                Actor = a,
+                Action = act,
+                Resource = res,
+                Ip = ip,
+                Details = details
+            });
+        }
+
+        // ensure deterministic ordering
+        AllLogs = AllLogs.OrderByDescending(l => l.Timestamp).ToList();
+    }
+
+    private IEnumerable<string> DistinctActors => AllLogs.Select(l => l.Actor).Distinct().OrderBy(x => x);
+
+    private IEnumerable<AuditLogItem> Filtered =>
+        AllLogs
+            .Where(l => l.Timestamp.Date >= dateFrom && l.Timestamp.Date <= dateTo)
+            .Where(l => string.IsNullOrWhiteSpace(search)
+                        || l.Actor.Contains(search, StringComparison.OrdinalIgnoreCase)
+                        || l.Resource.Contains(search, StringComparison.OrdinalIgnoreCase)
+                        || l.Details.Contains(search, StringComparison.OrdinalIgnoreCase))
+            .Where(l => string.IsNullOrWhiteSpace(actorFilter) || l.Actor.Equals(actorFilter, StringComparison.OrdinalIgnoreCase))
+            .Where(l => string.IsNullOrWhiteSpace(actionFilter) || l.Action.Equals(actionFilter, StringComparison.OrdinalIgnoreCase));
+
+    private int TotalFiltered => Filtered.Count();
+    private int TotalPages => Math.Max((int)Math.Ceiling(TotalFiltered / (double)pageSize), 1);
+    private int StartIndex => TotalFiltered == 0 ? 0 : (_pageIndex * pageSize) + 1;
+    private int EndIndex => Math.Min((_pageIndex + 1) * pageSize, TotalFiltered);
+    private IEnumerable<AuditLogItem> PagedLogs => Filtered.Skip(_pageIndex * pageSize).Take(pageSize);
+
+    private string ActionClass(string action) => action switch
+    {
+        "CREATE" => "st-med",
+        "UPDATE" => "st-stable",
+        "DELETE" => "st-critical",
+        "LOGIN" => "st-ok",
+        "LOGOUT" => "st-contained",
+        _ => ""
+    };
+
+    private void ToggleDetails(int id)
+    {
+        if (!Expanded.Add(id)) Expanded.Remove(id);
+    }
+
+    private void Refresh() => StateHasChanged();
+
+    private void ClearFilters()
+    {
+        search = string.Empty;
+        actorFilter = string.Empty;
+        actionFilter = string.Empty;
+        _pageIndex = 0;
+    }
+
+    private void PrevPage() { if (_pageIndex > 0) _pageIndex--; }
+    private void NextPage() { if (_pageIndex < TotalPages - 1) _pageIndex++; }
+}

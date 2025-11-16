@@ -1,0 +1,162 @@
+﻿@page "/disasters"
+@using System.Linq
+
+@* DEMO PLACEHOLDER – SIMPLE / GENERIC – NO REAL DATA *@
+<div class="disasters-root">
+    <!-- Simple KPIs -->
+    <section class="panel kpi-panel">
+        <header class="panel-head">
+            <h2 class="panel-title">Disasters Overview</h2>
+            <div class="panel-actions">
+                <button class="mini-btn" @onclick="Refresh">↻</button>
+            </div>
+        </header>
+        <div class="kpi-grid">
+            <div class="kpi-card">
+                <div class="kpi-label">Active</div>
+                <div class="kpi-value text-accent">@ActiveCount</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Total</div>
+                <div class="kpi-value">@AllDisasters.Count</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Incidents</div>
+                <div class="kpi-value">@TotalIncidents</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Filter + Table -->
+    <section class="panel">
+        <header class="panel-head">
+            <h2 class="panel-title">Disasters</h2>
+            <div class="panel-actions">
+                <input class="mini-input" placeholder="Search type or region…" @bind="search" @bind:event="oninput" />
+                <select class="mini-input" @bind="severityFilter">
+                    <option value="">Severity</option>
+                    <option>Low</option>
+                    <option>Moderate</option>
+                    <option>High</option>
+                    <option>Critical</option>
+                </select>
+                <select class="mini-input" @bind="statusFilter">
+                    <option value="">Status</option>
+                    <option>ACTIVE</option>
+                    <option>CONTAINED</option>
+                    <option>MONITORING</option>
+                </select>
+                <button class="mini-btn" @onclick="ClearFilters">Clear</button>
+            </div>
+        </header>
+
+        <div class="table-wrap">
+            <table class="dash-table">
+                <thead>
+                    <tr>
+                        <th style="width:60px">ID</th>
+                        <th>Type</th>
+                        <th>Region</th>
+                        <th>Severity</th>
+                        <th>Status</th>
+                        <th>Started</th>
+                        <th>Incidents</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var d in Filtered)
+                    {
+                        <tr>
+                            <td class="t-center">#@d.Id</td>
+                            <td>@d.Type</td>
+                            <td>@d.Region</td>
+                            <td><span class="sev @SevClass(d.Severity)">@d.Severity</span></td>
+                            <td><span class="status-chip @StatusClass(d.Status)">@d.Status</span></td>
+                            <td>@d.Started.ToString("MMM dd")</td>
+                            <td class="t-center">@d.Incidents</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <footer class="panel-foot">
+            Showing @Filtered.Count() of @AllDisasters.Count
+        </footer>
+    </section>
+</div>
+
+@code {
+    // Simple POCO instead of record (avoid newer syntax issues)
+    private class DisasterItem
+    {
+        public int Id { get; set; }
+        public string Type { get; set; } = "";
+        public string Region { get; set; } = "";
+        public string Severity { get; set; } = "";
+        public string Status { get; set; } = "";
+        public bool IsActive { get; set; }
+        public DateTime Started { get; set; }
+        public int Incidents { get; set; }
+    }
+
+    private List<DisasterItem> AllDisasters = new();
+    private string search = string.Empty;
+    private string severityFilter = string.Empty;
+    private string statusFilter = string.Empty;
+
+    protected override void OnInitialized() => SeedSampleData();
+
+    private void SeedSampleData()
+    {
+        var now = DateTime.UtcNow;
+        AllDisasters.AddRange(new[]
+        {
+            new DisasterItem{ Id=2001, Type="Flood", Region="North District", Severity="High",     Status="ACTIVE",     IsActive=true,  Started=now.AddDays(-2), Incidents=14 },
+            new DisasterItem{ Id=2002, Type="Earthquake", Region="Central City", Severity="Critical", Status="ACTIVE", IsActive=true, Started=now.AddDays(-1), Incidents=32 },
+            new DisasterItem{ Id=2003, Type="Wildfire", Region="East Hills", Severity="Moderate", Status="ACTIVE", IsActive=true, Started=now.AddDays(-3), Incidents=9 },
+            new DisasterItem{ Id=2004, Type="Tornado", Region="West Plains", Severity="Low", Status="CONTAINED", IsActive=false, Started=now.AddDays(-10), Incidents=2 },
+            new DisasterItem{ Id=2005, Type="Landslide", Region="High Ridge", Severity="High", Status="MONITORING", IsActive=false, Started=now.AddDays(-6), Incidents=5 },
+            new DisasterItem{ Id=2006, Type="Typhoon", Region="Coastal Bay", Severity="Critical", Status="ACTIVE", IsActive=true, Started=now.AddHours(-16), Incidents=28 },
+            new DisasterItem{ Id=2007, Type="Drought", Region="South Valley", Severity="Moderate", Status="MONITORING", IsActive=false, Started=now.AddDays(-90), Incidents=0 },
+            new DisasterItem{ Id=2008, Type="Volcanic Activity", Region="Mt. Aurora", Severity="High", Status="ACTIVE", IsActive=true, Started=now.AddDays(-5), Incidents=12 },
+        });
+    }
+
+    private IEnumerable<DisasterItem> Filtered =>
+        AllDisasters
+            .Where(d => string.IsNullOrWhiteSpace(search)
+                        || d.Type.Contains(search, StringComparison.OrdinalIgnoreCase)
+                        || d.Region.Contains(search, StringComparison.OrdinalIgnoreCase))
+            .Where(d => string.IsNullOrWhiteSpace(severityFilter) || d.Severity.Equals(severityFilter, StringComparison.OrdinalIgnoreCase))
+            .Where(d => string.IsNullOrWhiteSpace(statusFilter) || d.Status.Equals(statusFilter, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(d => d.Started);
+
+    private int ActiveCount => AllDisasters.Count(d => d.IsActive);
+    private int TotalIncidents => AllDisasters.Sum(d => d.Incidents);
+
+    private string SevClass(string severity) => severity.ToLowerInvariant() switch
+    {
+        "low" => "sev-low",
+        "moderate" => "sev-moderate",
+        "high" => "sev-high",
+        "critical" => "sev-critical",
+        _ => ""
+    };
+
+    private string StatusClass(string status) => status switch
+    {
+        "ACTIVE" => "st-active",
+        "CONTAINED" => "st-contained",
+        "MONITORING" => "st-monitoring",
+        _ => ""
+    };
+
+    private void Refresh() => StateHasChanged();
+    private void ClearFilters()
+    {
+        search = string.Empty;
+        severityFilter = string.Empty;
+        statusFilter = string.Empty;
+    }
+}

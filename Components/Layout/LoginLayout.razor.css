@@ -1,0 +1,14 @@
+﻿.login-layout-root {
+    min-height: 100vh;
+    background: #f6f7fb;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-start;
+    box-sizing: border-box;
+    padding: 28px 40px;
+}
+
+.login-layout-inner {
+    width: 100%;
+    max-width: 1200px;
+}

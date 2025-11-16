@@ -1,0 +1,522 @@
+@page "/reports"
+@using System.Linq
+
+@* DEMO REPORTS PAGE – ALL DATA IS LOCAL & TEMPORARY *@
+<div class="reports-root">
+
+    <!-- HEADER / FILTER BAR -->
+    <section class="panel">
+        <header class="panel-head">
+            <h2 class="panel-title">Reports Console</h2>
+            <div class="panel-actions">
+                <label class="lbl">Range</label>
+                <select class="mini-input" @bind="rangePreset" @bind:after="ApplyRangePreset">
+                    <option value="7d">Last 7d</option>
+                    <option value="30d">Last 30d</option>
+                    <option value="90d">Last 90d</option>
+                    <option value="ytd">YTD</option>
+                    <option value="custom">Custom…</option>
+                </select>
+
+                <input class="mini-input" type="date" @bind="dateFrom" disabled="@(!IsCustomRange)" />
+                <input class="mini-input" type="date" @bind="dateTo" disabled="@(!IsCustomRange)" />
+
+                <select class="mini-input" @bind="primaryGroup">
+                    <option value="day">Group: Day</option>
+                    <option value="week">Group: Week</option>
+                    <option value="month">Group: Month</option>
+                </select>
+
+                <select class="mini-input" @bind="metricFocus">
+                    <option value="evacuees">Evacuees</option>
+                    <option value="inventory">Inventory Usage</option>
+                    <option value="disasters">Disaster Incidents</option>
+                </select>
+
+                <button class="mini-btn" @onclick="Rebuild">Run</button>
+                <button class="mini-btn" @onclick="ResetFilters">Reset</button>
+                <button class="mini-btn" disabled title="Not implemented">Export CSV</button>
+                <button class="mini-btn" disabled title="Not implemented">Export PDF</button>
+            </div>
+        </header>
+
+        <!-- KPI SUMMARY -->
+        <div class="kpi-grid">
+            <div class="kpi-card">
+                <div class="kpi-label">Total Evacuees</div>
+                <div class="kpi-value text-accent">@TotalEvacuees</div>
+                <div class="kpi-trend">@KpiTrend(TotalEvacueesDelta)</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Incidents</div>
+                <div class="kpi-value">@TotalIncidents</div>
+                <div class="kpi-trend">@KpiTrend(IncidentDelta)</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Inventory Usage</div>
+                <div class="kpi-value">@TotalInventoryUsage</div>
+                <div class="kpi-trend">@KpiTrend(InventoryDelta)</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Avg. Shelter Fill</div>
+                <div class="kpi-value">@AverageShelterFill.ToString("P0")</div>
+                <div class="kpi-trend">@KpiTrend(ShelterFillDelta,true)</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Critical Stock Items</div>
+                <div class="kpi-value">@CriticalStockCount</div>
+                <div class="kpi-trend warn">Placeholder</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- GROUPED SERIES TABLE -->
+    <section class="panel">
+        <header class="panel-head">
+            <h2 class="panel-title">Time Series (@primaryGroup.ToUpper()) – @metricFocus.ToUpper()</h2>
+            <div class="panel-actions">
+                <label class="lbl">Show</label>
+                <select class="mini-input" @bind="seriesLimit">
+                    <option>10</option>
+                    <option>25</option>
+                    <option>50</option>
+                </select>
+            </div>
+        </header>
+        <div class="table-wrap">
+            <table class="rep-table">
+                <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Bucket</th>
+                    <th class="t-right">Evacuees</th>
+                    <th class="t-right">Incidents</th>
+                    <th class="t-right">Inventory Used</th>
+                    <th class="t-right">Avg Shelter Fill %</th>
+                </tr>
+                </thead>
+                <tbody>
+                @{
+                    var idx = 0;
+                    foreach (var b in LimitedBuckets)
+                    {
+                        idx++;
+                        <tr>
+                            <td class="t-center">@idx</td>
+                            <td>@b.Label</td>
+                            <td class="t-right">@b.Evacuees</td>
+                            <td class="t-right">@b.Incidents</td>
+                            <td class="t-right">@b.InventoryUsed</td>
+                            <td class="t-right">@b.AvgShelterFill.ToString("P0")</td>
+                        </tr>;
+                    }
+                }
+                </tbody>
+            </table>
+        </div>
+        <footer class="panel-foot">
+            Buckets: @LimitedBuckets.Count() of @GroupedBuckets.Count()
+        </footer>
+    </section>
+
+    <div class="two-col">
+        <!-- DISTRIBUTION SUMMARY -->
+        <section class="panel">
+            <header class="panel-head">
+                <h2 class="panel-title">Distributions</h2>
+            </header>
+            <div class="dist-grid">
+                @foreach (var d in DistributionBlocks)
+                {
+                    <div class="dist-card">
+                        <div class="dist-title">@d.Title</div>
+                        <div class="dist-bar-list">
+                            @foreach (var row in d.Rows)
+                            {
+                                <div class="dist-row">
+                                    <div class="dist-label">@row.Label</div>
+                                    <div class="dist-bar-shell">
+                                        <div class="dist-bar" style="width:@row.Percent%"></div>
+                                    </div>
+                                    <div class="dist-val">@row.Value</div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </section>
+
+        <!-- TOP LISTS -->
+        <section class="panel">
+            <header class="panel-head">
+                <h2 class="panel-title">Top Lists</h2>
+            </header>
+            <div class="top-lists">
+                <div class="top-block">
+                    <h3 class="top-title">Top Regions (Incidents)</h3>
+                    <ol class="top-ol">
+                        @foreach (var r in TopRegions)
+                        {
+                            <li>
+                                <span class="label">@r.Region</span>
+                                <span class="metric">@r.Incidents</span>
+                            </li>
+                        }
+                    </ol>
+                </div>
+                <div class="top-block">
+                    <h3 class="top-title">Top Shelters (Evacuees)</h3>
+                    <ol class="top-ol">
+                        @foreach (var s in TopShelters)
+                        {
+                            <li>
+                                <span class="label">@s.Shelter</span>
+                                <span class="metric">@s.Count</span>
+                            </li>
+                        }
+                    </ol>
+                </div>
+                <div class="top-block">
+                    <h3 class="top-title">High Usage Items</h3>
+                    <ol class="top-ol">
+                        @foreach (var i in TopInventory)
+                        {
+                            <li>
+                                <span class="label">@i.Item</span>
+                                <span class="metric">@i.Used</span>
+                            </li>
+                        }
+                    </ol>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- CHART PLACEHOLDERS -->
+    <section class="panel chart-panel">
+        <header class="panel-head">
+            <h2 class="panel-title">Chart Placeholders</h2>
+            <div class="panel-actions">
+                <select class="mini-input" @bind="chartMode">
+                    <option value="line">Line Mode</option>
+                    <option value="bars">Bars Mode</option>
+                    <option value="mixed">Mixed Mode</option>
+                </select>
+            </div>
+        </header>
+        <div class="chart-grid">
+            <div class="chart-box" role="img" aria-label="Primary metric trend">
+                <div class="chart-title">Primary Metric Trend</div>
+                <div class="chart-placeholder">[ Trend Chart Placeholder ]</div>
+            </div>
+            <div class="chart-box" role="img" aria-label="Cross metric comparison">
+                <div class="chart-title">Cross Metric Compare</div>
+                <div class="chart-placeholder">[ Multi-Series Placeholder ]</div>
+            </div>
+            <div class="chart-box" role="img" aria-label="Allocation breakdown">
+                <div class="chart-title">Allocation Breakdown</div>
+                <div class="chart-placeholder">[ Donut Placeholder ]</div>
+            </div>
+        </div>
+    </section>
+
+</div>
+
+@code {
+    // Raw demo event rows (these simulate combined domain events)
+    private class EventRow
+    {
+        public DateTime Timestamp { get; set; }
+        public string Region { get; set; } = "";
+        public string Shelter { get; set; } = "";
+        public int Evacuees { get; set; }
+        public int Incidents { get; set; }
+        public int InventoryUsed { get; set; }
+        public double ShelterFillPercent { get; set; } // 0..1
+        public string ItemUsed { get; set; } = "";
+    }
+
+    private class Bucket
+    {
+        public string Key { get; set; } = "";
+        public string Label { get; set; } = "";
+        public int Evacuees { get; set; }
+        public int Incidents { get; set; }
+        public int InventoryUsed { get; set; }
+        public double AvgShelterFill { get; set; }
+    }
+
+    private class DistBlock
+    {
+        public string Title { get; set; } = "";
+        public List<DistRow> Rows { get; set; } = new();
+    }
+
+    private class DistRow
+    {
+        public string Label { get; set; } = "";
+        public int Value { get; set; }
+        public int Percent { get; set; }
+    }
+
+    private List<EventRow> AllEvents = new();
+
+    // Filters
+    private string rangePreset = "30d";
+    private DateTime dateFrom;
+    private DateTime dateTo;
+    private string primaryGroup = "day";
+    private string metricFocus = "evacuees";
+    private int seriesLimit = 25;
+    private string chartMode = "line";
+
+    protected override void OnInitialized()
+    {
+        var now = DateTime.UtcNow.Date;
+        // Seed 120 days of scattered events
+        var rand = new Random(42);
+        var regions = new[] { "North", "East", "South", "West", "Central" };
+        var shelters = new[] { "Shelter A", "Shelter B", "Shelter C", "Shelter D" };
+        var items = new[] { "Water", "Meals", "Blankets", "MedKits", "Masks", "Batteries" };
+
+        for (int i = 0; i < 400; i++)
+        {
+            var dayOffset = rand.Next(0, 120);
+            var ts = now.AddDays(-dayOffset).AddHours(rand.Next(0, 24));
+            AllEvents.Add(new EventRow
+            {
+                Timestamp = ts,
+                Region = regions[rand.Next(regions.Length)],
+                Shelter = shelters[rand.Next(shelters.Length)],
+                Evacuees = rand.Next(0, 30),
+                Incidents = rand.Next(0, 4) == 0 ? 0 : rand.Next(0, 3),
+                InventoryUsed = rand.Next(5, 180),
+                ShelterFillPercent = rand.NextDouble() * 0.7 + 0.15,
+                ItemUsed = items[rand.Next(items.Length)]
+            });
+        }
+
+        ApplyRangePreset();
+    }
+
+    private bool IsCustomRange => rangePreset == "custom";
+
+    private void ApplyRangePreset()
+    {
+        var now = DateTime.UtcNow.Date;
+        switch (rangePreset)
+        {
+            case "7d": dateFrom = now.AddDays(-6); dateTo = now; break;
+            case "30d": dateFrom = now.AddDays(-29); dateTo = now; break;
+            case "90d": dateFrom = now.AddDays(-89); dateTo = now; break;
+            case "ytd":
+                dateFrom = new DateTime(now.Year, 1, 1);
+                dateTo = now;
+                break;
+            case "custom":
+                if (dateFrom == default) { dateFrom = now.AddDays(-14); dateTo = now; }
+                break;
+            default:
+                dateFrom = now.AddDays(-29); dateTo = now;
+                break;
+        }
+    }
+
+    private void Rebuild()
+    {
+        // Nothing persistent – derived sections pull from getters.
+        StateHasChanged();
+    }
+
+    private void ResetFilters()
+    {
+        rangePreset = "30d";
+        primaryGroup = "day";
+        metricFocus = "evacuees";
+        seriesLimit = 25;
+        ApplyRangePreset();
+        StateHasChanged();
+    }
+
+    // Filtered base events
+    private IEnumerable<EventRow> RangeEvents =>
+        AllEvents.Where(e => e.Timestamp.Date >= dateFrom && e.Timestamp.Date <= dateTo);
+
+    // Grouping
+    private IEnumerable<Bucket> GroupedBuckets =>
+        RangeEvents
+            .GroupBy(BucketKey)
+            .OrderBy(g => g.Key)
+            .Select(g => new Bucket
+            {
+                Key = g.Key,
+                Label = BucketLabel(g.Key),
+                Evacuees = g.Sum(x => x.Evacuees),
+                Incidents = g.Sum(x => x.Incidents),
+                InventoryUsed = g.Sum(x => x.InventoryUsed),
+                AvgShelterFill = g.Average(x => x.ShelterFillPercent)
+            });
+
+    private string BucketKey(EventRow e) => primaryGroup switch
+    {
+        "week" => $"{ISOWeekOf(e.Timestamp):000}-{e.Timestamp.Year}",
+        "month" => $"{e.Timestamp.Year}-{e.Timestamp.Month:00}",
+        _ => e.Timestamp.ToString("yyyy-MM-dd")
+    };
+
+    private string BucketLabel(string key) => primaryGroup switch
+    {
+        "week" => "W" + key,       // week key already contains week-year
+        "month" => key,            // year-month
+        _ => key                   // date
+    };
+
+    // ISO-ish week number helper (simple approximation)
+    private static int ISOWeekOf(DateTime dt)
+    {
+        var day = (int)System.Globalization.CultureInfo.InvariantCulture.Calendar.GetDayOfWeek(dt);
+        if (day == 0) day = 7;
+        return System.Globalization.CultureInfo.InvariantCulture.Calendar.GetWeekOfYear(
+            dt,
+            System.Globalization.CalendarWeekRule.FirstFourDayWeek,
+            DayOfWeek.Monday);
+    }
+
+    private IEnumerable<Bucket> LimitedBuckets =>
+        GroupedBuckets.Take(seriesLimit);
+
+    // KPI Data (compare with prior equal range)
+    private DateTime PriorFrom => dateFrom.AddDays(-(dateTo - dateFrom).TotalDays - 1);
+    private DateTime PriorTo => dateFrom.AddDays(-1);
+
+    private IEnumerable<EventRow> PriorRangeEvents =>
+        AllEvents.Where(e => e.Timestamp.Date >= PriorFrom && e.Timestamp.Date <= PriorTo);
+
+    private int TotalEvacuees => RangeEvents.Sum(e => e.Evacuees);
+    private int TotalIncidents => RangeEvents.Sum(e => e.Incidents);
+    private int TotalInventoryUsage => RangeEvents.Sum(e => e.InventoryUsed);
+    private double AverageShelterFill => RangeEvents.Any() ? RangeEvents.Average(e => e.ShelterFillPercent) : 0;
+
+    private int TotalEvacueesPrior => PriorRangeEvents.Sum(e => e.Evacuees);
+    private int TotalIncidentsPrior => PriorRangeEvents.Sum(e => e.Incidents);
+    private int TotalInventoryUsagePrior => PriorRangeEvents.Sum(e => e.InventoryUsed);
+    private double AverageShelterFillPrior => PriorRangeEvents.Any() ? PriorRangeEvents.Average(e => e.ShelterFillPercent) : 0;
+
+    private int TotalEvacueesDelta => Delta(TotalEvacuees, TotalEvacueesPrior);
+    private int IncidentDelta => Delta(TotalIncidents, TotalIncidentsPrior);
+    private int InventoryDelta => Delta(TotalInventoryUsage, TotalInventoryUsagePrior);
+    private double ShelterFillDelta => AverageShelterFillPrior == 0 ? 0 : (AverageShelterFill - AverageShelterFillPrior) / AverageShelterFillPrior;
+
+    private int CriticalStockCount => 7; // placeholder
+
+    private static int Delta(int current, int prior) => prior == 0 ? current : current - prior;
+
+    private MarkupString KpiTrend(int delta, bool percent = false)
+    {
+        if (delta == 0) return (MarkupString)"<span class='kpi-trend neutral'>0</span>";
+        var cls = delta > 0 ? "up" : "down";
+        return (MarkupString)$"<span class='kpi-trend {cls}'>{(delta > 0 ? "+" : "")}{delta}{(percent ? "%" : "")}</span>";
+    }
+
+    private MarkupString KpiTrend(double deltaPercent, bool alreadyPercent = false)
+    {
+        if (deltaPercent == 0) return (MarkupString)"<span class='kpi-trend neutral'>0%</span>";
+        var cls = deltaPercent > 0 ? "up" : "down";
+        var pct = deltaPercent * 100;
+        return (MarkupString)$"<span class='kpi-trend {cls}'>{(pct > 0 ? "+" : "")}{pct:0}%</span>";
+    }
+
+    // Distributions
+    private IEnumerable<DistBlock> DistributionBlocks
+    {
+        get
+        {
+            var blocks = new List<DistBlock>();
+
+            // Region distribution by incidents
+            var regionGroup = RangeEvents
+                .GroupBy(e => e.Region)
+                .Select(g => new { g.Key, Value = g.Sum(x => x.Incidents) })
+                .OrderByDescending(x => x.Value)
+                .Take(6)
+                .ToList();
+            var maxRegion = regionGroup.Any() ? regionGroup.Max(x => x.Value) : 1;
+
+            blocks.Add(new DistBlock
+            {
+                Title = "Incidents by Region",
+                Rows = regionGroup
+                    .Select(r => new DistRow
+                    {
+                        Label = r.Key,
+                        Value = r.Value,
+                        Percent = maxRegion == 0 ? 0 : (int)Math.Round(r.Value / (double)maxRegion * 100)
+                    }).ToList()
+            });
+
+            // Inventory usage by item
+            var itemGroup = RangeEvents
+                .GroupBy(e => e.ItemUsed)
+                .Select(g => new { g.Key, Value = g.Sum(x => x.InventoryUsed) })
+                .OrderByDescending(x => x.Value)
+                .Take(6)
+                .ToList();
+            var maxItem = itemGroup.Any() ? itemGroup.Max(x => x.Value) : 1;
+
+            blocks.Add(new DistBlock
+            {
+                Title = "Inventory Usage by Item",
+                Rows = itemGroup
+                    .Select(it => new DistRow
+                    {
+                        Label = it.Key,
+                        Value = it.Value,
+                        Percent = maxItem == 0 ? 0 : (int)Math.Round(it.Value / (double)maxItem * 100)
+                    }).ToList()
+            });
+
+            // Evacuees by shelter
+            var shelterGroup = RangeEvents
+                .GroupBy(e => e.Shelter)
+                .Select(g => new { g.Key, Value = g.Sum(x => x.Evacuees) })
+                .OrderByDescending(x => x.Value)
+                .Take(6)
+                .ToList();
+            var maxShelter = shelterGroup.Any() ? shelterGroup.Max(x => x.Value) : 1;
+
+            blocks.Add(new DistBlock
+            {
+                Title = "Evacuees by Shelter",
+                Rows = shelterGroup
+                    .Select(sh => new DistRow
+                    {
+                        Label = sh.Key,
+                        Value = sh.Value,
+                        Percent = maxShelter == 0 ? 0 : (int)Math.Round(sh.Value / (double)maxShelter * 100)
+                    }).ToList()
+            });
+
+            return blocks;
+        }
+    }
+
+    // Top lists
+    private IEnumerable<(string Region, int Incidents)> TopRegions =>
+        RangeEvents.GroupBy(e => e.Region)
+            .Select(g => (g.Key, g.Sum(x => x.Incidents)))
+            .OrderByDescending(x => x.Item2)
+            .Take(5);
+
+    private IEnumerable<(string Shelter, int Count)> TopShelters =>
+        RangeEvents.GroupBy(e => e.Shelter)
+            .Select(g => (g.Key, g.Sum(x => x.Evacuees)))
+            .OrderByDescending(x => x.Item2)
+            .Take(5);
+
+    private IEnumerable<(string Item, int Used)> TopInventory =>
+        RangeEvents.GroupBy(e => e.ItemUsed)
+            .Select(g => (g.Key, g.Sum(x => x.InventoryUsed)))
+            .OrderByDescending(x => x.Item2)
+            .Take(5);
+}

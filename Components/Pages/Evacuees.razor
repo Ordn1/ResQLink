@@ -1,0 +1,252 @@
+﻿@page "/evacuees"
+
+@* DEMO PLACEHOLDER – NO REAL DATA/CONNECTIONS *@
+<div class="evac-root">
+    <!-- Filters/toolbar -->
+    <section class="panel">
+        <header class="panel-head">
+            <h2 class="panel-title">Evacuees</h2>
+            <div class="panel-actions">
+                <input class="mini-input" placeholder="Search name, shelter or status…" @bind="search" @bind:event="oninput" />
+                <select class="mini-input" @bind="statusFilter">
+                    <option value="">All Status</option>
+                    <option>STABLE</option>
+                    <option>NEEDS MED</option>
+                    <option>CRITICAL</option>
+                </select>
+                <select class="mini-input" @bind="shelterFilter">
+                    <option value="">All Shelters</option>
+                    @foreach (var s in DistinctShelters)
+                    {
+                        <option>@s</option>
+                    }
+                </select>
+                <select class="mini-input" @bind="sortBy">
+                    <option value="registered_desc">Registered: Newest</option>
+                    <option value="name_asc">Name: A → Z</option>
+                    <option value="age_desc">Age: High → Low</option>
+                    <option value="age_asc">Age: Low → High</option>
+                </select>
+                <button class="mini-btn" @onclick="ClearFilters">Clear</button>
+                <button class="mini-btn" @onclick="Refresh">↻</button>
+            </div>
+        </header>
+
+        <!-- Table -->
+        <div class="table-wrap">
+            <table class="dash-table">
+                <thead>
+                <tr>
+                    <th style="width:70px">ID</th>
+                    <th>Name</th>
+                    <th>Age</th>
+                    <th>Gender</th>
+                    <th>Family</th>
+                    <th>Shelter</th>
+                    <th>Status</th>
+                    <th>Registered</th>
+                    <th>Last Update</th>
+                    <th style="width:100px">Actions</th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var e in PagedEvacuees)
+                {
+                    <tr>
+                        <td class="t-center">#@e.Id</td>
+                        <td>@e.Name</td>
+                        <td class="t-center">@e.Age</td>
+                        <td class="t-center">@e.Gender</td>
+                        <td class="t-center">@e.FamilySize</td>
+                        <td>@e.Shelter</td>
+                        <td><span class="status-chip @StatusClass(e.Status)">@e.Status</span></td>
+                        <td>@e.Registered.ToString("MMM dd, yyyy HH:mm")</td>
+                        <td>@e.LastUpdate.ToString("MMM dd, yyyy HH:mm")</td>
+                        <td>
+                            <div class="row-actions">
+                                <button class="link-btn" disabled>View</button>
+                                <button class="link-btn" disabled>Edit</button>
+                            </div>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Footer + pagination -->
+        <footer class="panel-foot">
+            <div class="foot-left">
+                Showing @StartIndex–@EndIndex of @TotalFiltered
+            </div>
+            <div class="foot-right">
+                <label class="foot-label">Rows</label>
+                <select class="mini-input" @bind="pageSize">
+                    <option>10</option>
+                    <option>20</option>
+                    <option>50</option>
+                </select>
+                <button class="mini-btn" @onclick="PrevPage" disabled="@(_pageIndex == 0)">Prev</button>
+                <span class="page-indicator">Page @(_pageIndex + 1) / @TotalPages</span>
+                <button class="mini-btn" @onclick="NextPage" disabled="@(_pageIndex >= TotalPages - 1)">Next</button>
+            </div>
+        </footer>
+    </section>
+
+    <!-- Shelter snapshot -->
+    <section class="panel">
+        <header class="panel-head">
+            <h2 class="panel-title">Shelter Snapshot</h2>
+        </header>
+        <div class="shelter-cards">
+            @foreach (var s in ShelterSummaries)
+            {
+                <div class="shelter-card">
+                    <div class="s-name">@s.Shelter</div>
+                    <div class="s-occupancy">
+                        <strong>@s.Count</strong>
+                        <span class="s-muted">/ @s.Capacity</span>
+                    </div>
+                    <div class="progress-shell thin" aria-label="Occupancy percent">
+                        <div class="progress-bar" style="width:@s.Percent%"></div>
+                    </div>
+                    <div class="s-meta">
+                        <span>@s.Males M</span>
+                        <span>•</span>
+                        <span>@s.Females F</span>
+                        <span>•</span>
+                        <span>@s.Families Families</span>
+                    </div>
+                </div>
+            }
+        </div>
+    </section>
+</div>
+
+@code {
+    private record Evacuee(
+        int Id,
+        string Name,
+        int Age,
+        string Gender,
+        int FamilySize,
+        string Shelter,
+        string Status,
+        DateTime Registered,
+        DateTime LastUpdate);
+
+    private record ShelterSummary(string Shelter, int Count, int Capacity, int Males, int Females, int Families)
+    {
+        public int Percent => Math.Clamp((int)(Count / (double)Math.Max(Capacity, 1) * 100), 0, 100);
+    }
+
+    private List<Evacuee> AllEvacuees = new();
+    private string search = string.Empty;
+    private string statusFilter = string.Empty;
+    private string shelterFilter = string.Empty;
+    private string sortBy = "registered_desc";
+    private int _pageIndex = 0;
+    private int pageSize = 10;
+
+    protected override void OnInitialized() => SeedSampleData();
+
+    private void SeedSampleData()
+    {
+        var now = DateTime.UtcNow;
+        AllEvacuees =
+        [
+            new(1001,"Maria Santos",34,"F",3,"Shelter A","STABLE", now.AddHours(-8), now.AddMinutes(-12)),
+            new(1002,"John Reyes",41,"M",4,"Shelter B","NEEDS MED", now.AddHours(-2), now.AddMinutes(-30)),
+            new(1003,"Ana Dela Cruz",19,"F",1,"Shelter A","STABLE", now.AddHours(-3), now.AddHours(-1)),
+            new(1004,"Carlos Garcia",52,"M",2,"Shelter C","CRITICAL", now.AddHours(-5), now.AddMinutes(-10)),
+            new(1005,"Luisa Morales",28,"F",2,"Shelter B","STABLE", now.AddHours(-7), now.AddHours(-4)),
+            new(1006,"Pedro Alvarez",63,"M",1,"Shelter D","STABLE", now.AddHours(-9), now.AddHours(-6)),
+            new(1007,"Jenny Lim",23,"F",2,"Shelter A","NEEDS MED", now.AddHours(-11), now.AddHours(-2)),
+            new(1008,"Mark Lee",31,"M",3,"Shelter C","STABLE", now.AddHours(-15), now.AddHours(-12)),
+            new(1009,"Sofia Tan",27,"F",2,"Shelter D","STABLE", now.AddHours(-22), now.AddHours(-6)),
+            new(1010,"James Cruz",38,"M",5,"Shelter B","CRITICAL", now.AddHours(-30), now.AddHours(-25)),
+            new(1011,"Olivia Perez",44,"F",3,"Shelter A","STABLE", now.AddHours(-36), now.AddHours(-5)),
+            new(1012,"Ethan Ramos",29,"M",2,"Shelter C","NEEDS MED", now.AddHours(-40), now.AddHours(-4)),
+            new(1013,"Noah Gomez",35,"M",4,"Shelter B","STABLE", now.AddHours(-48), now.AddHours(-30)),
+            new(1014,"Ava Navarro",22,"F",1,"Shelter D","STABLE", now.AddHours(-60), now.AddHours(-8)),
+            new(1015,"Liam Torres",57,"M",2,"Shelter C","CRITICAL", now.AddHours(-64), now.AddHours(-2)),
+            new(1016,"Mia Flores",26,"F",2,"Shelter A","STABLE", now.AddHours(-70), now.AddHours(-1)),
+            new(1017,"William Cruz",50,"M",1,"Shelter B","NEEDS MED", now.AddHours(-72), now.AddHours(-12)),
+            new(1018,"Emma Reyes",32,"F",3,"Shelter C","STABLE", now.AddHours(-80), now.AddHours(-6)),
+            new(1019,"Benjamin Yu",40,"M",2,"Shelter D","STABLE", now.AddHours(-82), now.AddHours(-9)),
+            new(1020,"Charlotte Ong",30,"F",3,"Shelter A","STABLE", now.AddHours(-90), now.AddHours(-15)),
+            new(1021,"Henry Dela Vega",47,"M",4,"Shelter B","CRITICAL", now.AddHours(-96), now.AddHours(-16)),
+            new(1022,"Amelia Santos",21,"F",1,"Shelter C","STABLE", now.AddHours(-100), now.AddHours(-20)),
+            new(1023,"Lucas Rivera",54,"M",2,"Shelter D","STABLE", now.AddHours(-120), now.AddHours(-36)),
+            new(1024,"Isabella Cruz",33,"F",3,"Shelter A","NEEDS MED", now.AddHours(-140), now.AddHours(-40)),
+        ];
+    }
+
+    private IEnumerable<string> DistinctShelters =>
+        AllEvacuees.Select(e => e.Shelter).Distinct().OrderBy(s => s);
+
+    private IEnumerable<Evacuee> Query
+    {
+        get
+        {
+            var filtered =
+                AllEvacuees
+                    .Where(e => string.IsNullOrWhiteSpace(search)
+                                || e.Name.Contains(search, StringComparison.OrdinalIgnoreCase)
+                                || e.Shelter.Contains(search, StringComparison.OrdinalIgnoreCase)
+                                || e.Status.Contains(search, StringComparison.OrdinalIgnoreCase))
+                    .Where(e => string.IsNullOrEmpty(statusFilter) || e.Status.Equals(statusFilter, StringComparison.OrdinalIgnoreCase))
+                    .Where(e => string.IsNullOrEmpty(shelterFilter) || e.Shelter.Equals(shelterFilter, StringComparison.OrdinalIgnoreCase));
+
+            return Sort(filtered);
+        }
+    }
+
+    private IEnumerable<Evacuee> Sort(IEnumerable<Evacuee> source) =>
+        sortBy switch
+        {
+            "name_asc" => source.OrderBy(e => e.Name),
+            "age_desc" => source.OrderByDescending(e => e.Age),
+            "age_asc" => source.OrderBy(e => e.Age),
+            _ => source.OrderByDescending(e => e.Registered) // registered_desc
+        };
+
+    private int TotalFiltered => Query.Count();
+    private int TotalPages => Math.Max((int)Math.Ceiling(TotalFiltered / (double)pageSize), 1);
+    private int StartIndex => TotalFiltered == 0 ? 0 : (_pageIndex * pageSize) + 1;
+    private int EndIndex => Math.Min((_pageIndex + 1) * pageSize, TotalFiltered);
+    private IEnumerable<Evacuee> PagedEvacuees => Query.Skip(_pageIndex * pageSize).Take(pageSize);
+
+    private IEnumerable<ShelterSummary> ShelterSummaries =>
+        DistinctShelters.Select(s =>
+        {
+            var group = Query.Where(e => e.Shelter == s).ToList();
+            var count = group.Count;
+            var capacity = 100; // demo
+            var males = group.Count(e => e.Gender == "M");
+            var females = group.Count(e => e.Gender == "F");
+            var families = group.Sum(e => e.FamilySize > 1 ? 1 : 0);
+            return new ShelterSummary(s, count, capacity, males, females, families);
+        });
+
+    private void ClearFilters()
+    {
+        search = string.Empty;
+        statusFilter = string.Empty;
+        shelterFilter = string.Empty;
+        sortBy = "registered_desc";
+        _pageIndex = 0;
+    }
+
+    private void Refresh() => StateHasChanged();
+    private void PrevPage() { if (_pageIndex > 0) _pageIndex--; }
+    private void NextPage() { if (_pageIndex < TotalPages - 1) _pageIndex++; }
+
+    private string StatusClass(string status) => status switch
+    {
+        "CRITICAL" => "st-critical",
+        "NEEDS MED" => "st-med",
+        "STABLE" => "st-stable",
+        _ => ""
+    };
+}

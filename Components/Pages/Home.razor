@@ -1,0 +1,265 @@
+﻿@page "/home"
+
+@* DASHBOARD *@
+<div class="dashboard-root">
+    <div class="dashboard-grid">
+        <!-- KPI CARDS -->
+        <section aria-label="Key metrics" class="kpi-grid">
+            <div class="kpi-card">
+                <div class="kpi-label">Active Disasters</div>
+                <div class="kpi-value text-accent">@ActiveDisastersCount</div>
+                <div class="kpi-trend up">+2 new</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Registered Evacuees</div>
+                <div class="kpi-value">@Evacuees.Count</div>
+                <div class="kpi-trend">@EvacueeDeltaText</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Shelter Capacity Used</div>
+                <div class="kpi-value">@ShelterCapacityUsed%</div>
+                <div class="progress-shell" aria-label="Shelter capacity usage">
+                    <div class="progress-bar" style="width:@ShelterCapacityUsed%"></div>
+                </div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Critical Inventory Items</div>
+                <div class="kpi-value">@CriticalInventoryCount</div>
+                <div class="kpi-trend warn">Needs restock</div>
+            </div>
+        </section>
+
+        <!-- LEFT COLUMN (Tables) -->
+        <div class="col-stack">
+            <!-- Recent Evacuees -->
+            <section class="panel">
+                <header class="panel-head">
+                    <h2 class="panel-title">Recent Evacuees</h2>
+                    <div class="panel-actions">
+                        <input class="mini-input" placeholder="Search…" @bind="evacueeFilter" @bind:event="oninput" />
+                        <button class="mini-btn" @onclick="()=>Refresh()">↻</button>
+                    </div>
+                </header>
+                <div class="table-wrap">
+                    <table class="dash-table">
+                        <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Age</th>
+                            <th>Shelter</th>
+                            <th>Status</th>
+                            <th>Registered</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var e in FilteredEvacuees)
+                        {
+                            <tr>
+                                <td>@e.Name</td>
+                                <td class="t-center">@e.Age</td>
+                                <td>@e.Shelter</td>
+                                <td>
+                                    <span class="status-chip @StatusClass(e.Status)">@e.Status</span>
+                                </td>
+                                <td>@e.Registered.ToString("MMM dd HH:mm")</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+                <footer class="panel-foot">
+                    Showing @FilteredEvacuees.Count() of @Evacuees.Count
+                </footer>
+            </section>
+
+            <!-- Active Disasters -->
+            <section class="panel">
+                <header class="panel-head">
+                    <h2 class="panel-title">Active Disasters</h2>
+                </header>
+                <div class="table-wrap">
+                    <table class="dash-table">
+                        <thead>
+                        <tr>
+                            <th>Type</th>
+                            <th>Region</th>
+                            <th>Severity</th>
+                            <th>Started</th>
+                            <th>Incidents</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var d in Disasters.Where(d => d.IsActive))
+                        {
+                            <tr>
+                                <td>@d.Type</td>
+                                <td>@d.Region</td>
+                                <td>
+                                    <span class="sev sev-@d.Severity.ToLower()">@d.Severity</span>
+                                </td>
+                                <td>@d.Started.ToString("MMM dd")</td>
+                                <td class="t-center">@d.Incidents</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+                <footer class="panel-foot">
+                    Total Active: @ActiveDisastersCount
+                </footer>
+            </section>
+        </div>
+
+        <!-- RIGHT COLUMN (Inventory + Visuals) -->
+        <div class="col-stack">
+            <!-- Inventory Snapshot -->
+            <section class="panel">
+                <header class="panel-head">
+                    <h2 class="panel-title">Inventory Snapshot</h2>
+                    <div class="panel-actions">
+                        <button class="mini-btn" @onclick="()=>CycleInventoryView()">View: @InventoryViewMode</button>
+                    </div>
+                </header>
+                <div class="inventory-cards">
+                    @foreach (var item in InventorySummaryTop)
+                    {
+                        <div class="inv-card @(item.Quantity <= item.ReorderLevel ? "inv-low" : "")">
+                            <div class="inv-name">@item.Name</div>
+                            <div class="inv-qty">
+                                <strong>@item.Quantity</strong>
+                                <span class="inv-unit">@item.Unit</span>
+                            </div>
+                            <div class="inv-meta">
+                                Reorder at @item.ReorderLevel
+                            </div>
+                            <div class="progress-shell thin" aria-label="Stock level percentage">
+                                <div class="progress-bar" style="width:@item.StockPercent%"></div>
+                            </div>
+                        </div>
+                    }
+                </div>
+                <footer class="panel-foot">
+                    @CriticalInventoryCount low / @Inventory.Count total items
+                </footer>
+            </section>
+
+            <!-- Charts (placeholders) -->
+            <section class="panel chart-panel">
+                <header class="panel-head">
+                    <h2 class="panel-title">Trends</h2>
+                    <div class="panel-actions">
+                        <select class="mini-input" @bind="SelectedTrendRange">
+                            <option value="7d">Last 7d</option>
+                            <option value="30d">30d</option>
+                            <option value="90d">90d</option>
+                        </select>
+                    </div>
+                </header>
+                <div class="chart-grid">
+                    <div class="chart-box" role="img" aria-label="Evacuees trend line chart placeholder">
+                        <div class="chart-title">Evacuees Trend</div>
+                        <div class="chart-placeholder">[ Line Chart Placeholder ]</div>
+                    </div>
+                    <div class="chart-box" role="img" aria-label="Inventory consumption bar chart placeholder">
+                        <div class="chart-title">Inventory Consumption</div>
+                        <div class="chart-placeholder">[ Bar Chart Placeholder ]</div>
+                    </div>
+                    <div class="chart-box" role="img" aria-label="Disaster types distribution donut chart placeholder">
+                        <div class="chart-title">Disaster Types</div>
+                        <div class="chart-placeholder">[ Donut Chart Placeholder ]</div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
+
+@code {
+    private record Evacuee(string Name, int Age, string Shelter, string Status, DateTime Registered);
+    private record Disaster(string Type, string Region, string Severity, bool IsActive, DateTime Started, int Incidents);
+    private record InventoryItem(string Name, int Quantity, int ReorderLevel, string Unit)
+    {
+        public int StockPercent => Math.Clamp((int)(Quantity / (double)Math.Max(ReorderLevel * 2, 1) * 100), 0, 100);
+    }
+
+    private List<Evacuee> Evacuees = new();
+    private List<Disaster> Disasters = new();
+    private List<InventoryItem> Inventory = new();
+    private string evacueeFilter = string.Empty;
+    private string InventoryViewMode = "Top 6";
+    private string SelectedTrendRange = "30d";
+
+    protected override void OnInitialized() => SeedSampleData();
+
+    private void SeedSampleData()
+    {
+        var now = DateTime.UtcNow;
+        Evacuees =
+        [
+            new("Maria Santos", 34, "Shelter A", "STABLE", now.AddMinutes(-25)),
+            new("John Reyes", 41, "Shelter B", "NEEDS MED", now.AddHours(-2)),
+            new("Ana Dela Cruz", 19, "Shelter A", "STABLE", now.AddHours(-3)),
+            new("Carlos Garcia", 52, "Shelter C", "CRITICAL", now.AddHours(-5)),
+            new("Luisa Morales", 28, "Shelter B", "STABLE", now.AddHours(-7)),
+            new("Pedro Alvarez", 63, "Shelter D", "STABLE", now.AddHours(-9)),
+            new("Jenny Lim", 23, "Shelter A", "NEEDS MED", now.AddHours(-11)),
+        ];
+
+        Disasters =
+        [
+            new("Flood", "North District", "High", true, now.AddDays(-2), 4),
+            new("Earthquake", "Central City", "Critical", true, now.AddDays(-1), 12),
+            new("Wildfire", "East Hills", "Moderate", true, now.AddDays(-3), 6),
+            new("Tornado", "West Plains", "Low", false, now.AddDays(-10), 1)
+        ];
+
+        Inventory =
+        [
+            new("Bottled Water (L)", 480, 300, "L"),
+            new("Ready Meals", 120, 200, "packs"),
+            new("Blankets", 55, 80, "pcs"),
+            new("Medical Kits", 18, 40, "kits"),
+            new("Flashlights", 72, 60, "pcs"),
+            new("Batteries AA", 380, 250, "pcs"),
+            new("Masks", 940, 600, "pcs"),
+            new("Fuel (L)", 150, 140, "L")
+        ];
+    }
+
+    private IEnumerable<Evacuee> FilteredEvacuees =>
+        Evacuees
+            .OrderByDescending(e => e.Registered)
+            .Where(e =>
+                string.IsNullOrWhiteSpace(evacueeFilter) ||
+                e.Name.Contains(evacueeFilter, StringComparison.OrdinalIgnoreCase) ||
+                e.Shelter.Contains(evacueeFilter, StringComparison.OrdinalIgnoreCase) ||
+                e.Status.Contains(evacueeFilter, StringComparison.OrdinalIgnoreCase))
+            .Take(12);
+
+    private IEnumerable<InventoryItem> InventorySummaryTop =>
+        InventoryViewMode switch
+        {
+            "Critical" => Inventory.Where(i => i.Quantity <= i.ReorderLevel).OrderBy(i => i.Quantity).Take(8),
+            _ => Inventory.OrderBy(i => i.Quantity <= i.ReorderLevel ? 0 : 1)
+                          .ThenBy(i => i.Quantity)
+                          .Take(6)
+        };
+
+    private int ActiveDisastersCount => Disasters.Count(d => d.IsActive);
+    private int CriticalInventoryCount => Inventory.Count(i => i.Quantity <= i.ReorderLevel);
+    private int ShelterCapacityUsed => 68;
+    private string EvacueeDeltaText => "+5 today";
+
+    private void Refresh() => StateHasChanged();
+
+    private void CycleInventoryView() =>
+        InventoryViewMode = InventoryViewMode == "Top 6" ? "Critical" : "Top 6";
+
+    private string StatusClass(string status) => status switch
+    {
+        "CRITICAL" => "st-critical",
+        "NEEDS MED" => "st-med",
+        "STABLE" => "st-stable",
+        _ => ""
+    };
+}

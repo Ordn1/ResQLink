@@ -1,0 +1,55 @@
+﻿@page "/"
+@layout ResQLink.Components.Layout.LoginLayout
+@namespace ResQLink.Components.Pages
+@using ResQLink.Components
+@inject NavigationManager Navigation
+@inject ResQLink.Services.AuthState Auth
+
+<div class="login-root">
+    <div class="login-card" aria-label="Login">
+        <!-- Logo (blank placeholder) -->
+        <div class="login-logo" aria-hidden="true"></div>
+
+        <div class="login-title">WELCOME</div>
+
+        <div class="login-field-group">
+            <label class="login-label" for="username">Username:</label>
+            <input id="username" @bind="Username" class="login-input" />
+
+            <label class="login-label" for="password" style="margin-top:12px;">Password:</label>
+            <input id="password" type="password" @bind="Password" class="login-input" />
+        </div>
+
+        <div class="login-actions">
+            <button type="button" class="login-btn" @onclick="HandleLogin">LOGIN</button>
+            <a href="#" class="forgot-link" @onclick="PreventDefault">Forgot password?</a>
+        </div>
+    </div>
+
+    <div class="login-frame">
+        <h1 class="resqlink-header">
+            <span class="resq">ResQ</span><span class="link">Link</span>
+        </h1>
+        <div class="underline"></div>
+        <p class="login-subtext">Connecting responders.</p>
+        <p class="login-subtext">Saving lives.</p>
+        <div class="frame-visual"></div>
+    </div>
+</div>
+
+@code {
+    private string Username { get; set; } = "";
+    private string Password { get; set; } = "";
+
+    private async Task HandleLogin()
+    {
+        if (string.IsNullOrWhiteSpace(Username) || string.IsNullOrWhiteSpace(Password))
+            return;
+
+        Auth.SetAuthenticated(true);
+        await Task.Yield();
+        Navigation.NavigateTo("/home");
+    }
+
+    private void PreventDefault(MouseEventArgs e) { }
+}
