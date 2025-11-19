@@ -1,7 +1,10 @@
 ﻿using Microsoft.Extensions.Logging;
-using ResQLink.Services;
 using Microsoft.Maui.LifecycleEvents;
-using Microsoft.Maui.ApplicationModel; // for MainThread
+using Microsoft.Maui.ApplicationModel;
+using Microsoft.EntityFrameworkCore;
+using ResQLink.Data;
+using ResQLink.Services;
+using ResQLink.Services.Users;
 
 #if WINDOWS
 using Microsoft.UI.Windowing;
@@ -13,6 +16,7 @@ namespace ResQLink
 {
     public static class MauiProgram
     {
+        // NOTE: Must return MauiApp (not Task<MauiApp>) because App.xaml.cs expects a synchronous CreateMauiApp.
         public static MauiApp CreateMauiApp()
         {
             var builder = MauiApp.CreateBuilder();
@@ -29,13 +33,26 @@ namespace ResQLink
             builder.Services.AddMauiBlazorWebView();
             builder.Services.AddSingleton<AuthState>();
 
+            var connectionString =
+                "Server=localhost;Database=resqlink;Integrated Security=True;Encrypt=True;TrustServerCertificate=True;";
+
+            builder.Services.AddDbContext<AppDbContext>(opt =>
+            {
+                opt.UseSqlServer(connectionString);
+#if DEBUG
+                opt.EnableSensitiveDataLogging();
+                opt.EnableDetailedErrors();
+#endif
+            });
+
+            builder.Services.AddScoped<IUserService, UserService>();
+
 #if DEBUG
             builder.Services.AddBlazorWebViewDeveloperTools();
             builder.Logging.AddDebug();
 #endif
 
 #if WINDOWS
-            // Set true fullscreen on Windows but run on UI thread and guard exceptions.
             builder.ConfigureLifecycleEvents(events =>
             {
                 events.AddWindows(w =>
@@ -49,24 +66,37 @@ namespace ResQLink
                                 var hwnd = WindowNative.GetWindowHandle(window);
                                 var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hwnd);
                                 var appWindow = AppWindow.GetFromWindowId(windowId);
-
-                                if (appWindow is not null)
-                                {
-                                    // FullScreen is valid; keep this for true fullscreen.
-                                    appWindow.SetPresenter(AppWindowPresenterKind.FullScreen);
-                                }
+                                appWindow?.SetPresenter(AppWindowPresenterKind.FullScreen);
                             }
-                            catch
-                            {
-                                // swallow platform-specific exceptions to avoid crashing startup
-                            }
+                            catch { /* swallow */ }
                         });
                     });
                 });
             });
 #endif
 
-            return builder.Build();
+            var app = builder.Build();
+
+            // Synchronous seeding (avoid making CreateMauiApp async)
+            using (var scope = app.Services.CreateScope())
+            {
+                var loggerFactory = scope.ServiceProvider.GetRequiredService<ILoggerFactory>();
+                var logger = loggerFactory.CreateLogger("Startup");
+                try
+                {
+                    var users = scope.ServiceProvider.GetRequiredService<IUserService>();
+                    logger.LogInformation("Seeding admin user...");
+                    users.EnsureCreatedAndSeedAdminAsync().GetAwaiter().GetResult();
+                    logger.LogInformation("Admin seed complete.");
+                }
+                catch (Exception ex)
+                {
+                    logger.LogCritical(ex, "Startup seeding failed.");
+                    throw;
+                }
+            }
+
+            return app;
         }
     }
 }

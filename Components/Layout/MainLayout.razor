@@ -18,7 +18,6 @@
                 <span>Disasters</span>
             </button>
 
-            @* Inventory button with small dropdown menu for categories *@
             <div class="nav-item-with-menu">
                 <button class='nav-btn nav-btn-static @(InventoryOpen ? "active" : "")' type="button"
                         @onclick="ToggleInventoryMenu" @onclick:stopPropagation="true" aria-expanded="@InventoryOpen" aria-haspopup="true">
@@ -43,11 +42,15 @@
             <button class='nav-btn @ActiveClass("/audit-logs")' type="button" @onclick='() => Go("/audit-logs")' disabled="@IsActive("/audit-logs")">
                 <span>Audit Logs</span>
             </button>
+
+            @* Admin: Manage Users (placeholder) *@
+            <button class='nav-btn @ActiveClass("/users")' type="button" @onclick='() => Go("/users")' disabled="@IsActive("/users")">
+                <span>Manage Users</span>
+            </button>
         </nav>
     </aside>
 
     <section class="shell-body">
-        <!-- Top bar -->
         <header class="shell-header">
             <div class="header-left">
                 <button class="menu-icon" type="button" aria-label="Menu">
@@ -67,12 +70,10 @@
             </div>
         </header>
 
-        <!-- Page title bar (separate from top bar) -->
         <div class="page-title-bar">
             <h1 class="page-title">@CurrentTitle</h1>
         </div>
 
-        <!-- Main content -->
         <main class="shell-content">
             @Body
             <footer class="shell-footer">© All rights reserved</footer>
@@ -83,7 +84,6 @@
 @code {
     private bool InventoryOpen;
 
-    // Basic category list for the Inventory dropdown. Slugs are friendly for URLs.
     private readonly (string Label, string Slug)[] InventoryCategories = new[]
     {
         ("Relief Goods", "relief-goods"),
@@ -94,32 +94,14 @@
         ("Technology", "technology")
     };
 
-    private void ToggleInventoryMenu()
-    {
-        InventoryOpen = !InventoryOpen;
-    }
-
-    private void CloseTransientMenus()
-    {
-        InventoryOpen = false;
-    }
-
-    private void GoInventory()
-    {
-        InventoryOpen = false;
-        Go("/inventory");
-    }
-
-    private void GoInventoryCategory(string slug)
-    {
-        InventoryOpen = false;
-        Go($"/inventory/category/{slug}");
-    }
+    private void ToggleInventoryMenu() => InventoryOpen = !InventoryOpen;
+    private void CloseTransientMenus() => InventoryOpen = false;
+    private void GoInventory() { InventoryOpen = false; Go("/inventory"); }
+    private void GoInventoryCategory(string slug) { InventoryOpen = false; Go($"/inventory/category/{slug}"); }
 
     private void Go(string href)
     {
-        if (!IsActive(href))
-            Nav.NavigateTo(href);
+        if (!IsActive(href)) Nav.NavigateTo(href);
     }
 
     private string ActiveClass(string href) => IsActive(href) ? "active nav-btn-disabled" : string.Empty;
@@ -146,6 +128,7 @@
                 var p when p.StartsWith("/inventory/category/") => "INVENTORY - " + Uri.UnescapeDataString(p.Split('/').Last()).Replace('-', ' ').ToUpperInvariant(),
                 "/reports" => "REPORTS",
                 "/audit-logs" => "AUDIT LOGS",
+                "/users" => "MANAGE USERS",
                 _ => path.Trim('/').Replace('-', ' ').ToUpperInvariant()
             };
         }

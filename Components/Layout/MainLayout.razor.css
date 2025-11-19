@@ -92,7 +92,7 @@ main {
     align-items: center;
     box-sizing: border-box;
     padding: 32px 18px 32px 18px;
-    background: #fff;
+    background: #1f2f5c;
     height: 100vh; 
     overflow-y: auto; 
 }
@@ -122,10 +122,10 @@ main {
 }
 
 .nav-btn {
-    --pill-bg: #266f35;
-    --pill-bg-hover: #43a758;
-    --pill-active-bg: #f2ecec;
-    --pill-active-color: #3d523e;
+    --pill-bg: #0f172b;
+    --pill-bg-hover: #307eb2;
+    --pill-active-bg: #324883;
+    --pill-active-color: #0f172b;
     width: 100%;
     max-width: 188px;
     min-height: 38px;
@@ -192,7 +192,7 @@ main {
     font-size: 30px;
     font-weight: 800;
     letter-spacing: 1px;
-    color: #266f35;
+    color: #1f2f5c;
     margin: 0;
     line-height: 1;
 }
@@ -211,7 +211,7 @@ main {
 
     .menu-icon span {
         height: 3px;
-        background: #266f35;
+        background: #1f2f5c;
         border-radius: 2px;
         width: 100%;
     }
@@ -227,7 +227,7 @@ main {
     border: none;
     cursor: pointer;
     font-size: 30px;
-    color: #266f35;
+    color: #1f2f5c;
     padding: 4px;
     line-height: 1;
     transition: transform .2s ease, filter .2s ease;
@@ -264,7 +264,7 @@ main {
     padding: 8px 0;
 }
 
-/* Scrollbar */
+
 .shell-content::-webkit-scrollbar {
     width: 8px;
 }
@@ -278,7 +278,7 @@ main {
     border-radius: 4px;
 }
 
-/* Responsive tweaks */
+
 @media (max-width: 1000px) {
     .shell-header {
         padding: 32px 34px 0 34px;
@@ -309,8 +309,8 @@ main {
         padding: 14px 14px;
         background: linear-gradient(90deg,#092f92,#ffffff);
         overflow-x: auto;
-        height: auto; /* override 100vh for horizontal top bar */
-        overflow-y: visible; /* no vertical scroll in collapsed mode */
+        height: auto; 
+        overflow-y: visible;
     }
 
     .sidebar-brand {
