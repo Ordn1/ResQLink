@@ -3,7 +3,7 @@ using ResQLink.Data.Entities;
 
 namespace ResQLink.Data;
 
-public class AppDbContext : DbContext
+public partial class AppDbContext : DbContext
 {
     public DbSet<User> Users => Set<User>();
 
@@ -11,35 +11,19 @@ public class AppDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        // User entity configuration
         modelBuilder.Entity<User>(e =>
         {
             e.ToTable("Users");
+            e.HasKey(x => x.UserId);
+            e.HasIndex(x => x.Username).IsUnique();
 
-            e.HasKey(x => x.Id);
-
-            e.HasIndex(x => x.Username)
-             .IsUnique();
-
-            e.Property(x => x.Username)
-             .HasMaxLength(64)
-             .IsRequired();
-
-            e.Property(x => x.Role)
-             .HasMaxLength(32)
-             .IsRequired();
-
-            e.Property(x => x.PasswordHash)
-             .IsRequired();
-
-            e.Property(x => x.PasswordSalt)
-             .IsRequired();
-
-            e.Property(x => x.Email)
-             .HasMaxLength(256);
-
-            e.Property(x => x.CreatedUtc)
-             .HasDefaultValueSql("GETUTCDATE()");
+            e.Property(x => x.Username).HasMaxLength(56).IsRequired();
+            e.Property(x => x.Password).HasMaxLength(56).IsRequired();
+            e.Property(x => x.Email).HasMaxLength(100).IsRequired();
+            e.Property(x => x.RoleId);
+            e.Property(x => x.IsActive).HasDefaultValue(true);
+            e.Property(x => x.CreatedAt).HasDefaultValueSql("GETDATE()");
+            e.Property(x => x.UpdatedAt).HasDefaultValueSql("GETDATE()");
         });
 
         base.OnModelCreating(modelBuilder);

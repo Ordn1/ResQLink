@@ -56,14 +56,14 @@
             return;
         }
 
-        var ok = await Users.AuthenticateAsync(Username, Password);
-        if (!ok)
+        var user = await Users.AuthenticateAsync(Username, Password);
+        if (user is null)
         {
             LoginError = "Invalid credentials.";
             return;
         }
 
-        Auth.SetAuthenticated(true); // preserving your existing state API
+        Auth.SetAuthenticated(true);
         await Task.Yield();
         Navigation.NavigateTo("/home");
     }

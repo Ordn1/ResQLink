@@ -1,8 +1,9 @@
+using ResQLink.Data.Entities;
+
 namespace ResQLink.Services.Users;
 
 public interface IUserService
 {
-    Task EnsureCreatedAndSeedAdminAsync(CancellationToken ct = default);
-
-    Task<bool> AuthenticateAsync(string username, string password, CancellationToken ct = default);
+    Task<User?> AuthenticateAsync(string username, string password, CancellationToken ct = default);
+    Task EnsureCreatedAndSeedAdminAsync(CancellationToken ct = default); // Added for startup seeding
 }

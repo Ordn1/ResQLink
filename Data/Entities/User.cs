@@ -1,20 +1,57 @@
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace ResQLink.Data.Entities;
 
+[Table("Users")]
 public class User
 {
-    public int Id { get; set; }
+    [Key]
+    [Column("user_id")]
+    public int UserId { get; set; }
 
+    // Alias for legacy code expecting a generic 'Id'
+    [NotMapped]
+    public int Id => UserId;
+
+    [Required]
+    [MaxLength(56)]
+    [Column("username")]
     public string Username { get; set; } = string.Empty;
 
-    public string Role { get; set; } = "Staff"; // Admin | Staff | Volunteer
+    [Required]
+    [MaxLength(56)]
+    [Column("password")]
+    public string Password { get; set; } = string.Empty;
 
+    // Legacy hashing members (not present in current DB schema)
+    [NotMapped]
     public string PasswordHash { get; set; } = string.Empty;
 
+    [NotMapped]
     public string PasswordSalt { get; set; } = string.Empty;
 
-    public string? Email { get; set; }
+    [Required]
+    [MaxLength(100)]
+    [Column("email")]
+    public string Email { get; set; } = string.Empty;
 
-    public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
+    [Column("role_id")]
+    public int? RoleId { get; set; } // Nullable per schema (no NOT NULL constraint)
 
-    public DateTime? UpdatedUtc { get; set; }
+    [ForeignKey(nameof(RoleId))]
+    public UserRole? Role { get; set; }
+
+    [Column("is_active")]
+    public bool IsActive { get; set; } = true;
+
+    [Column("created_at")]
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    // Convenience UTC alias referenced elsewhere
+    [NotMapped]
+    public DateTime CreatedUtc => CreatedAt;
+
+    [Column("updated_at")]
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

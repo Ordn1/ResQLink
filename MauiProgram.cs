@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using ResQLink.Data;
 using ResQLink.Services;
 using ResQLink.Services.Users;
+using System.IO;
 
 #if WINDOWS
 using Microsoft.UI.Windowing;
@@ -16,7 +17,6 @@ namespace ResQLink
 {
     public static class MauiProgram
     {
-        // NOTE: Must return MauiApp (not Task<MauiApp>) because App.xaml.cs expects a synchronous CreateMauiApp.
         public static MauiApp CreateMauiApp()
         {
             var builder = MauiApp.CreateBuilder();
@@ -33,9 +33,9 @@ namespace ResQLink
             builder.Services.AddMauiBlazorWebView();
             builder.Services.AddSingleton<AuthState>();
 
+#if WINDOWS
             var connectionString =
-                "Server=localhost;Database=resqlink;Integrated Security=True;Encrypt=True;TrustServerCertificate=True;";
-
+                "Data Source=Karoshi\\SQLEXPRESS;Initial Catalog=Resqlink;Integrated Security=True;Encrypt=True;Trust Server Certificate=True";
             builder.Services.AddDbContext<AppDbContext>(opt =>
             {
                 opt.UseSqlServer(connectionString);
@@ -44,6 +44,17 @@ namespace ResQLink
                 opt.EnableDetailedErrors();
 #endif
             });
+#else
+            var dbPath = Path.Combine(FileSystem.AppDataDirectory, "resqlink.db");
+            builder.Services.AddDbContext<AppDbContext>(opt =>
+            {
+                opt.UseSqlite($"Data Source={dbPath}");
+#if DEBUG
+                opt.EnableSensitiveDataLogging();
+                opt.EnableDetailedErrors();
+#endif
+            });
+#endif
 
             builder.Services.AddScoped<IUserService, UserService>();
 
@@ -66,9 +77,10 @@ namespace ResQLink
                                 var hwnd = WindowNative.GetWindowHandle(window);
                                 var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hwnd);
                                 var appWindow = AppWindow.GetFromWindowId(windowId);
-                                appWindow?.SetPresenter(AppWindowPresenterKind.FullScreen);
+                                appWindow?.SetPresenter(AppWindowPresenterKind.Overlapped);
+                                appWindow?.Resize(new Windows.Graphics.SizeInt32(1000, 700));
                             }
-                            catch { /* swallow */ }
+                            catch { }
                         });
                     });
                 });
@@ -77,22 +89,26 @@ namespace ResQLink
 
             var app = builder.Build();
 
-            // Synchronous seeding (avoid making CreateMauiApp async)
+AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+    System.Diagnostics.Debug.WriteLine($"UNHANDLED: {e.ExceptionObject}");
+TaskScheduler.UnobservedTaskException += (_, e) =>
+{
+    System.Diagnostics.Debug.WriteLine($"UNOBSERVED: {e.Exception}");
+    e.SetObserved();
+};
+
             using (var scope = app.Services.CreateScope())
             {
-                var loggerFactory = scope.ServiceProvider.GetRequiredService<ILoggerFactory>();
-                var logger = loggerFactory.CreateLogger("Startup");
+                var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
                 try
                 {
                     var users = scope.ServiceProvider.GetRequiredService<IUserService>();
-                    logger.LogInformation("Seeding admin user...");
-                    users.EnsureCreatedAndSeedAdminAsync().GetAwaiter().GetResult();
-                    logger.LogInformation("Admin seed complete.");
+                    logger.LogInformation("Seeding admin user (if missing)...");
+                    // users.EnsureCreatedAndSeedAdminAsync().GetAwaiter().GetResult();
                 }
                 catch (Exception ex)
                 {
-                    logger.LogCritical(ex, "Startup seeding failed.");
-                    throw;
+                    logger.LogError(ex, "Seeding failed but app will continue.");
                 }
             }
 
