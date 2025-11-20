@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using ResQLink.Data;
 using ResQLink.Data.Entities;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace ResQLink.Services.Users;
 
@@ -12,27 +14,25 @@ public class UserService : IUserService
 
     public async Task EnsureCreatedAndSeedAdminAsync(CancellationToken ct = default)
     {
-        // Ensure database exists
         await _db.Database.EnsureCreatedAsync(ct);
 
-        // Ensure Admin role
-        var adminRole = await _db.Set<UserRole>().FirstOrDefaultAsync(r => r.RoleName == "Admin", ct);
+        var adminRole = await _db.UserRoles.FirstOrDefaultAsync(r => r.RoleName == "Admin", ct);
         if (adminRole is null)
         {
-            adminRole = new UserRole { RoleName = "Admin" };
-            _db.Set<UserRole>().Add(adminRole);
+            adminRole = new UserRole { RoleName = "Admin", Description = "System administrator" };
+            _db.UserRoles.Add(adminRole);
             await _db.SaveChangesAsync(ct);
         }
 
-        // Ensure admin user
         var adminUser = await _db.Users.FirstOrDefaultAsync(u => u.Username == "admin", ct);
         if (adminUser is null)
         {
-            // NOTE: Plain text password due to current model. Replace with hash/salt when model updated.
+            var pwd = "ChangeMe123!";
+            var hash = HashPassword(pwd);
             adminUser = new User
             {
                 Username = "admin",
-                Password = "ChangeMe123!",
+                PasswordHash = hash,
                 Email = "admin@example.com",
                 RoleId = adminRole.RoleId,
                 IsActive = true,
@@ -46,13 +46,22 @@ public class UserService : IUserService
 
     public async Task<User?> AuthenticateAsync(string username, string password, CancellationToken ct = default)
     {
-        var user = await _db.Users
-            .AsNoTracking()
-            .FirstOrDefaultAsync(u => u.Username == username, ct);
-
+        var user = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Username == username && u.IsActive, ct);
         if (user is null) return null;
+        return VerifyPassword(password, user.PasswordHash) ? user : null;
+    }
 
-        // Plain text comparison (current schema). Replace when hashing implemented.
-        return user.Password == password ? user : null;
+    private static string HashPassword(string password)
+    {
+        // Simple SHA256 for placeholder; replace with PBKDF2/Argon2 later
+        using var sha = SHA256.Create();
+        var bytes = sha.ComputeHash(Encoding.UTF8.GetBytes(password));
+        return Convert.ToHexString(bytes);
+    }
+
+    private static bool VerifyPassword(string password, string storedHash)
+    {
+        var hash = HashPassword(password);
+        return string.Equals(hash, storedHash, StringComparison.OrdinalIgnoreCase);
     }
 }

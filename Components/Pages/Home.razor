@@ -1,18 +1,21 @@
 ﻿@page "/home"
+@inject ResQLink.Data.AppDbContext Db
+@using Microsoft.EntityFrameworkCore
+@using ResQLink.Data.Entities
 
-@* DASHBOARD *@
 <div class="dashboard-root">
     <div class="dashboard-grid">
-        <!-- KPI CARDS -->
+
+        <!-- KPI -->
         <section aria-label="Key metrics" class="kpi-grid">
             <div class="kpi-card">
                 <div class="kpi-label">Active Disasters</div>
                 <div class="kpi-value text-accent">@ActiveDisastersCount</div>
-                <div class="kpi-trend up">+2 new</div>
+                <div class="kpi-trend">@ActiveDisasterDeltaText</div>
             </div>
             <div class="kpi-card">
                 <div class="kpi-label">Registered Evacuees</div>
-                <div class="kpi-value">@Evacuees.Count</div>
+                <div class="kpi-value">@TotalEvacuees</div>
                 <div class="kpi-trend">@EvacueeDeltaText</div>
             </div>
             <div class="kpi-card">
@@ -23,21 +26,20 @@
                 </div>
             </div>
             <div class="kpi-card">
-                <div class="kpi-label">Critical Inventory Items</div>
-                <div class="kpi-value">@CriticalInventoryCount</div>
-                <div class="kpi-trend warn">Needs restock</div>
+                <div class="kpi-label">Low Stock Items (≤@LowStockThreshold)</div>
+                <div class="kpi-value">@LowStockCount</div>
+                <div class="kpi-trend">@LowStockDeltaText</div>
             </div>
         </section>
 
-        <!-- LEFT COLUMN (Tables) -->
+        <!-- LEFT COLUMN -->
         <div class="col-stack">
-            <!-- Recent Evacuees -->
             <section class="panel">
                 <header class="panel-head">
                     <h2 class="panel-title">Recent Evacuees</h2>
                     <div class="panel-actions">
                         <input class="mini-input" placeholder="Search…" @bind="evacueeFilter" @bind:event="oninput" />
-                        <button class="mini-btn" @onclick="()=>Refresh()">↻</button>
+                        <button class="mini-btn" @onclick="Refresh" disabled="@_loading">↻</button>
                     </div>
                 </header>
                 <div class="table-wrap">
@@ -45,34 +47,38 @@
                         <thead>
                         <tr>
                             <th>Name</th>
-                            <th>Age</th>
+                            <th>Disaster</th>
                             <th>Shelter</th>
                             <th>Status</th>
                             <th>Registered</th>
                         </tr>
                         </thead>
                         <tbody>
-                        @foreach (var e in FilteredEvacuees)
+                        @if (FilteredEvacuees.Any())
                         {
-                            <tr>
-                                <td>@e.Name</td>
-                                <td class="t-center">@e.Age</td>
-                                <td>@e.Shelter</td>
-                                <td>
-                                    <span class="status-chip @StatusClass(e.Status)">@e.Status</span>
-                                </td>
-                                <td>@e.Registered.ToString("MMM dd HH:mm")</td>
-                            </tr>
+                            foreach (var e in FilteredEvacuees)
+                            {
+                                <tr>
+                                    <td>@e.Name</td>
+                                    <td>@e.Disaster</td>
+                                    <td>@e.Shelter</td>
+                                    <td><span class="status-chip @StatusClass(e.Status)">@e.Status</span></td>
+                                    <td>@e.Registered.ToString("MMM dd HH:mm")</td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr><td colspan="5" class="t-center" style="opacity:.6;">No evacuees found.</td></tr>
                         }
                         </tbody>
                     </table>
                 </div>
                 <footer class="panel-foot">
-                    Showing @FilteredEvacuees.Count() of @Evacuees.Count
+                    Showing @FilteredEvacuees.Count() of @AllEvacuees.Count
                 </footer>
             </section>
 
-            <!-- Active Disasters -->
             <section class="panel">
                 <header class="panel-head">
                     <h2 class="panel-title">Active Disasters</h2>
@@ -81,25 +87,30 @@
                     <table class="dash-table">
                         <thead>
                         <tr>
+                            <th>Title</th>
                             <th>Type</th>
-                            <th>Region</th>
                             <th>Severity</th>
                             <th>Started</th>
-                            <th>Incidents</th>
+                            <th>Location</th>
                         </tr>
                         </thead>
                         <tbody>
-                        @foreach (var d in Disasters.Where(d => d.IsActive))
+                        @if (ActiveDisasters.Any())
                         {
-                            <tr>
-                                <td>@d.Type</td>
-                                <td>@d.Region</td>
-                                <td>
-                                    <span class="sev sev-@d.Severity.ToLower()">@d.Severity</span>
-                                </td>
-                                <td>@d.Started.ToString("MMM dd")</td>
-                                <td class="t-center">@d.Incidents</td>
-                            </tr>
+                            foreach (var d in ActiveDisasters)
+                            {
+                                <tr>
+                                    <td>@d.Title</td>
+                                    <td>@d.DisasterType</td>
+                                    <td><span class="sev sev-@d.Severity.ToLower()">@d.Severity</span></td>
+                                    <td>@d.StartDate.ToString("MMM dd")</td>
+                                    <td>@d.Location</td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr><td colspan="5" class="t-center" style="opacity:.6;">No active disasters.</td></tr>
                         }
                         </tbody>
                     </table>
@@ -110,156 +121,202 @@
             </section>
         </div>
 
-        <!-- RIGHT COLUMN (Inventory + Visuals) -->
+        <!-- RIGHT COLUMN -->
         <div class="col-stack">
-            <!-- Inventory Snapshot -->
             <section class="panel">
                 <header class="panel-head">
-                    <h2 class="panel-title">Inventory Snapshot</h2>
-                    <div class="panel-actions">
-                        <button class="mini-btn" @onclick="()=>CycleInventoryView()">View: @InventoryViewMode</button>
-                    </div>
+                    <h2 class="panel-title">Inventory Snapshot (Low)</h2>
                 </header>
                 <div class="inventory-cards">
-                    @foreach (var item in InventorySummaryTop)
+                    @if (LowStockItems.Any())
                     {
-                        <div class="inv-card @(item.Quantity <= item.ReorderLevel ? "inv-low" : "")">
-                            <div class="inv-name">@item.Name</div>
-                            <div class="inv-qty">
-                                <strong>@item.Quantity</strong>
-                                <span class="inv-unit">@item.Unit</span>
+                        foreach (var item in LowStockItems.Take(6))
+                        {
+                            <div class="inv-card inv-low">
+                                <div class="inv-name">@item.Name</div>
+                                <div class="inv-qty">
+                                    <strong>@item.Quantity</strong>
+                                    <span class="inv-unit">@item.Unit</span>
+                                </div>
+                                <div class="progress-shell thin" aria-label="Stock level percentage">
+                                    <div class="progress-bar" style="width:@StockPercent(item.Quantity)%"></div>
+                                </div>
                             </div>
-                            <div class="inv-meta">
-                                Reorder at @item.ReorderLevel
-                            </div>
-                            <div class="progress-shell thin" aria-label="Stock level percentage">
-                                <div class="progress-bar" style="width:@item.StockPercent%"></div>
-                            </div>
-                        </div>
+                        }
+                    }
+                    else
+                    {
+                        <div style="padding:12px;font-size:.70rem;opacity:.7;">No low stock items.</div>
                     }
                 </div>
                 <footer class="panel-foot">
-                    @CriticalInventoryCount low / @Inventory.Count total items
+                    @LowStockCount low stock items (threshold: @LowStockThreshold)
                 </footer>
-            </section>
-
-            <!-- Charts (placeholders) -->
-            <section class="panel chart-panel">
-                <header class="panel-head">
-                    <h2 class="panel-title">Trends</h2>
-                    <div class="panel-actions">
-                        <select class="mini-input" @bind="SelectedTrendRange">
-                            <option value="7d">Last 7d</option>
-                            <option value="30d">30d</option>
-                            <option value="90d">90d</option>
-                        </select>
-                    </div>
-                </header>
-                <div class="chart-grid">
-                    <div class="chart-box" role="img" aria-label="Evacuees trend line chart placeholder">
-                        <div class="chart-title">Evacuees Trend</div>
-                        <div class="chart-placeholder">[ Line Chart Placeholder ]</div>
-                    </div>
-                    <div class="chart-box" role="img" aria-label="Inventory consumption bar chart placeholder">
-                        <div class="chart-title">Inventory Consumption</div>
-                        <div class="chart-placeholder">[ Bar Chart Placeholder ]</div>
-                    </div>
-                    <div class="chart-box" role="img" aria-label="Disaster types distribution donut chart placeholder">
-                        <div class="chart-title">Disaster Types</div>
-                        <div class="chart-placeholder">[ Donut Chart Placeholder ]</div>
-                    </div>
-                </div>
             </section>
         </div>
     </div>
 </div>
 
 @code {
-    private record Evacuee(string Name, int Age, string Shelter, string Status, DateTime Registered);
-    private record Disaster(string Type, string Region, string Severity, bool IsActive, DateTime Started, int Incidents);
-    private record InventoryItem(string Name, int Quantity, int ReorderLevel, string Unit)
-    {
-        public int StockPercent => Math.Clamp((int)(Quantity / (double)Math.Max(ReorderLevel * 2, 1) * 100), 0, 100);
-    }
+    // View models
+    private record EvacueeRow(string Name, string Disaster, string Shelter, string Status, DateTime Registered);
+    private record StockRow(string Name, int Quantity, string Unit);
 
-    private List<Evacuee> Evacuees = new();
-    private List<Disaster> Disasters = new();
-    private List<InventoryItem> Inventory = new();
+    // Data collections
+    private List<EvacueeRow> AllEvacuees = new();
+    private List<Disaster> AllDisasters = new();
+    private List<StockRow> LowStockItems = new();
+
+    // Filters / state
     private string evacueeFilter = string.Empty;
-    private string InventoryViewMode = "Top 6";
-    private string SelectedTrendRange = "30d";
+    private bool _loading = false;
 
-    protected override void OnInitialized() => SeedSampleData();
+    // Thresholds
+    private const int LowStockThreshold = 10;
 
-    private void SeedSampleData()
+    // Metrics
+    private int ActiveDisastersCount => ActiveDisasters.Count();
+    private int TotalEvacuees => AllEvacuees.Count;
+    private int LowStockCount => LowStockItems.Count;
+    private int ShelterCapacityUsed
     {
-        var now = DateTime.UtcNow;
-        Evacuees =
-        [
-            new("Maria Santos", 34, "Shelter A", "STABLE", now.AddMinutes(-25)),
-            new("John Reyes", 41, "Shelter B", "NEEDS MED", now.AddHours(-2)),
-            new("Ana Dela Cruz", 19, "Shelter A", "STABLE", now.AddHours(-3)),
-            new("Carlos Garcia", 52, "Shelter C", "CRITICAL", now.AddHours(-5)),
-            new("Luisa Morales", 28, "Shelter B", "STABLE", now.AddHours(-7)),
-            new("Pedro Alvarez", 63, "Shelter D", "STABLE", now.AddHours(-9)),
-            new("Jenny Lim", 23, "Shelter A", "NEEDS MED", now.AddHours(-11)),
-        ];
-
-        Disasters =
-        [
-            new("Flood", "North District", "High", true, now.AddDays(-2), 4),
-            new("Earthquake", "Central City", "Critical", true, now.AddDays(-1), 12),
-            new("Wildfire", "East Hills", "Moderate", true, now.AddDays(-3), 6),
-            new("Tornado", "West Plains", "Low", false, now.AddDays(-10), 1)
-        ];
-
-        Inventory =
-        [
-            new("Bottled Water (L)", 480, 300, "L"),
-            new("Ready Meals", 120, 200, "packs"),
-            new("Blankets", 55, 80, "pcs"),
-            new("Medical Kits", 18, 40, "kits"),
-            new("Flashlights", 72, 60, "pcs"),
-            new("Batteries AA", 380, 250, "pcs"),
-            new("Masks", 940, 600, "pcs"),
-            new("Fuel (L)", 150, 140, "L")
-        ];
+        get
+        {
+            var shelters = _shelterSnapshot;
+            if (shelters.Count == 0) return 0;
+            var capacity = shelters.Sum(s => s.Capacity);
+            var occupancy = shelters.Sum(s => s.CurrentOccupancy);
+            return capacity > 0 ? (int)Math.Round(occupancy / (double)capacity * 100) : 0;
+        }
     }
 
-    private IEnumerable<Evacuee> FilteredEvacuees =>
-        Evacuees
-            .OrderByDescending(e => e.Registered)
+    // Delta texts (today vs yesterday)
+    private string EvacueeDeltaText => DeltaLabel(_evacueesToday, _evacueesYesterday, "today");
+    private string ActiveDisasterDeltaText => DeltaLabel(_activeToday, _activeYesterday, "today");
+    private string LowStockDeltaText => DeltaLabel(_lowStockToday, _lowStockYesterday, "today");
+
+    // Snapshots for delta computation
+    private int _evacueesToday;
+    private int _evacueesYesterday;
+    private int _activeToday;
+    private int _activeYesterday;
+    private int _lowStockToday;
+    private int _lowStockYesterday;
+    private List<Shelter> _shelterSnapshot = new();
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+
+        var today = DateTime.UtcNow.Date;
+        var yesterday = today.AddDays(-1);
+
+        // Evacuees
+        var evacueesQuery = Db.Evacuees
+            .Include(e => e.Disaster)
+            .Include(e => e.Shelter)
+            .AsNoTracking();
+
+        var evacuees = await evacueesQuery
+            .OrderByDescending(e => e.RegisteredAt)
+            .Take(200)
+            .ToListAsync();
+
+        AllEvacuees = evacuees.Select(e => new EvacueeRow(
+            e.FirstName + " " + e.LastName,
+            e.Disaster.Title,
+            e.Shelter?.Name ?? "—",
+            e.Status,
+            e.RegisteredAt
+        )).ToList();
+
+        _evacueesToday = evacuees.Count(e => e.RegisteredAt.Date == today);
+        _evacueesYesterday = evacuees.Count(e => e.RegisteredAt.Date == yesterday);
+
+        // Disasters
+        AllDisasters = await Db.Disasters.AsNoTracking()
+            .OrderByDescending(d => d.StartDate)
+            .Take(100)
+            .ToListAsync();
+
+        _activeToday = AllDisasters.Count(d => IsActiveStatus(d.Status) && d.StartDate.Date <= today);
+        _activeYesterday = AllDisasters.Count(d => IsActiveStatus(d.Status) && d.StartDate.Date <= yesterday);
+
+        // Shelters
+        _shelterSnapshot = await Db.Shelters.AsNoTracking().ToListAsync();
+
+        // Stocks (low)
+        var lowStocks = await Db.Stocks
+            .Include(s => s.ReliefGood)
+            .AsNoTracking()
+            .Where(s => s.Quantity <= LowStockThreshold)
+            .OrderBy(s => s.Quantity)
+            .Take(50)
+            .ToListAsync();
+
+        LowStockItems = lowStocks.Select(s => new StockRow(
+            s.ReliefGood.Name,
+            s.Quantity,
+            s.ReliefGood.Unit
+        )).ToList();
+
+        _lowStockToday = lowStocks.Count(s => s.LastUpdated.Date == today);
+        _lowStockYesterday = lowStocks.Count(s => s.LastUpdated.Date == yesterday);
+
+        _loading = false;
+        StateHasChanged();
+    }
+
+    private IEnumerable<EvacueeRow> FilteredEvacuees =>
+        AllEvacuees
             .Where(e =>
                 string.IsNullOrWhiteSpace(evacueeFilter) ||
                 e.Name.Contains(evacueeFilter, StringComparison.OrdinalIgnoreCase) ||
                 e.Shelter.Contains(evacueeFilter, StringComparison.OrdinalIgnoreCase) ||
-                e.Status.Contains(evacueeFilter, StringComparison.OrdinalIgnoreCase))
+                e.Status.Contains(evacueeFilter, StringComparison.OrdinalIgnoreCase) ||
+                e.Disaster.Contains(evacueeFilter, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(e => e.Registered)
             .Take(12);
 
-    private IEnumerable<InventoryItem> InventorySummaryTop =>
-        InventoryViewMode switch
-        {
-            "Critical" => Inventory.Where(i => i.Quantity <= i.ReorderLevel).OrderBy(i => i.Quantity).Take(8),
-            _ => Inventory.OrderBy(i => i.Quantity <= i.ReorderLevel ? 0 : 1)
-                          .ThenBy(i => i.Quantity)
-                          .Take(6)
-        };
+    private IEnumerable<Disaster> ActiveDisasters =>
+        AllDisasters.Where(d => IsActiveStatus(d.Status))
+                    .OrderByDescending(d => d.StartDate)
+                    .Take(15);
 
-    private int ActiveDisastersCount => Disasters.Count(d => d.IsActive);
-    private int CriticalInventoryCount => Inventory.Count(i => i.Quantity <= i.ReorderLevel);
-    private int ShelterCapacityUsed => 68;
-    private string EvacueeDeltaText => "+5 today";
+    private static bool IsActiveStatus(string status) =>
+        status.Equals("Active", StringComparison.OrdinalIgnoreCase) ||
+        status.Equals("Open", StringComparison.OrdinalIgnoreCase);
 
-    private void Refresh() => StateHasChanged();
-
-    private void CycleInventoryView() =>
-        InventoryViewMode = InventoryViewMode == "Top 6" ? "Critical" : "Top 6";
-
-    private string StatusClass(string status) => status switch
+    private static int StockPercent(int qty)
     {
-        "CRITICAL" => "st-critical",
-        "NEEDS MED" => "st-med",
-        "STABLE" => "st-stable",
-        _ => ""
+        // Relative fill vs a nominal 'healthy' level (2× threshold)
+        var cap = Math.Max(LowStockThreshold * 2, 1);
+        return Math.Clamp((int)Math.Round(qty / (double)cap * 100), 0, 100);
+    }
+
+    private static string DeltaLabel(int today, int yesterday, string suffix)
+    {
+        var diff = today - yesterday;
+        if (diff == 0) return "No change";
+        var sign = diff > 0 ? "+" : "−";
+        return $"{sign}{Math.Abs(diff)} {suffix}";
+    }
+
+    private string StatusClass(string status) => status.ToLowerInvariant() switch
+    {
+        "critical" => "st-critical",
+        "needs med" => "st-med",
+        "admitted" => "st-stable",
+        "stable" => "st-stable",
+        "released" => "st-contained",
+        _ => "st-stable"
     };
+
+    private async void Refresh()
+    {
+        if (_loading) return;
+        await LoadAsync();
+    }
 }

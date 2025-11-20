@@ -120,56 +120,6 @@
     private int _pageIndex = 0;
     private int pageSize = 10;
 
-    protected override void OnInitialized()
-    {
-        SeedSampleData();
-        // sensible defaults
-        var today = DateTime.UtcNow.Date;
-        if (dateFrom == default) dateFrom = today.AddDays(-30);
-        if (dateTo == default) dateTo = today;
-    }
-
-    private void SeedSampleData()
-    {
-        var now = DateTime.UtcNow;
-        var rand = new Random(123);
-        var actors = new[] { "alice", "bob", "carol", "sysadmin", "service-account" };
-        var actions = new[] { "LOGIN", "LOGOUT", "CREATE", "UPDATE", "DELETE" };
-        var resources = new[] { "Evacuee/123", "Inventory/WAT-01", "Disaster/2002", "Shelter/Shelter A", "Report/2025-11" };
-
-        for (int i = 1; i <= 180; i++)
-        {
-            var t = now.AddMinutes(-rand.Next(0, 60 * 24 * 90));
-            var a = actors[rand.Next(actors.Length)];
-            var act = actions[rand.Next(actions.Length)];
-            var res = resources[rand.Next(resources.Length)];
-            var ip = $"192.168.{rand.Next(0,255)}.{rand.Next(1,254)}";
-            var details = act switch
-            {
-                "LOGIN" => $"Successful login for {a}",
-                "LOGOUT" => $"User {a} logged out",
-                "CREATE" => $"Created resource {res} with id {rand.Next(100,999)}",
-                "UPDATE" => $"Updated fields [status,notes] on {res}",
-                "DELETE" => $"Deleted resource {res}",
-                _ => "Audit detail"
-            };
-
-            AllLogs.Add(new AuditLogItem
-            {
-                Id = i,
-                Timestamp = t,
-                Actor = a,
-                Action = act,
-                Resource = res,
-                Ip = ip,
-                Details = details
-            });
-        }
-
-        // ensure deterministic ordering
-        AllLogs = AllLogs.OrderByDescending(l => l.Timestamp).ToList();
-    }
-
     private IEnumerable<string> DistinctActors => AllLogs.Select(l => l.Actor).Distinct().OrderBy(x => x);
 
     private IEnumerable<AuditLogItem> Filtered =>
