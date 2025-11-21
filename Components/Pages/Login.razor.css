@@ -36,7 +36,7 @@
     padding: 22px 26px;
     border-radius: 12px;
     backdrop-filter: blur(10px);
-    background: #1f2f5c;
+    background: #07562c;
     box-shadow: none;
     display: flex;
     flex-direction: column;
@@ -156,7 +156,7 @@
 }
 
 .resq {
-    color: #8e0606; 
+    color: #07562c;
 }
 
 .link {
@@ -168,7 +168,7 @@
     width: 100%;
     max-width: 580px;
     height: 10px;
-    background-color: #8e0606;
+    background-color: #000;
     border-radius: 4px;
     margin: 3px 0 20px 0;
 }

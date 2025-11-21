@@ -14,13 +14,17 @@
             <button class='nav-btn @ActiveClass("/evacuees")' type="button" @onclick='() => Go("/evacuees")' disabled="@IsActive("/evacuees")">
                 <span>Evacuees</span>
             </button>
+             <button class='nav-btn @ActiveClass("/shelters")' type="button" @onclick='() => Go("/shelters")' disabled="@IsActive("/shelters")">
+                <span>Shelters</span>
+            </button>
             <button class='nav-btn @ActiveClass("/disasters")' type="button" @onclick='() => Go("/disasters")' disabled="@IsActive("/disasters")">
                 <span>Disasters</span>
             </button>
 
             <div class="nav-item-with-menu">
                 <button class='nav-btn nav-btn-static @(InventoryOpen ? "active" : "")' type="button"
-                        @onclick="ToggleInventoryMenu" @onclick:stopPropagation="true" aria-expanded="@InventoryOpen" aria-haspopup="true">
+                        @onclick="ToggleInventoryMenu" @onclick:stopPropagation="true" 
+                        aria-expanded="@(InventoryOpen ? "true" : "false")" aria-haspopup="true">
                     <span>Inventory ▾</span>
                 </button>
 
@@ -43,7 +47,7 @@
                 <span>Audit Logs</span>
             </button>
 
-            @* Admin: Manage Users (placeholder) *@
+            @* Admin: Manage Users *@
             <button class='nav-btn @ActiveClass("/users")' type="button" @onclick='() => Go("/users")' disabled="@IsActive("/users")">
                 <span>Manage Users</span>
             </button>

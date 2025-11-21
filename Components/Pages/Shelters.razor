@@ -1,0 +1,272 @@
+@page "/shelters"
+@inject ResQLink.Data.AppDbContext Db
+@using Microsoft.EntityFrameworkCore
+@using ResQLink.Data.Entities
+
+<div class="shelters-root">
+    <section class="panel">
+        <header class="panel-head">
+            <h2 class="panel-title">Shelters</h2>
+            <div class="panel-actions">
+                <input class="mini-input" placeholder="Search name or location…" @bind="search" @bind:event="oninput" />
+                <select class="mini-input" @bind="disasterFilter">
+                    <option value="0">All Disasters</option>
+                    @foreach (var d in DisasterOptions) { <option value="@d.DisasterId">@d.Title</option> }
+                </select>
+                <select class="mini-input" @bind="statusFilter">
+                    <option value="">All Status</option>
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                </select>
+                <button class="mini-btn" @onclick="ClearFilters">Clear</button>
+                <button class="mini-btn" @onclick="BeginCreate" disabled="@showForm">New</button>
+            </div>
+        </header>
+
+        @if (showForm)
+        {
+            <div style="padding:12px;border-bottom:1px solid var(--border);background:#f8fafc;display:flex;flex-direction:column;gap:10px;">
+                <h3 style="margin:0;font-size:.8rem;font-weight:700;">@(editModel.ShelterId==0?"Add Shelter":"Edit Shelter #"+editModel.ShelterId)</h3>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;">
+                    <div>
+                        <label class="foot-label">Name</label>
+                        <input class="mini-input" @bind="editModel.Name" />
+                    </div>
+                    <div>
+                        <label class="foot-label">Location</label>
+                        <input class="mini-input" @bind="editModel.Location" />
+                    </div>
+                    <div>
+                        <label class="foot-label">Capacity</label>
+                        <input class="mini-input" type="number" @bind="editModel.Capacity" />
+                    </div>
+                    <div>
+                        <label class="foot-label">Current Occupancy</label>
+                        <input class="mini-input" type="number" @bind="editModel.CurrentOccupancy" />
+                    </div>
+                    <div>
+                        <label class="foot-label">Disaster</label>
+                        <select class="mini-input" @bind="editModel.DisasterId">
+                            <option value="">(none)</option>
+                            @foreach (var d in DisasterOptions) { <option value="@d.DisasterId">@d.Title</option> }
+                        </select>
+                    </div>
+                    <div>
+                        <label class="foot-label">Status</label>
+                        <select class="mini-input" @bind="editModel.IsActive">
+                            <option value="true">Active</option>
+                            <option value="false">Inactive</option>
+                        </select>
+                    </div>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <button class="mini-btn" @onclick="SaveAsync" disabled="@saving">@(saving?"Saving…":"Save")</button>
+                    <button class="mini-btn" @onclick="CancelForm" disabled="@saving">Cancel</button>
+                    @if (editModel.ShelterId!=0)
+                    {
+                        <button class="mini-btn" style="background:#fee2e2;border-color:#fecaca;color:#b91c1c;" @onclick="ConfirmDeleteAsync" disabled="@saving">Delete</button>
+                    }
+                    @if(!string.IsNullOrEmpty(formError))
+                    {
+                        <span style="color:#dc2626;font-size:.65rem;font-weight:600;">@formError</span>
+                    }
+                </div>
+            </div>
+        }
+
+        <div class="table-wrap">
+            <table class="dash-table">
+                <thead>
+                    <tr>
+                        <th style="width:60px">ID</th>
+                        <th>Name</th>
+                        <th>Location</th>
+                        <th>Disaster</th>
+                        <th>Capacity</th>
+                        <th>Occupancy</th>
+                        <th>Status</th>
+                        <th style="width:90px">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var s in PagedShelters)
+                    {
+                        <tr>
+                            <td class="t-center">#@s.Id</td>
+                            <td>@s.Name</td>
+                            <td>@s.Location</td>
+                            <td>@s.Disaster</td>
+                            <td class="t-center">@s.Capacity</td>
+                            <td class="t-center">@s.CurrentOccupancy</td>
+                            <td><span class="status-chip @(s.IsActive?"st-active":"st-contained")">@(s.IsActive?"Active":"Inactive")</span></td>
+                            <td>
+                                <button class="mini-btn" @onclick="() => BeginEdit(s.Id)" disabled="@showForm">Edit</button>
+                            </td>
+                        </tr>
+                    }
+                    @if(!PagedShelters.Any())
+                    {
+                        <tr><td colspan="8" class="t-center" style="opacity:.6;">No results.</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <footer class="panel-foot">
+            <div class="foot-left">Showing @StartIndex–@EndIndex of @FilteredCount</div>
+            <div class="foot-right" style="display:flex;gap:6px;align-items:center;">
+                <label class="foot-label">Rows</label>
+                <select class="mini-input" @bind="pageSize">
+                    <option>10</option><option>20</option><option>50</option>
+                </select>
+                <button class="mini-btn" @onclick="PrevPage" disabled="@(_pageIndex==0)">Prev</button>
+                <span class="page-indicator">Page @(_pageIndex+1)/@TotalPages</span>
+                <button class="mini-btn" @onclick="NextPage" disabled="@(_pageIndex>=TotalPages-1)">Next</button>
+            </div>
+        </footer>
+    </section>
+</div>
+
+@code {
+    private record ShelterRow(int Id,string Name,string Location,string? Disaster,int Capacity,int CurrentOccupancy,bool IsActive,int? DisasterId);
+
+    private List<ShelterRow> All = new();
+    private List<Disaster> DisasterOptions = new();
+
+    private string search = string.Empty;
+    private int disasterFilter = 0;
+    private string statusFilter = string.Empty;
+    private int _pageIndex = 0;
+    private int pageSize = 10;
+
+    private bool showForm=false;
+    private bool saving=false;
+    private string formError=string.Empty;
+
+    private ShelterEditModel editModel = new();
+
+    private class ShelterEditModel
+    {
+        public int ShelterId {get;set;}
+        public string Name {get;set;} = string.Empty;
+        public string? Location {get;set;}
+        public int? DisasterId {get;set;}
+        public int Capacity {get;set;} = 0;
+        public int CurrentOccupancy {get;set;} = 0;
+        public bool IsActive {get;set;} = true;
+    }
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        DisasterOptions = await Db.Disasters.AsNoTracking().OrderBy(d=>d.Title).ToListAsync();
+        var data = await Db.Shelters.Include(s=>s.Disaster).AsNoTracking().ToListAsync();
+        All = data.Select(s=> new ShelterRow(
+            s.ShelterId,
+            s.Name,
+            s.Location ?? "—",
+            s.Disaster?.Title,
+            s.Capacity,
+            s.CurrentOccupancy,
+            s.IsActive,
+            s.DisasterId
+        )).OrderBy(s=>s.Name).ToList();
+    }
+
+    private IEnumerable<ShelterRow> Query => All
+        .Where(s => string.IsNullOrWhiteSpace(search) || s.Name.Contains(search,StringComparison.OrdinalIgnoreCase) || (s.Location?.Contains(search,StringComparison.OrdinalIgnoreCase)??false))
+        .Where(s => disasterFilter==0 || s.DisasterId==disasterFilter)
+        .Where(s => string.IsNullOrEmpty(statusFilter) || (statusFilter=="Active"? s.IsActive: !s.IsActive));
+
+    private int FilteredCount => Query.Count();
+    private int TotalPages => Math.Max((int)Math.Ceiling(FilteredCount/(double)pageSize),1);
+    private int StartIndex => FilteredCount==0?0:(_pageIndex*pageSize)+1;
+    private int EndIndex => Math.Min((_pageIndex+1)*pageSize,FilteredCount);
+    private IEnumerable<ShelterRow> PagedShelters => Query.Skip(_pageIndex*pageSize).Take(pageSize);
+
+    private void PrevPage(){ if(_pageIndex>0) _pageIndex--; }
+    private void NextPage(){ if(_pageIndex<TotalPages-1) _pageIndex++; }
+
+    private void ClearFilters(){ search=string.Empty; disasterFilter=0; statusFilter=string.Empty; _pageIndex=0; }
+
+    private void BeginCreate(){ editModel = new ShelterEditModel(); formError=string.Empty; showForm=true; }
+
+    private async void BeginEdit(int id)
+    {
+        var entity = await Db.Shelters.FirstOrDefaultAsync(s=>s.ShelterId==id);
+        if(entity==null) return;
+        editModel = new ShelterEditModel
+        {
+            ShelterId = entity.ShelterId,
+            Name = entity.Name,
+            Location = entity.Location,
+            DisasterId = entity.DisasterId,
+            Capacity = entity.Capacity,
+            CurrentOccupancy = entity.CurrentOccupancy,
+            IsActive = entity.IsActive
+        };
+        formError=string.Empty; showForm=true;
+    }
+
+    private bool Validate()
+    {
+        if(string.IsNullOrWhiteSpace(editModel.Name)) { formError="Name required"; return false; }
+        if(editModel.Capacity < 0){ formError="Capacity must be >= 0"; return false; }
+        if(editModel.CurrentOccupancy < 0){ formError="Occupancy must be >= 0"; return false; }
+        if(editModel.CurrentOccupancy > editModel.Capacity){ formError="Occupancy cannot exceed capacity"; return false; }
+        return true;
+    }
+
+    private async Task SaveAsync()
+    {
+        if(saving) return; saving=true; formError=string.Empty;
+        try
+        {
+            if(!Validate()) return;
+            if(editModel.ShelterId==0)
+            {
+                var entity = new Shelter
+                {
+                    Name = editModel.Name.Trim(),
+                    Location = editModel.Location?.Trim(),
+                    Capacity = editModel.Capacity,
+                    CurrentOccupancy = editModel.CurrentOccupancy,
+                    DisasterId = editModel.DisasterId,
+                    IsActive = editModel.IsActive
+                };
+                Db.Shelters.Add(entity);
+            }
+            else
+            {
+                var entity = await Db.Shelters.FirstOrDefaultAsync(s=>s.ShelterId==editModel.ShelterId);
+                if(entity==null){ formError="Record missing"; return; }
+                entity.Name = editModel.Name.Trim();
+                entity.Location = editModel.Location?.Trim();
+                entity.Capacity = editModel.Capacity;
+                entity.CurrentOccupancy = editModel.CurrentOccupancy;
+                entity.DisasterId = editModel.DisasterId;
+                entity.IsActive = editModel.IsActive;
+                Db.Shelters.Update(entity);
+            }
+            await Db.SaveChangesAsync();
+            showForm=false; await LoadAsync();
+        }
+        catch(Exception ex){ formError=ex.Message; }
+        finally{ saving=false; }
+    }
+
+    private async void ConfirmDeleteAsync()
+    {
+        if(editModel.ShelterId==0) return; saving=true; formError=string.Empty;
+        try
+        {
+            var entity = await Db.Shelters.FirstOrDefaultAsync(s=>s.ShelterId==editModel.ShelterId);
+            if(entity!=null){ Db.Shelters.Remove(entity); await Db.SaveChangesAsync(); }
+            showForm=false; await LoadAsync();
+        }
+        catch(Exception ex){ formError=ex.Message; }
+        finally{ saving=false; }
+    }
+
+    private void CancelForm(){ if(saving) return; showForm=false; formError=string.Empty; }
+}

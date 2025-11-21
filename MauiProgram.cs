@@ -56,7 +56,9 @@ namespace ResQLink
             });
 #endif
 
+            // Register Services
             builder.Services.AddScoped<IUserService, UserService>();
+            builder.Services.AddScoped<IDisasterService, DisasterService>();
 
 #if DEBUG
             builder.Services.AddBlazorWebViewDeveloperTools();

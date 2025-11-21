@@ -1,6 +1,6 @@
-﻿@page "/disasters"
-@inject ResQLink.Data.AppDbContext Db
-@using Microsoft.EntityFrameworkCore
+@page "/disasters"
+@inject ResQLink.Services.IDisasterService DisasterService
+@inject IJSRuntime JS
 @using ResQLink.Data.Entities
 
 <div class="disasters-root">
@@ -8,7 +8,10 @@
         <header class="panel-head">
             <h2 class="panel-title">Disasters Overview</h2>
             <div class="panel-actions">
-                <button class="mini-btn" @onclick="Refresh">↻</button>
+                <button class="mini-btn btn-primary" @onclick="ShowCreateModal">
+                    <i class="bi bi-plus-circle"></i> Add Disaster
+                </button>
+                <button class="mini-btn" @onclick="Refresh">?</button>
             </div>
         </header>
         <div class="kpi-grid">
@@ -18,7 +21,7 @@
             </div>
             <div class="kpi-card">
                 <div class="kpi-label">Total</div>
-                <div class="kpi-value">@All.Count</div>
+                <div class="kpi-value">@AllDisasters.Count</div>
             </div>
             <div class="kpi-card">
                 <div class="kpi-label">Open / Active</div>
@@ -31,14 +34,20 @@
         <header class="panel-head">
             <h2 class="panel-title">Disasters</h2>
             <div class="panel-actions">
-                <input class="mini-input" placeholder="Search title, type or location…" @bind="search" @bind:event="oninput" />
+                <input class="mini-input" placeholder="Search title, type or location�" @bind="search" @bind:event="oninput" />
                 <select class="mini-input" @bind="severityFilter">
-                    <option value="">Severity</option>
-                    @foreach (var s in DistinctSeverities) { <option>@s</option> }
+                    <option value="">All Severities</option>
+                    <option value="Low">Low</option>
+                    <option value="Moderate">Moderate</option>
+                    <option value="High">High</option>
+                    <option value="Critical">Critical</option>
                 </select>
                 <select class="mini-input" @bind="statusFilter">
-                    <option value="">Status</option>
-                    @foreach (var s in DistinctStatuses) { <option>@s</option> }
+                    <option value="">All Status</option>
+                    <option value="Open">Open</option>
+                    <option value="Active">Active</option>
+                    <option value="Contained">Contained</option>
+                    <option value="Closed">Closed</option>
                 </select>
                 <button class="mini-btn" @onclick="ClearFilters">Clear</button>
             </div>
@@ -53,72 +62,274 @@
                         <th>Type</th>
                         <th>Severity</th>
                         <th>Status</th>
-                        <th>Start</th>
-                        <th>End</th>
+                        <th>Start Date</th>
+                        <th>End Date</th>
                         <th>Location</th>
+                        <th style="width:120px">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var d in Filtered)
+                    @foreach (var disaster in FilteredDisasters)
                     {
                         <tr>
-                            <td class="t-center">#@d.Id</td>
-                            <td>@d.Title</td>
-                            <td>@d.Type</td>
-                            <td><span class="sev @SevClass(d.Severity)">@d.Severity</span></td>
-                            <td><span class="status-chip @StatusClass(d.Status)">@d.Status</span></td>
-                            <td>@d.Start.ToString("MMM dd")</td>
-                            <td>@(d.End?.ToString("MMM dd") ?? "—")</td>
-                            <td>@d.Location</td>
+                            <td class="t-center">#@disaster.DisasterId</td>
+                            <td><strong>@disaster.Title</strong></td>
+                            <td>@disaster.DisasterType</td>
+                            <td><span class="sev @SevClass(disaster.Severity)">@disaster.Severity</span></td>
+                            <td><span class="status-chip @StatusClass(disaster.Status)">@disaster.Status</span></td>
+                            <td>@disaster.StartDate.ToString("MMM dd, yyyy")</td>
+                            <td>@(disaster.EndDate?.ToString("MMM dd, yyyy") ?? "�")</td>
+                            <td>@disaster.Location</td>
+                            <td class="action-cell">
+                                <button class="action-btn edit" @onclick="() => ShowEditModal(disaster)" title="Edit">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button class="action-btn view" @onclick="() => ShowDetailsModal(disaster)" title="View Details">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                                <button class="action-btn delete" @onclick="() => ShowDeleteConfirmation(disaster)" title="Delete">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </td>
                         </tr>
                     }
                 </tbody>
             </table>
         </div>
-        <footer class="panel-foot">Showing @Filtered.Count() of @All.Count</footer>
+        <footer class="panel-foot">
+            <span>Showing @FilteredDisasters.Count() of @AllDisasters.Count disasters</span>
+        </footer>
     </section>
 </div>
 
-@code {
-    private record DisasterRow(int Id, string Title, string Type, string Severity, string Status, DateTime Start, DateTime? End, string Location, bool IsActive);
+@* Create/Edit Modal *@
+@if (showModal)
+{
+    <div class="modal-overlay" @onclick="CloseModal" @onclick:stopPropagation="false">
+        <div class="modal-dialog" @onclick="PreventClose" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3>@(isEditMode ? "Edit Disaster" : "Create New Disaster")</h3>
+                <button class="modal-close" @onclick="CloseModal" @onclick:stopPropagation="true">&times;</button>
+            </div>
+            <div class="modal-body">
+                <EditForm Model="currentDisaster" OnValidSubmit="HandleSubmit">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary class="validation-summary" />
 
-    private List<DisasterRow> All = new();
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="title">Title *</label>
+                            <InputText id="title" @bind-Value="currentDisaster.Title" class="form-control" />
+                            <ValidationMessage For="@(() => currentDisaster.Title)" />
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="disasterType">Disaster Type *</label>
+                            <InputSelect id="disasterType" @bind-Value="currentDisaster.DisasterType" class="form-control">
+                                <option value="">Select Type</option>
+                                <option value="Earthquake">Earthquake</option>
+                                <option value="Flood">Flood</option>
+                                <option value="Typhoon">Typhoon</option>
+                                <option value="Fire">Fire</option>
+                                <option value="Landslide">Landslide</option>
+                                <option value="Volcanic Eruption">Volcanic Eruption</option>
+                                <option value="Other">Other</option>
+                            </InputSelect>
+                            <ValidationMessage For="@(() => currentDisaster.DisasterType)" />
+                        </div>
+                        <div class="form-group">
+                            <label for="severity">Severity *</label>
+                            <InputSelect id="severity" @bind-Value="currentDisaster.Severity" class="form-control">
+                                <option value="">Select Severity</option>
+                                <option value="Low">Low</option>
+                                <option value="Moderate">Moderate</option>
+                                <option value="High">High</option>
+                                <option value="Critical">Critical</option>
+                            </InputSelect>
+                            <ValidationMessage For="@(() => currentDisaster.Severity)" />
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="status">Status *</label>
+                            <InputSelect id="status" @bind-Value="currentDisaster.Status" class="form-control">
+                                <option value="">Select Status</option>
+                                <option value="Open">Open</option>
+                                <option value="Active">Active</option>
+                                <option value="Contained">Contained</option>
+                                <option value="Closed">Closed</option>
+                            </InputSelect>
+                            <ValidationMessage For="@(() => currentDisaster.Status)" />
+                        </div>
+                        <div class="form-group">
+                            <label for="location">Location *</label>
+                            <InputText id="location" @bind-Value="currentDisaster.Location" class="form-control" />
+                            <ValidationMessage For="@(() => currentDisaster.Location)" />
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="startDate">Start Date *</label>
+                            <InputDate id="startDate" @bind-Value="currentDisaster.StartDate" class="form-control" />
+                            <ValidationMessage For="@(() => currentDisaster.StartDate)" />
+                        </div>
+                        <div class="form-group">
+                            <label for="endDate">End Date</label>
+                            <InputDate id="endDate" @bind-Value="currentDisaster.EndDate" class="form-control" />
+                            <ValidationMessage For="@(() => currentDisaster.EndDate)" />
+                        </div>
+                    </div>
+
+                    <div class="modal-actions">
+                        <button type="button" class="btn-cancel" @onclick="CloseModal" @onclick:stopPropagation="true">Cancel</button>
+                        <button type="submit" class="btn-primary" disabled="@isSubmitting" @onclick:stopPropagation="true">
+                            @if (isSubmitting)
+                            {
+                                <span class="spinner"></span>
+                            }
+                            @(isEditMode ? "Update" : "Create")
+                        </button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@* Details Modal *@
+@if (showDetailsModal && selectedDisaster != null)
+{
+    <div class="modal-overlay" @onclick="CloseDetailsModal" @onclick:stopPropagation="false">
+        <div class="modal-dialog large" @onclick="PreventClose" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3>@selectedDisaster.Title - Details</h3>
+                <button class="modal-close" @onclick="CloseDetailsModal" @onclick:stopPropagation="true">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="details-grid">
+                    <div class="detail-item">
+                        <label>Disaster Type:</label>
+                        <span>@selectedDisaster.DisasterType</span>
+                    </div>
+                    <div class="detail-item">
+                        <label>Severity:</label>
+                        <span class="sev @SevClass(selectedDisaster.Severity)">@selectedDisaster.Severity</span>
+                    </div>
+                    <div class="detail-item">
+                        <label>Status:</label>
+                        <span class="status-chip @StatusClass(selectedDisaster.Status)">@selectedDisaster.Status</span>
+                    </div>
+                    <div class="detail-item">
+                        <label>Location:</label>
+                        <span>@selectedDisaster.Location</span>
+                    </div>
+                    <div class="detail-item">
+                        <label>Start Date:</label>
+                        <span>@selectedDisaster.StartDate.ToString("MMMM dd, yyyy 'at' HH:mm")</span>
+                    </div>
+                    <div class="detail-item">
+                        <label>End Date:</label>
+                        <span>@(selectedDisaster.EndDate?.ToString("MMMM dd, yyyy 'at' HH:mm") ?? "Ongoing")</span>
+                    </div>
+                    <div class="detail-item">
+                        <label>Created:</label>
+                        <span>@selectedDisaster.CreatedAt.ToString("MMMM dd, yyyy 'at' HH:mm")</span>
+                    </div>
+                    <div class="detail-item">
+                        <label>Shelters:</label>
+                        <span>@selectedDisaster.Shelters.Count shelters</span>
+                    </div>
+                    <div class="detail-item">
+                        <label>Evacuees:</label>
+                        <span>@selectedDisaster.Evacuees.Count evacuees</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-primary" @onclick="() => ShowEditModal(selectedDisaster)" @onclick:stopPropagation="true">
+                    <i class="bi bi-pencil"></i> Edit
+                </button>
+                <button class="btn-cancel" @onclick="CloseDetailsModal" @onclick:stopPropagation="true">Close</button>
+            </div>
+        </div>
+    </div>
+}
+
+@* Delete Confirmation Modal *@
+@if (showDeleteModal && disasterToDelete != null)
+{
+    <div class="modal-overlay" @onclick="CloseDeleteModal" @onclick:stopPropagation="false">
+        <div class="modal-dialog small" @onclick="PreventClose" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3>Confirm Delete</h3>
+                <button class="modal-close" @onclick="CloseDeleteModal" @onclick:stopPropagation="true">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete the disaster <strong>"@disasterToDelete.Title"</strong>?</p>
+                <p class="warning-text">This action cannot be undone and will also delete all related data including shelters and evacuees.</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" @onclick="CloseDeleteModal" @onclick:stopPropagation="true">Cancel</button>
+                <button class="btn-danger" @onclick="ConfirmDelete" disabled="@isDeleting" @onclick:stopPropagation="true">
+                    @if (isDeleting)
+                    {
+                        <span class="spinner"></span>
+                    }
+                    Delete
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Disaster> AllDisasters = new();
     private string search = string.Empty;
     private string severityFilter = string.Empty;
     private string statusFilter = string.Empty;
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    // Modal states
+    private bool showModal = false;
+    private bool showDetailsModal = false;
+    private bool showDeleteModal = false;
+    private bool isEditMode = false;
+    private bool isSubmitting = false;
+    private bool isDeleting = false;
 
-    private async Task LoadAsync()
+    // Current entities
+    private Disaster currentDisaster = new();
+    private Disaster? selectedDisaster = null;
+    private Disaster? disasterToDelete = null;
+
+    protected override async Task OnInitializedAsync() => await LoadDisastersAsync();
+
+    private async Task LoadDisastersAsync()
     {
-        var list = await Db.Disasters.AsNoTracking().ToListAsync();
-        All = list.Select(d => new DisasterRow(
-            d.DisasterId,
-            d.Title,
-            d.DisasterType,
-            d.Severity,
-            d.Status,
-            d.StartDate,
-            d.EndDate,
-            d.Location,
-            d.Status.Equals("Active", StringComparison.OrdinalIgnoreCase)
-        )).OrderByDescending(d => d.Start).ToList();
+        try
+        {
+            AllDisasters = await DisasterService.GetAllAsync();
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Error loading disasters: {ex.Message}");
+        }
     }
 
-    private IEnumerable<string> DistinctSeverities => All.Select(d => d.Severity).Distinct().OrderBy(s => s);
-    private IEnumerable<string> DistinctStatuses => All.Select(d => d.Status).Distinct().OrderBy(s => s);
-
-    private IEnumerable<DisasterRow> Filtered => All
+    private IEnumerable<Disaster> FilteredDisasters => AllDisasters
         .Where(d => string.IsNullOrWhiteSpace(search)
                     || d.Title.Contains(search, StringComparison.OrdinalIgnoreCase)
-                    || d.Type.Contains(search, StringComparison.OrdinalIgnoreCase)
+                    || d.DisasterType.Contains(search, StringComparison.OrdinalIgnoreCase)
                     || d.Location.Contains(search, StringComparison.OrdinalIgnoreCase))
         .Where(d => string.IsNullOrWhiteSpace(severityFilter) || d.Severity.Equals(severityFilter, StringComparison.OrdinalIgnoreCase))
         .Where(d => string.IsNullOrWhiteSpace(statusFilter) || d.Status.Equals(statusFilter, StringComparison.OrdinalIgnoreCase))
-        .OrderByDescending(d => d.Start);
+        .OrderByDescending(d => d.StartDate);
 
-    private int ActiveCount => All.Count(d => d.Status.Equals("Active", StringComparison.OrdinalIgnoreCase));
-    private int OpenOrActiveCount => All.Count(d => d.Status.Equals("Open", StringComparison.OrdinalIgnoreCase) || d.Status.Equals("Active", StringComparison.OrdinalIgnoreCase));
+    private int ActiveCount => AllDisasters.Count(d => d.Status.Equals("Active", StringComparison.OrdinalIgnoreCase));
+    private int OpenOrActiveCount => AllDisasters.Count(d => d.Status.Equals("Open", StringComparison.OrdinalIgnoreCase) || d.Status.Equals("Active", StringComparison.OrdinalIgnoreCase));
 
     private string SevClass(string severity) => severity.ToLowerInvariant() switch
     {
@@ -138,11 +349,140 @@
         _ => ""
     };
 
+    // Event handler to prevent modal from closing when clicking inside
+    private void PreventClose()
+    {
+        // This method intentionally does nothing - it just prevents the click from bubbling up
+    }
+
+    // CRUD Operations
+    private void ShowCreateModal()
+    {
+        isEditMode = false;
+        currentDisaster = new Disaster
+        {
+            StartDate = DateTime.Today,
+            Status = "Open"
+        };
+        showModal = true;
+    }
+
+    private void ShowEditModal(Disaster disaster)
+    {
+        CloseDetailsModal();
+        isEditMode = true;
+        currentDisaster = new Disaster
+        {
+            DisasterId = disaster.DisasterId,
+            Title = disaster.Title,
+            DisasterType = disaster.DisasterType,
+            Severity = disaster.Severity,
+            Status = disaster.Status,
+            StartDate = disaster.StartDate,
+            EndDate = disaster.EndDate,
+            Location = disaster.Location,
+            CreatedAt = disaster.CreatedAt
+        };
+        showModal = true;
+    }
+
+    private void ShowDetailsModal(Disaster disaster)
+    {
+        selectedDisaster = disaster;
+        showDetailsModal = true;
+    }
+
+    private void ShowDeleteConfirmation(Disaster disaster)
+    {
+        disasterToDelete = disaster;
+        showDeleteModal = true;
+    }
+
+    private async Task HandleSubmit()
+    {
+        isSubmitting = true;
+        try
+        {
+            if (isEditMode)
+            {
+                await DisasterService.UpdateAsync(currentDisaster);
+                await JS.InvokeVoidAsync("alert", "Disaster updated successfully!");
+            }
+            else
+            {
+                await DisasterService.CreateAsync(currentDisaster);
+                await JS.InvokeVoidAsync("alert", "Disaster created successfully!");
+            }
+
+            await LoadDisastersAsync();
+            CloseModal();
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Error: {ex.Message}");
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private async Task ConfirmDelete()
+    {
+        if (disasterToDelete == null) return;
+
+        isDeleting = true;
+        try
+        {
+            var success = await DisasterService.DeleteAsync(disasterToDelete.DisasterId);
+            if (success)
+            {
+                await JS.InvokeVoidAsync("alert", "Disaster deleted successfully!");
+                await LoadDisastersAsync();
+                CloseDeleteModal();
+            }
+            else
+            {
+                await JS.InvokeVoidAsync("alert", "Failed to delete disaster.");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Error deleting disaster: {ex.Message}");
+        }
+        finally
+        {
+            isDeleting = false;
+        }
+    }
+
+    // Modal management
+    private void CloseModal()
+    {
+        showModal = false;
+        isSubmitting = false;
+        currentDisaster = new();
+    }
+
+    private void CloseDetailsModal()
+    {
+        showDetailsModal = false;
+        selectedDisaster = null;
+    }
+
+    private void CloseDeleteModal()
+    {
+        showDeleteModal = false;
+        disasterToDelete = null;
+        isDeleting = false;
+    }
+
     private async void Refresh()
     {
-        await LoadAsync();
+        await LoadDisastersAsync();
         StateHasChanged();
     }
+
     private void ClearFilters()
     {
         search = string.Empty;
