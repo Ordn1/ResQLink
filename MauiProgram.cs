@@ -8,9 +8,9 @@ using ResQLink.Services.Users;
 using System.IO;
 
 #if WINDOWS
+using System.Runtime.Versioning;
 using Microsoft.UI.Windowing;
 using WinRT.Interop;
-using Microsoft.UI;
 #endif
 
 namespace ResQLink
@@ -59,6 +59,11 @@ namespace ResQLink
             // Register Services
             builder.Services.AddScoped<IUserService, UserService>();
             builder.Services.AddScoped<IDisasterService, DisasterService>();
+            builder.Services.AddScoped<CategoryService>();     // Added
+            builder.Services.AddScoped<SupplierService>();     // Added
+            builder.Services.AddScoped<InventoryService>();
+            builder.Services.AddScoped<StockService>();
+            builder.Services.AddScoped<ResourceAllocationService>();
 
 #if DEBUG
             builder.Services.AddBlazorWebViewDeveloperTools();
@@ -91,13 +96,13 @@ namespace ResQLink
 
             var app = builder.Build();
 
-AppDomain.CurrentDomain.UnhandledException += (_, e) =>
-    System.Diagnostics.Debug.WriteLine($"UNHANDLED: {e.ExceptionObject}");
-TaskScheduler.UnobservedTaskException += (_, e) =>
-{
-    System.Diagnostics.Debug.WriteLine($"UNOBSERVED: {e.Exception}");
-    e.SetObserved();
-};
+            AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+                System.Diagnostics.Debug.WriteLine($"UNHANDLED: {e.ExceptionObject}");
+            TaskScheduler.UnobservedTaskException += (_, e) =>
+            {
+                System.Diagnostics.Debug.WriteLine($"UNOBSERVED: {e.Exception}");
+                e.SetObserved();
+            };
 
             using (var scope = app.Services.CreateScope())
             {

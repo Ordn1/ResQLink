@@ -14,5 +14,8 @@ public class Category
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-    public ICollection<ReliefGoodCategory> ReliefGoods { get; set; } = new List<ReliefGoodCategory>();
+    public short? CategoryTypeId { get; set; }
+    public CategoryType? CategoryType { get; set; }
+
+    public ICollection<ReliefGoodCategory> ReliefGoods { get; set; } = [];
 }

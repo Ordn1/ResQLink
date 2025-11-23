@@ -15,6 +15,11 @@ public class ReliefGood
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-    public ICollection<ReliefGoodCategory> Categories { get; set; } = new List<ReliefGoodCategory>();
-    public ICollection<Stock> Stocks { get; set; } = new List<Stock>();
+    // Expiration tracking for perishable/medical items
+    public DateTime? ExpirationDate { get; set; }
+
+    public bool RequiresExpiration { get; set; }
+
+    public ICollection<ReliefGoodCategory> Categories { get; set; } = [];
+    public ICollection<Stock> Stocks { get; set; } = [];
 }

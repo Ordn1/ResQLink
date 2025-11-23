@@ -1,5 +1,6 @@
 @page "/shelters"
 @inject ResQLink.Data.AppDbContext Db
+@inject NavigationManager Nav
 @using Microsoft.EntityFrameworkCore
 @using ResQLink.Data.Entities
 
@@ -101,6 +102,7 @@
                             <td><span class="status-chip @(s.IsActive?"st-active":"st-contained")">@(s.IsActive?"Active":"Inactive")</span></td>
                             <td>
                                 <button class="mini-btn" @onclick="() => BeginEdit(s.Id)" disabled="@showForm">Edit</button>
+                                <button class="mini-btn btn-primary" @onclick="() => ViewStock(s.Id)">Stock</button>
                             </td>
                         </tr>
                     }
@@ -269,4 +271,9 @@
     }
 
     private void CancelForm(){ if(saving) return; showForm=false; formError=string.Empty; }
+
+    private void ViewStock(int shelterId)
+    {
+        Nav.NavigateTo($"/shelter/{shelterId}/stocks");
+    }
 }

@@ -22,6 +22,8 @@ public partial class AppDbContext : DbContext
     public DbSet<ReportDisasterSummary> ReportDisasterSummaries => Set<ReportDisasterSummary>();
     public DbSet<ReportResourceDistribution> ReportResourceDistributions => Set<ReportResourceDistribution>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<Supplier> Suppliers => Set<Supplier>();
+    public DbSet<CategoryType> CategoryTypes => Set<CategoryType>();
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -143,6 +145,22 @@ public partial class AppDbContext : DbContext
             e.Property(c => c.CategoryName).HasMaxLength(100).IsRequired();
             e.Property(c => c.Description).HasMaxLength(255);
             e.Property(c => c.CreatedAt).HasDefaultValueSql("SYSUTCDATETIME()");
+            e.HasOne(c => c.CategoryType)
+             .WithMany(ct => ct.Categories)
+             .HasForeignKey(c => c.CategoryTypeId)
+             .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // CategoryTypes
+        modelBuilder.Entity<CategoryType>(e =>
+        {
+            e.ToTable("Category_Types");
+            e.HasKey(ct => ct.CategoryTypeId);
+            e.Property(ct => ct.TypeName).HasMaxLength(50).IsRequired();
+            e.HasIndex(ct => ct.TypeName).IsUnique();
+            e.Property(ct => ct.TypeCode).HasColumnType("char(1)").IsRequired();
+            e.HasIndex(ct => ct.TypeCode).IsUnique();
+            e.Property(ct => ct.CreatedAt).HasDefaultValueSql("SYSUTCDATETIME()");
         });
 
         // ReliefGoodCategories (pivot)
@@ -283,6 +301,20 @@ public partial class AppDbContext : DbContext
              .WithMany()
              .HasForeignKey(a => a.UserId)
              .OnDelete(DeleteBehavior.NoAction);
+        });
+
+        // Suppliers
+        modelBuilder.Entity<Supplier>(e =>
+        {
+            e.ToTable("Suppliers");
+            e.HasKey(s => s.SupplierId);
+            e.Property(s => s.SupplierName).HasMaxLength(255).IsRequired();
+            e.Property(s => s.ContactPerson).HasMaxLength(255);
+            e.Property(s => s.Email).HasMaxLength(255);
+            e.Property(s => s.PhoneNumber).HasMaxLength(30);
+            e.Property(s => s.Address).HasMaxLength(500);
+            e.Property(s => s.Notes).HasMaxLength(500);
+            e.Property(s => s.CreatedAt).HasDefaultValueSql("SYSUTCDATETIME()");
         });
 
         base.OnModelCreating(modelBuilder);

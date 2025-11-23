@@ -1,0 +1,216 @@
+@page "/suppliers"
+@inject ResQLink.Services.SupplierService SupplierSvc
+@inject IJSRuntime JSRuntime
+@using ResQLink.Data.Entities
+
+<!-- Suppliers Management Page -->
+<div class="page-container">
+    <section class="panel">
+        <header class="panel-head">
+            <h2 class="panel-title">Suppliers Management</h2>
+            <div class="panel-actions">
+                <button class="btn-primary" @onclick="OpenAddModal">+ Add Supplier</button>
+                <button class="mini-btn" @onclick="Refresh">?</button>
+            </div>
+        </header>
+
+        <div class="panel-body">
+            @if (_loading)
+            {
+                <p class="text-center">Loading...</p>
+            }
+            else if (!_suppliers.Any())
+            {
+                <p class="text-center text-muted">No suppliers found.</p>
+            }
+            else
+            {
+                <div class="table-wrap">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th style="width:80px">ID</th>
+                                <th>Supplier Name</th>
+                                <th>Contact Person</th>
+                                <th>Email</th>
+                                <th>Phone</th>
+                                <th>Address</th>
+                                <th class="t-center">Status</th>
+                                <th class="t-center" style="width:150px">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var sup in _suppliers)
+                            {
+                                <tr>
+                                    <td class="t-center">@sup.SupplierId</td>
+                                    <td><strong>@sup.SupplierName</strong></td>
+                                    <td>@(sup.ContactPerson ?? "-")</td>
+                                    <td>@(sup.Email ?? "-")</td>
+                                    <td>@(sup.PhoneNumber ?? "-")</td>
+                                    <td>@(sup.Address ?? "-")</td>
+                                    <td class="t-center">
+                                        <span class="status-chip @(sup.IsActive ? "st-ok" : "st-out")">@(sup.IsActive ? "Active" : "Inactive")</span>
+                                    </td>
+                                    <td class="t-center">
+                                        <button class="mini-btn" @onclick="() => OpenEditModal(sup)">Edit</button>
+                                        <button class="mini-btn btn-danger" @onclick="() => DeleteSupplier(sup.SupplierId)">Delete</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <div style="margin-top:8px;color:#dc2626;font-size:.7rem;font-weight:600;">@_error</div>
+            }
+        </div>
+    </section>
+
+    @if (_showModal)
+    {
+        <div class="modal-overlay" @onclick="CloseModal">
+            <div class="modal-box modal-lg" @onclick:stopPropagation="true">
+                <header class="modal-header">
+                    <h3>@(_editMode ? "Edit Supplier" : "Add Supplier")</h3>
+                    <button class="modal-close" @onclick="CloseModal">×</button>
+                </header>
+                <div class="modal-body">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Supplier Name *</label>
+                            <input class="form-input" @bind="_editModel.SupplierName" />
+                        </div>
+                        <div class="form-group">
+                            <label>Contact Person</label>
+                            <input class="form-input" @bind="_editModel.ContactPerson" />
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Email</label>
+                            <input type="email" class="form-input" @bind="_editModel.Email" />
+                        </div>
+                        <div class="form-group">
+                            <label>Phone Number</label>
+                            <input class="form-input" @bind="_editModel.PhoneNumber" />
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Address</label>
+                        <textarea class="form-input" @bind="_editModel.Address" rows="2"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Notes</label>
+                        <textarea class="form-input" @bind="_editModel.Notes" rows="3"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label><input type="checkbox" @bind="_editModel.IsActive" /> Active</label>
+                    </div>
+                </div>
+                <footer class="modal-footer">
+                    <button class="btn-secondary" @onclick="CloseModal" disabled="@_saving">Cancel</button>
+                    <button class="btn-primary" @onclick="SaveSupplier" disabled="@_saving">@(_saving ? "Saving…" : "Save")</button>
+                </footer>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    // State
+    private List<Supplier> _suppliers = new();
+    private bool _loading = true;
+    private bool _showModal;
+    private bool _editMode;
+    private bool _saving;
+    private Supplier _editModel = new();
+    private string _error = string.Empty;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _loading = true;
+            _suppliers = await SupplierSvc.GetAllAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally { _loading = false; }
+    }
+
+    private void OpenAddModal()
+    {
+        _editMode = false;
+        _editModel = new Supplier { IsActive = true };
+        _error = string.Empty;
+        _showModal = true;
+    }
+
+    private void OpenEditModal(Supplier supplier)
+    {
+        _editMode = true;
+        _editModel = new Supplier
+        {
+            SupplierId = supplier.SupplierId,
+            SupplierName = supplier.SupplierName,
+            ContactPerson = supplier.ContactPerson,
+            Email = supplier.Email,
+            PhoneNumber = supplier.PhoneNumber,
+            Address = supplier.Address,
+            Notes = supplier.Notes,
+            IsActive = supplier.IsActive
+        };
+        _error = string.Empty;
+        _showModal = true;
+    }
+
+    private void CloseModal()
+    {
+        if (_saving) return;
+        _showModal = false;
+        _editModel = new();
+    }
+
+    private async Task SaveSupplier()
+    {
+        if (_saving) return;
+        _error = string.Empty;
+        if (string.IsNullOrWhiteSpace(_editModel.SupplierName)) { _error = "Name required"; return; }
+        _saving = true;
+        try
+        {
+            if (_editMode)
+                await SupplierSvc.UpdateAsync(_editModel.SupplierId, _editModel);
+            else
+                await SupplierSvc.CreateAsync(_editModel);
+            _showModal = false;
+            await LoadAsync();
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task DeleteSupplier(int id)
+    {
+        if (_saving) return;
+        var ok = await JSRuntime.InvokeAsync<bool>("confirm", "Delete supplier?");
+        if (!ok) return;
+        _saving = true;
+        try
+        {
+            await SupplierSvc.DeleteAsync(id);
+            await LoadAsync();
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private Task Refresh() => LoadAsync();
+}

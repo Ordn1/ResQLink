@@ -12,11 +12,27 @@
             </div>
         </header>
         <div class="kpi-grid">
-            <div class="kpi-card"><div class="kpi-label">Total Goods</div><div class="kpi-value text-accent">@ReliefGoods.Count</div></div>
-            <div class="kpi-card"><div class="kpi-label">Tracked Stocks</div><div class="kpi-value">@Stocks.Count</div></div>
-            <div class="kpi-card"><div class="kpi-label">Low / Out</div><div class="kpi-value">@LowCount / @OutCount</div></div>
-            <div class="kpi-card"><div class="kpi-label">Categories</div><div class="kpi-value">@DistinctCategories.Count()</div></div>
-            <div class="kpi-card"><div class="kpi-label">Total Qty</div><div class="kpi-value">@TotalQuantity</div></div>
+            <!-- KPI Cards -->
+            <div class="kpi-card">
+                <div class="kpi-label">Total Goods</div>
+                <div class="kpi-value text-accent">@ReliefGoods.Count</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Tracked Stocks</div>
+                <div class="kpi-value">@Stocks.Count</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Low / Out</div>
+                <div class="kpi-value">@LowCount / @OutCount</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Categories</div>
+                <div class="kpi-value">@DistinctCategories.Count()</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Total Qty</div>
+                <div class="kpi-value">@TotalQuantity</div>
+            </div>
         </div>
     </section>
 
@@ -75,9 +91,9 @@
             <div class="foot-right">
                 <label class="foot-label">Rows</label>
                 <select class="mini-input" @bind="pageSize"><option>10</option><option>20</option><option>50</option></select>
-                <button class="mini-btn" @onclick="PrevPage" disabled="@(_pageIndex == 0)">Prev</button>
+                <button class="mini-btn" @onclick="PrevPage" disabled=@(_pageIndex == 0)>Prev</button>
                 <span class="page-indicator">Page @(_pageIndex + 1) / @TotalPages</span>
-                <button class="mini-btn" @onclick="NextPage" disabled="@(_pageIndex >= TotalPages - 1)">Next</button>
+                <button class="mini-btn" @onclick="NextPage" disabled=@(_pageIndex >= TotalPages - 1)>Next</button>
             </div>
         </footer>
     </section>
@@ -92,7 +108,9 @@
                         <div class="cat-name">@c.Category</div>
                         <div class="cat-line"><strong>@c.ItemCount</strong><span class="muted"> goods</span></div>
                         <div class="cat-line">Qty <strong>@c.TotalQuantity</strong></div>
-                        <div class="progress-shell thin" aria-label="Low/out percent"><div class="progress-bar" style="width:@c.LowPercent%"></div></div>
+                        <div class="progress-shell thin" aria-label="Low/out percent">
+                            <div class="progress-bar" style="width:@($"{c.LowPercent}%")"></div>
+                        </div>
                         <div class="cat-meta"><span class="low-meta">@c.LowCount low</span><span class="sep">|</span><span class="out-meta">@c.OutCount out</span></div>
                     </div>
                 }
@@ -106,7 +124,9 @@
                     <div class="att-row">
                         <div class="att-left"><div class="att-name">@i.Name</div><div class="att-cat">@i.Category</div></div>
                         <div class="att-mid">
-                            <div class="progress-shell tiny" aria-label="Stock %"><div class="progress-bar" style="width:@StockPercent(i)%"></div></div>
+                            <div class="progress-shell tiny" aria-label="Stock %">
+                                <div class="progress-bar" style="width:@($"{StockPercent(i)}%")"></div>
+                            </div>
                             <div class="att-stats"><span>Qty @i.Quantity</span></div>
                         </div>
                         <div class="att-right"><span class="status-chip @StatusClass(i)">@StatusText(i)</span></div>

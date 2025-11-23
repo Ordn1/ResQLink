@@ -1,0 +1,582 @@
+@page "/stocks"
+@using ResQLink.Data.Entities
+@using ResQLink.Helpers
+@using Microsoft.EntityFrameworkCore
+@inject ResQLink.Services.StockService StockSvc
+@inject ResQLink.Services.ResourceAllocationService AllocationSvc
+@inject ResQLink.Services.InventoryService InventorySvc
+@inject ResQLink.Data.AppDbContext Db
+@inject ResQLink.Services.AuthState AuthState
+@inject IJSRuntime JSRuntime
+
+<div class="page-container">
+    <section class="panel">
+        <header class="panel-head">
+            <h2 class="panel-title">Stocks Management</h2>
+            <div class="panel-actions">
+                <input class="mini-input" placeholder="Search..." @bind="_search" @bind:event="oninput" />
+                <select class="mini-input" @bind="_statusFilter">
+                    <option value="">All Status</option>
+                    <option value="Empty">Empty</option>
+                    <option value="Low">Low</option>
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                </select>
+                <label class="chk-inline" style="margin-left:8px;">
+                    <input type="checkbox" @bind="_showInactive" @bind:after="LoadAsync" /> Show Inactive
+                </label>
+                <button class="btn-primary" @onclick="OpenAddModal">+ Add Stock</button>
+                <button class="mini-btn" @onclick="Refresh">?</button>
+            </div>
+        </header>
+
+        <div class="panel-body">
+            @if (_loading)
+            {
+                <p class="text-center">Loading...</p>
+            }
+            else if (_stocks == null || _stocks.Count == 0)
+            {
+                <p class="text-center text-muted">No stocks found. @(_error != string.Empty ? $"Error: {_error}" : "")</p>
+            }
+            else if (!FilteredStocks.Any())
+            {
+                <p class="text-center text-muted">No stocks match your filters.</p>
+            }
+            else
+            {
+                <div class="table-wrap">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th style="width:80px">ID</th>
+                                <th>Relief Good</th>
+                                <th>Location</th>
+                                <th class="t-center">Quantity</th>
+                                <th class="t-center">Max Capacity</th>
+                                <th class="t-center">Status</th>
+                                <th class="t-center">Progress</th>
+                                <th class="t-center">Active</th>
+                                <th>Last Updated</th>
+                                <th class="t-center" style="width:200px">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var stock in FilteredStocks)
+                            {
+                                <tr>
+                                    <td class="t-center">@stock.StockId</td>
+                                    <td><strong>@stock.ReliefGood?.Name</strong> (@stock.ReliefGood?.Unit)</td>
+                                    <td>@(stock.Location ?? "-")</td>
+                                    <td class="t-center">@stock.Quantity</td>
+                                    <td class="t-center">@stock.MaxCapacity</td>
+                                    <td class="t-center">
+                                        <span class="status-chip @GetStatusClass(stock)">
+                                            @GetStatus(stock)
+                                        </span>
+                                    </td>
+                                    <td class="t-center">
+                                        <div class="progress-shell" style="width:100px;display:inline-block;">
+                                            <div class="progress-bar" style="width:@(GetPercent(stock))%"></div>
+                                        </div>
+                                        <span style="margin-left:4px;font-size:0.85em;">@GetPercent(stock).ToString("0.0")%</span>
+                                    </td>
+                                    <td class="t-center">
+                                        <span class="status-chip @(stock.IsActive ? "st-ok" : "st-out")">
+                                            @(stock.IsActive ? "Yes" : "No")
+                                        </span>
+                                    </td>
+                                    <td>@stock.LastUpdated.ToString("MMM dd, yyyy HH:mm")</td>
+                                    <td class="t-center">
+                                        <button class="mini-btn" @onclick="() => OpenEditModal(stock)">Edit</button>
+                                        <button class="mini-btn" @onclick="() => OpenAdjustModal(stock)">Adjust</button>
+                                        <button class="mini-btn btn-primary" @onclick="() => OpenAllocateModal(stock)" disabled="@(stock.Quantity == 0 || stock.ShelterId != null)">
+                                            Allocate
+                                        </button>
+                                        <button class="mini-btn btn-danger" @onclick="() => DeleteStock(stock.StockId)">Delete</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <div style="margin-top:8px;color:#dc2626;font-size:.85rem;font-weight:600;">@_error</div>
+            }
+        </div>
+    </section>
+
+    @if (_showModal)
+    {
+        <div class="modal-overlay" @onclick="CloseModal">
+            <div class="modal-box" @onclick:stopPropagation="true">
+                <header class="modal-header">
+                    <h3>@(_editMode ? "Edit Stock" : "Add Stock")</h3>
+                    <button class="modal-close" @onclick="CloseModal">×</button>
+                </header>
+                <div class="modal-body">
+                    @if (!_editMode)
+                    {
+                        <div class="form-group">
+                            <label>Relief Good *</label>
+                            <select class="form-input" @bind="_selectedRgId">
+                                <option value="0">-- Select Relief Good --</option>
+                                @foreach (var rg in _reliefGoods)
+                                {
+                                    <option value="@rg.RgId">@rg.Name (@rg.Unit)</option>
+                                }
+                            </select>
+                        </div>
+                    }
+                    <div class="form-group">
+                        <label>Quantity *</label>
+                        <input type="number" class="form-input" @bind="_editQuantity" min="0" />
+                    </div>
+                    <div class="form-group">
+                        <label>Max Capacity *</label>
+                        <input type="number" class="form-input" @bind="_editMaxCapacity" min="1" />
+                    </div>
+                    <div class="form-group">
+                        <label>Location</label>
+                        <input class="form-input" @bind="_editLocation" />
+                    </div>
+                    @if (!string.IsNullOrEmpty(_modalError))
+                    {
+                        <div class="form-error">@_modalError</div>
+                    }
+                </div>
+                <footer class="modal-footer">
+                    <button class="btn-secondary" @onclick="CloseModal" disabled="@_saving">Cancel</button>
+                    <button class="btn-primary" @onclick="SaveStock" disabled="@_saving">@(_saving ? "Saving…" : "Save")</button>
+                </footer>
+            </div>
+        </div>
+    }
+
+    @if (_showAdjustModal)
+    {
+        <div class="modal-overlay" @onclick="CloseAdjustModal">
+            <div class="modal-box modal-sm" @onclick:stopPropagation="true">
+                <header class="modal-header">
+                    <h3>Adjust Stock Quantity</h3>
+                    <button class="modal-close" @onclick="CloseAdjustModal">×</button>
+                </header>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Current: <strong>@_adjustStock?.Quantity</strong> / @_adjustStock?.MaxCapacity</label>
+                    </div>
+                    <div class="form-group">
+                        <label>Adjustment (+ or -)</label>
+                        <input type="number" class="form-input" @bind="_adjustDelta" placeholder="e.g., +50 or -20" />
+                    </div>
+                    <div class="form-group">
+                        <label>New Quantity: <strong>@(_adjustStock != null ? _adjustStock.Quantity + _adjustDelta : 0)</strong></label>
+                    </div>
+                    @if (!string.IsNullOrEmpty(_modalError))
+                    {
+                        <div class="form-error">@_modalError</div>
+                    }
+                </div>
+                <footer class="modal-footer">
+                    <button class="btn-secondary" @onclick="CloseAdjustModal" disabled="@_saving">Cancel</button>
+                    <button class="btn-primary" @onclick="ApplyAdjustment" disabled="@_saving">@(_saving ? "Applying…" : "Apply")</button>
+                </footer>
+            </div>
+        </div>
+    }
+
+    @if (_showAllocateModal)
+    {
+        <div class="modal-overlay" @onclick="CloseAllocateModal">
+            <div class="modal-box" @onclick:stopPropagation="true">
+                <header class="modal-header">
+                    <h3>Allocate Stock to Shelter</h3>
+                    <button class="modal-close" @onclick="CloseAllocateModal">×</button>
+                </header>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Item</label>
+                        <div style="font-weight:600;">@_allocateStock?.ReliefGood?.Name (@_allocateStock?.ReliefGood?.Unit)</div>
+                    </div>
+                    <div class="form-group">
+                        <label>Available Quantity</label>
+                        <div style="font-weight:600;color:#16a34a;">@_allocateStock?.Quantity @_allocateStock?.ReliefGood?.Unit</div>
+                    </div>
+                    <div class="form-group">
+                        <label>Select Shelter *</label>
+                        <select class="form-input" @bind="_allocateShelterId">
+                            <option value="0">-- Select Shelter --</option>
+                            @foreach (var shelter in _shelters)
+                            {
+                                <option value="@shelter.ShelterId">@shelter.Name (@shelter.Location)</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Quantity to Allocate *</label>
+                        <input type="number" class="form-input" @bind="_allocateQuantity" min="1" max="@(_allocateStock?.Quantity ?? 0)" />
+                        <small style="font-size:0.75rem;color:#64748b;">Max: @_allocateStock?.Quantity</small>
+                    </div>
+                    @if (!string.IsNullOrEmpty(_modalError))
+                    {
+                        <div class="form-error">@_modalError</div>
+                    }
+                    @if (!string.IsNullOrEmpty(_allocateSuccess))
+                    {
+                        <div style="color:#16a34a;font-size:.85rem;font-weight:600;margin-top:8px;">@_allocateSuccess</div>
+                    }
+                </div>
+                <footer class="modal-footer">
+                    <button class="btn-secondary" @onclick="CloseAllocateModal" disabled="@_saving">Cancel</button>
+                    <button class="btn-primary" @onclick="AllocateToShelter" disabled="@_saving">@(_saving ? "Allocating…" : "Allocate")</button>
+                </footer>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<Stock> _stocks = new();
+    private List<ReliefGood> _reliefGoods = new();
+    private List<Shelter> _shelters = new();
+    private bool _loading = true;
+    private bool _showModal;
+    private bool _showAdjustModal;
+    private bool _showAllocateModal;
+    private bool _editMode;
+    private bool _saving;
+    private bool _showInactive;
+    private string _search = string.Empty;
+    private string _statusFilter = string.Empty;
+    private string _error = string.Empty;
+    private string _modalError = string.Empty;
+    private string _allocateSuccess = string.Empty;
+
+    // Edit fields
+    private int _editStockId;
+    private int _selectedRgId;
+    private int _editQuantity;
+    private int _editMaxCapacity = 1000;
+    private string _editLocation = string.Empty;
+
+    // Adjust fields
+    private Stock? _adjustStock;
+    private int _adjustDelta;
+
+    // Allocate fields
+    private Stock? _allocateStock;
+    private int _allocateShelterId;
+    private int _allocateQuantity;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _loading = true;
+            _error = string.Empty;
+            _stocks = await StockSvc.GetAllAsync(!_showInactive);
+            _reliefGoods = await InventorySvc.GetAllAsync();
+            _shelters = await Db.Shelters.Where(s => s.IsActive).OrderBy(s => s.Name).ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Error loading stocks: {ex.Message}";
+            _stocks = new();
+            _reliefGoods = new();
+            _shelters = new();
+        }
+        finally 
+        { 
+            _loading = false; 
+        }
+    }
+
+    // Computed helpers - use database computed columns if available, otherwise calculate
+    private decimal GetPercent(Stock stock)
+    {
+        // Try to use database computed value first
+        if (stock.CapacityPercent > 0 || stock.Quantity == 0)
+            return stock.CapacityPercent;
+        
+        // Fallback calculation
+        return StockExtensions.ComputePercent(stock.Quantity, stock.MaxCapacity);
+    }
+
+    private string GetStatus(Stock stock)
+    {
+        // Try to use database computed value first
+        if (!string.IsNullOrEmpty(stock.Status))
+            return stock.Status;
+        
+        // Fallback calculation
+        return StockExtensions.ComputeStatus(stock.Quantity, stock.MaxCapacity);
+    }
+
+    private string GetStatusClass(Stock stock)
+    {
+        return StockExtensions.GetStatusClass(GetStatus(stock));
+    }
+
+    private IEnumerable<Stock> FilteredStocks
+    {
+        get
+        {
+            if (_stocks == null || _stocks.Count == 0)
+                return Enumerable.Empty<Stock>();
+
+            var q = _stocks.AsEnumerable();
+
+            if (!string.IsNullOrWhiteSpace(_search))
+                q = q.Where(s => (s.ReliefGood?.Name?.Contains(_search, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                                 (s.Location?.Contains(_search, StringComparison.OrdinalIgnoreCase) ?? false));
+
+            if (!string.IsNullOrWhiteSpace(_statusFilter))
+                q = q.Where(s => GetStatus(s).Equals(_statusFilter, StringComparison.OrdinalIgnoreCase));
+
+            return q;
+        }
+    }
+
+    private void OpenAddModal()
+    {
+        _editMode = false;
+        _showModal = true;
+        _modalError = string.Empty;
+        _selectedRgId = 0;
+        _editQuantity = 0;
+        _editMaxCapacity = 1000;
+        _editLocation = string.Empty;
+    }
+
+    private void OpenEditModal(Stock stock)
+    {
+        _editMode = true;
+        _showModal = true;
+        _modalError = string.Empty;
+        _editStockId = stock.StockId;
+        _selectedRgId = stock.RgId;
+        _editQuantity = stock.Quantity;
+        _editMaxCapacity = stock.MaxCapacity;
+        _editLocation = stock.Location ?? string.Empty;
+    }
+
+    private void CloseModal()
+    {
+        if (_saving) return;
+        _showModal = false;
+    }
+
+    private async Task SaveStock()
+    {
+        if (_saving) return;
+        _modalError = string.Empty;
+
+        if (!_editMode && _selectedRgId == 0)
+        {
+            _modalError = "Please select a Relief Good.";
+            return;
+        }
+
+        if (_editQuantity < 0 || _editMaxCapacity <= 0)
+        {
+            _modalError = "Invalid quantity or capacity.";
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            (Stock? stock, string? err) result;
+
+            if (_editMode)
+            {
+                result = await StockSvc.UpdateAsync(_editStockId, _editQuantity, _editMaxCapacity, _editLocation, null, null);
+            }
+            else
+            {
+                result = await StockSvc.CreateAsync(_selectedRgId, _editQuantity, _editMaxCapacity, _editLocation);
+            }
+
+            if (result.err != null)
+            {
+                _modalError = result.err;
+                return;
+            }
+
+            _showModal = false;
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _modalError = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void OpenAdjustModal(Stock stock)
+    {
+        _adjustStock = stock;
+        _adjustDelta = 0;
+        _modalError = string.Empty;
+        _showAdjustModal = true;
+    }
+
+    private void CloseAdjustModal()
+    {
+        if (_saving) return;
+        _showAdjustModal = false;
+        _adjustStock = null;
+    }
+
+    private async Task ApplyAdjustment()
+    {
+        if (_saving || _adjustStock == null) return;
+        _modalError = string.Empty;
+
+        if (_adjustDelta == 0)
+        {
+            _modalError = "Adjustment cannot be zero.";
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            var (stock, err) = await StockSvc.AdjustQuantityAsync(_adjustStock.StockId, _adjustDelta);
+
+            if (err != null)
+            {
+                _modalError = err;
+                return;
+            }
+
+            _showAdjustModal = false;
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _modalError = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task DeleteStock(int stockId)
+    {
+        if (_saving) return;
+        
+        try
+        {
+            var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "Delete this stock record?");
+            if (!confirmed) return;
+
+            _saving = true;
+            var (ok, err) = await StockSvc.DeleteAsync(stockId);
+            if (!ok && err != null) _error = err;
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Delete error: {ex.Message}";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task Refresh()
+    {
+        await LoadAsync();
+    }
+
+    private void OpenAllocateModal(Stock stock)
+    {
+        _allocateStock = stock;
+        _allocateShelterId = 0;
+        _allocateQuantity = 0;
+        _modalError = string.Empty;
+        _allocateSuccess = string.Empty;
+        _showAllocateModal = true;
+    }
+
+    private void CloseAllocateModal()
+    {
+        if (_saving) return;
+        _showAllocateModal = false;
+        _allocateStock = null;
+    }
+
+    private async Task AllocateToShelter()
+    {
+        if (_saving || _allocateStock == null) return;
+        _modalError = string.Empty;
+        _allocateSuccess = string.Empty;
+
+        if (_allocateShelterId == 0)
+        {
+            _modalError = "Please select a shelter.";
+            return;
+        }
+
+        if (_allocateQuantity <= 0)
+        {
+            _modalError = "Quantity must be greater than zero.";
+            return;
+        }
+
+        if (_allocateQuantity > _allocateStock.Quantity)
+        {
+            _modalError = $"Cannot allocate more than available quantity ({_allocateStock.Quantity}).";
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            // Get current user ID (hardcoded to 1 for now - admin user)
+            var userId = 1; // TODO: Replace with AuthState.CurrentUser?.UserId when auth is implemented
+
+            (ResourceAllocation? allocation, string? err) = await AllocationSvc.AllocateToShelterAsync(
+                _allocateStock.StockId,
+                _allocateShelterId,
+                _allocateQuantity,
+                userId
+            );
+
+            if (err != null)
+            {
+                _modalError = err;
+                return;
+            }
+
+            _allocateSuccess = $"Successfully allocated {_allocateQuantity} {_allocateStock.ReliefGood?.Unit} to shelter!";
+            
+            // Wait a moment to show success message
+            await Task.Delay(1500);
+            
+            _showAllocateModal = false;
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _modalError = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

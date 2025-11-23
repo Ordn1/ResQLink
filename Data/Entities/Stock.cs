@@ -6,21 +6,52 @@ namespace ResQLink.Data.Entities;
 [Table("Stocks")]
 public class Stock
 {
-    public int StockId { get; set; }
-    public int RgId { get; set; }
-    public ReliefGood ReliefGood { get; set; } = null!;
+  [Key]
+  public int StockId { get; set; }
 
-    public int? DisasterId { get; set; }
-    public Disaster? Disaster { get; set; }
+  // Foreign keys
+  public int RgId { get; set; }
+  public ReliefGood ReliefGood { get; set; } = null!;
 
-    public int? ShelterId { get; set; }
-    public Shelter? Shelter { get; set; }
+  public int? DisasterId { get; set; }
+  public Disaster? Disaster { get; set; }
 
-    public int Quantity { get; set; }
+  public int? ShelterId { get; set; }
+  public Shelter? Shelter { get; set; }
 
-    [MaxLength(255)] public string? Location { get; set; }
+  // Core fields
+  public int Quantity { get; set; }
 
-    public DateTime LastUpdated { get; set; } = DateTime.UtcNow;
+  public int MaxCapacity { get; set; } = 1000;
 
-    public ICollection<ResourceAllocation> Allocations { get; set; } = new List<ResourceAllocation>();
+  [MaxLength(255)]
+  public string? Location { get; set; }
+
+  public bool IsActive { get; set; } = true;
+
+  public DateTime LastUpdated { get; set; } = DateTime.UtcNow;
+
+  // Computed columns from database
+  [DatabaseGenerated(DatabaseGeneratedOption.Computed)]
+  public decimal CapacityPercent { get; private set; }
+
+  [MaxLength(20)]
+  [DatabaseGenerated(DatabaseGeneratedOption.Computed)]
+  public string Status { get; private set; } = string.Empty;
+
+  public ICollection<ResourceAllocation> Allocations { get; set; } = [];
+
+  public string StatusClass
+  {
+    get
+    {
+      return CapacityPercent switch
+      {
+        > 100 => "st-ok",
+        > 50 => "st-high",
+        > 0 => "st-medium",
+        _ => "st-empty",
+      };
+    }
+  }
 }

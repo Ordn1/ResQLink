@@ -8,23 +8,23 @@
         </div>
 
         <nav class="nav-stack">
-            <button class='nav-btn @ActiveClass("/home")' type="button" @onclick='() => Go("/home")' disabled="@IsActive("/home")">
+            <button class='nav-btn @ActiveClass("/home")' type="button" @onclick='() => Go("/home")' disabled='@IsActive("/home")'>
                 <span>Dashboard</span>
             </button>
-            <button class='nav-btn @ActiveClass("/evacuees")' type="button" @onclick='() => Go("/evacuees")' disabled="@IsActive("/evacuees")">
+            <button class='nav-btn @ActiveClass("/evacuees")' type="button" @onclick='() => Go("/evacuees")' disabled='@IsActive("/evacuees")'>
                 <span>Evacuees</span>
             </button>
-             <button class='nav-btn @ActiveClass("/shelters")' type="button" @onclick='() => Go("/shelters")' disabled="@IsActive("/shelters")">
+             <button class='nav-btn @ActiveClass("/shelters")' type="button" @onclick='() => Go("/shelters")' disabled='@IsActive("/shelters")'>
                 <span>Shelters</span>
             </button>
-            <button class='nav-btn @ActiveClass("/disasters")' type="button" @onclick='() => Go("/disasters")' disabled="@IsActive("/disasters")">
+            <button class='nav-btn @ActiveClass("/disasters")' type="button" @onclick='() => Go("/disasters")' disabled='@IsActive("/disasters")'>
                 <span>Disasters</span>
             </button>
 
             <div class="nav-item-with-menu">
                 <button class='nav-btn nav-btn-static @(InventoryOpen ? "active" : "")' type="button"
-                        @onclick="ToggleInventoryMenu" @onclick:stopPropagation="true" 
-                        aria-expanded="@(InventoryOpen ? "true" : "false")" aria-haspopup="true">
+                        @onclick="ToggleInventoryMenu" @onclick:stopPropagation="true"
+                        aria-expanded='@InventoryOpen.ToString().ToLower()' aria-haspopup="true">
                     <span>Inventory ▾</span>
                 </button>
 
@@ -36,19 +36,28 @@
                         {
                             <button class="dropdown-link" @onclick="() => GoInventoryCategory(c.Slug)">@c.Label</button>
                         }
+                        <hr style="margin: 4px 0; border: 0; border-top: 1px solid #444;" />
+                        <button class="dropdown-link" @onclick="() => GoCategories()">Manage Categories</button>
                     </div>
                 }
             </div>
 
-            <button class='nav-btn @ActiveClass("/reports")' type="button" @onclick='() => Go("/reports")' disabled="@IsActive("/reports")">
+            <button class='nav-btn @ActiveClass("/stocks")' type="button" @onclick='() => Go("/stocks")' disabled='@IsActive("/stocks")'>
+                <span>Stocks</span>
+            </button>
+
+            <button class='nav-btn @ActiveClass("/suppliers")' type="button" @onclick='() => Go("/suppliers")' disabled='@IsActive("/suppliers")'>
+                <span>Suppliers</span>
+            </button>
+            <button class='nav-btn @ActiveClass("/reports")' type="button" @onclick='() => Go("/reports")' disabled='@IsActive("/reports")'>
                 <span>Reports</span>
             </button>
-            <button class='nav-btn @ActiveClass("/audit-logs")' type="button" @onclick='() => Go("/audit-logs")' disabled="@IsActive("/audit-logs")">
+            <button class='nav-btn @ActiveClass("/audit-logs")' type="button" @onclick='() => Go("/audit-logs")' disabled='@IsActive("/audit-logs")'>
                 <span>Audit Logs</span>
             </button>
 
             @* Admin: Manage Users *@
-            <button class='nav-btn @ActiveClass("/users")' type="button" @onclick='() => Go("/users")' disabled="@IsActive("/users")">
+            <button class='nav-btn @ActiveClass("/users")' type="button" @onclick='() => Go("/users")' disabled='@IsActive("/users")'>
                 <span>Manage Users</span>
             </button>
         </nav>
@@ -90,18 +99,16 @@
 
     private readonly (string Label, string Slug)[] InventoryCategories = new[]
     {
-        ("Relief Goods", "relief-goods"),
-        ("Consumables", "consumables"),
-        ("Protective", "protective"),
+        ("Perishable", "perishable"),
+        ("Non-perishable", "non-perishable"),
         ("Medical", "medical"),
-        ("Logistics", "logistics"),
-        ("Technology", "technology")
     };
 
     private void ToggleInventoryMenu() => InventoryOpen = !InventoryOpen;
     private void CloseTransientMenus() => InventoryOpen = false;
     private void GoInventory() { InventoryOpen = false; Go("/inventory"); }
     private void GoInventoryCategory(string slug) { InventoryOpen = false; Go($"/inventory/category/{slug}"); }
+    private void GoCategories() { InventoryOpen = false; Go("/categories"); }
 
     private void Go(string href)
     {
@@ -129,8 +136,10 @@
                 "/evacuees" => "EVACUEES",
                 "/disasters" => "DISASTERS",
                 "/inventory" => "INVENTORY",
+                "/stocks" => "STOCKS",
                 var p when p.StartsWith("/inventory/category/") => "INVENTORY - " + Uri.UnescapeDataString(p.Split('/').Last()).Replace('-', ' ').ToUpperInvariant(),
-                "/reports" => "REPORTS",
+                "/categories" => "CATEGORIES",
+                "/suppliers" => "SUPPLIERS",
                 "/audit-logs" => "AUDIT LOGS",
                 "/users" => "MANAGE USERS",
                 _ => path.Trim('/').Replace('-', ' ').ToUpperInvariant()
