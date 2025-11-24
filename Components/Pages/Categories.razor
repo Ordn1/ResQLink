@@ -1,0 +1,268 @@
+@page "/categories"
+@inject ResQLink.Services.CategoryService CategorySvc
+@inject ResQLink.Data.AppDbContext Db
+@using ResQLink.Data.Entities
+@using Microsoft.EntityFrameworkCore
+
+<div class="page-container">
+    <section class="panel">
+        <header class="panel-head">
+            <h2 class="panel-title">Categories Management</h2>
+            <div class="panel-actions">
+                <select class="mini-input" @bind="typeFilter" style="width:150px;">
+                    <option value="">All Types</option>
+                    <option value="P">Perishable</option>
+                    <option value="N">Non-Perishable</option>
+                    <option value="M">Medical</option>
+                    <option value="O">Others</option>
+                </select>
+                <button class="btn-primary" @onclick="OpenAddModal">+ Add Category</button>
+                <button class="mini-btn" @onclick="Refresh">?</button>
+            </div>
+        </header>
+
+        <div class="panel-body">
+            @if (isLoading)
+            {
+                <p class="text-center">Loading...</p>
+            }
+            else if (!FilteredCategories.Any())
+            {
+                <p class="text-center text-muted">No categories found.</p>
+            }
+            else
+            {
+                <div class="table-wrap">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th style="width:80px">ID</th>
+                                <th>Category Name</th>
+                                <th>Type</th>
+                                <th>Description</th>
+                                <th class="t-center">Items</th>
+                                <th class="t-center">Status</th>
+                                <th class="t-center" style="width:150px">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var cat in FilteredCategories)
+                            {
+                                <tr>
+                                    <td class="t-center">@cat.CategoryId</td>
+                                    <td><strong>@cat.CategoryName</strong></td>
+                                    <td>
+                                        <span class="status-chip @GetTypeClass(cat.CategoryType?.TypeCode ?? 'O')">
+                                            @(cat.CategoryType?.TypeName ?? "Uncategorized")
+                                        </span>
+                                    </td>
+                                    <td>@(cat.Description ?? "-")</td>
+                                    <td class="t-center">@cat.ReliefGoods.Count</td>
+                                    <td class="t-center">
+                                        <span class="status-chip @(cat.IsActive ? "st-ok" : "st-out")">
+                                            @(cat.IsActive ? "Active" : "Inactive")
+                                        </span>
+                                    </td>
+                                    <td class="t-center">
+                                        <button class="mini-btn" @onclick="() => OpenEditModal(cat)">Edit</button>
+                                        <button class="mini-btn btn-danger" @onclick="() => DeleteCategory(cat.CategoryId)" disabled="@(cat.ReliefGoods.Count > 0)">Delete</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </section>
+
+    @if (showModal)
+    {
+        <div class="modal-overlay" @onclick="CloseModal">
+            <div class="modal-box" @onclick:stopPropagation="true">
+                <header class="modal-header">
+                    <h3>@(isEditMode ? "Edit Category" : "Add Category")</h3>
+                    <button class="modal-close" @onclick="CloseModal">×</button>
+                </header>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Category Name *</label>
+                        <input class="form-input" @bind="editModel.CategoryName" placeholder="e.g., Canned Goods, First Aid" />
+                    </div>
+                    <div class="form-group">
+                        <label>Category Type *</label>
+                        <select class="form-input" @bind="editModel.CategoryTypeId">
+                            <option value="">-- Select Type --</option>
+                            @foreach (var ct in categoryTypes)
+                            {
+                                <option value="@ct.CategoryTypeId">@ct.TypeName - @GetTypeDescription(ct.TypeCode)</option>
+                            }
+                        </select>
+                        <small style="color:#64748b;font-size:0.75rem;">
+                            <strong>P</strong>=Perishable (food with expiry) | 
+                            <strong>N</strong>=Non-Perishable (long-term) | 
+                            <strong>M</strong>=Medical (health supplies) | 
+                            <strong>O</strong>=Others
+                        </small>
+                    </div>
+                    <div class="form-group">
+                        <label>Description</label>
+                        <textarea class="form-input" @bind="editModel.Description" rows="2" placeholder="Brief description of this category"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label class="chk-inline">
+                            <input type="checkbox" @bind="editModel.IsActive" />
+                            Active
+                        </label>
+                    </div>
+                    @if (!string.IsNullOrEmpty(errorMessage))
+                    {
+                        <div class="form-error">@errorMessage</div>
+                    }
+                </div>
+                <footer class="modal-footer">
+                    <button class="btn-secondary" @onclick="CloseModal">Cancel</button>
+                    <button class="btn-primary" @onclick="SaveCategory">Save</button>
+                </footer>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<Category> categories = new();
+    private List<CategoryType> categoryTypes = new();
+    private bool isLoading = true;
+    private bool showModal = false;
+    private bool isEditMode = false;
+    private string typeFilter = "";
+    private string errorMessage = "";
+    private Category editModel = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        isLoading = true;
+        categories = await CategorySvc.GetAllAsync();
+        categoryTypes = await Db.CategoryTypes.OrderBy(ct => ct.TypeName).ToListAsync();
+        isLoading = false;
+    }
+
+    private IEnumerable<Category> FilteredCategories
+    {
+        get
+        {
+            var query = categories.AsEnumerable();
+            if (!string.IsNullOrEmpty(typeFilter))
+            {
+                query = query.Where(c => c.CategoryType?.TypeCode.ToString() == typeFilter);
+            }
+            return query.OrderBy(c => c.CategoryName);
+        }
+    }
+
+    private string GetTypeClass(char typeCode) => typeCode switch
+    {
+        'P' => "st-critical",  // Red for perishable
+        'N' => "st-ok",        // Green for non-perishable
+        'M' => "st-med",       // Yellow for medical
+        'O' => "st-stable",    // Blue for others
+        _ => "st-out"
+    };
+
+    private string GetTypeDescription(char typeCode) => typeCode switch
+    {
+        'P' => "Requires expiration tracking",
+        'N' => "Long-term storage items",
+        'M' => "Medical supplies with expiry",
+        'O' => "Miscellaneous items",
+        _ => "Unknown"
+    };
+
+    private void OpenAddModal()
+    {
+        isEditMode = false;
+        editModel = new Category { IsActive = true };
+        errorMessage = "";
+        showModal = true;
+    }
+
+    private void OpenEditModal(Category category)
+    {
+        isEditMode = true;
+        editModel = new Category
+        {
+            CategoryId = category.CategoryId,
+            CategoryName = category.CategoryName,
+            Description = category.Description,
+            CategoryTypeId = category.CategoryTypeId,
+            IsActive = category.IsActive
+        };
+        errorMessage = "";
+        showModal = true;
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+        editModel = new();
+        errorMessage = "";
+    }
+
+    private async Task SaveCategory()
+    {
+        if (string.IsNullOrWhiteSpace(editModel.CategoryName))
+        {
+            errorMessage = "Category name is required.";
+            return;
+        }
+
+        if (!editModel.CategoryTypeId.HasValue)
+        {
+            errorMessage = "Please select a category type.";
+            return;
+        }
+
+        try
+        {
+            if (isEditMode)
+            {
+                await CategorySvc.UpdateAsync(editModel.CategoryId, editModel);
+            }
+            else
+            {
+                await CategorySvc.CreateAsync(editModel);
+            }
+
+            CloseModal();
+            await LoadDataAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+    }
+
+    private async Task DeleteCategory(int id)
+    {
+        // Removed JSRuntime confirm/alert due to compilation issues.
+        try
+        {
+            await CategorySvc.DeleteAsync(id);
+            await LoadDataAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error deleting category: {ex.Message}";
+        }
+    }
+
+    private async Task Refresh()
+    {
+        await LoadDataAsync();
+    }
+}

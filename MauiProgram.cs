@@ -1,12 +1,16 @@
 ﻿using Microsoft.Extensions.Logging;
-using ResQLink.Services;
 using Microsoft.Maui.LifecycleEvents;
-using Microsoft.Maui.ApplicationModel; // for MainThread
+using Microsoft.Maui.ApplicationModel;
+using Microsoft.EntityFrameworkCore;
+using ResQLink.Data;
+using ResQLink.Services;
+using ResQLink.Services.Users;
+using System.IO;
 
 #if WINDOWS
+using System.Runtime.Versioning;
 using Microsoft.UI.Windowing;
 using WinRT.Interop;
-using Microsoft.UI;
 #endif
 
 namespace ResQLink
@@ -29,13 +33,44 @@ namespace ResQLink
             builder.Services.AddMauiBlazorWebView();
             builder.Services.AddSingleton<AuthState>();
 
+#if WINDOWS
+            var connectionString =
+                "Data Source=Karoshi\\SQLEXPRESS;Initial Catalog=Resqlink;Integrated Security=True;Encrypt=True;Trust Server Certificate=True";
+            builder.Services.AddDbContext<AppDbContext>(opt =>
+            {
+                opt.UseSqlServer(connectionString);
+#if DEBUG
+                opt.EnableSensitiveDataLogging();
+                opt.EnableDetailedErrors();
+#endif
+            });
+#else
+            var dbPath = Path.Combine(FileSystem.AppDataDirectory, "resqlink.db");
+            builder.Services.AddDbContext<AppDbContext>(opt =>
+            {
+                opt.UseSqlite($"Data Source={dbPath}");
+#if DEBUG
+                opt.EnableSensitiveDataLogging();
+                opt.EnableDetailedErrors();
+#endif
+            });
+#endif
+
+            // Register Services
+            builder.Services.AddScoped<IUserService, UserService>();
+            builder.Services.AddScoped<IDisasterService, DisasterService>();
+            builder.Services.AddScoped<CategoryService>();     // Added
+            builder.Services.AddScoped<SupplierService>();     // Added
+            builder.Services.AddScoped<InventoryService>();
+            builder.Services.AddScoped<StockService>();
+            builder.Services.AddScoped<ResourceAllocationService>();
+
 #if DEBUG
             builder.Services.AddBlazorWebViewDeveloperTools();
             builder.Logging.AddDebug();
 #endif
 
 #if WINDOWS
-            // Set true fullscreen on Windows but run on UI thread and guard exceptions.
             builder.ConfigureLifecycleEvents(events =>
             {
                 events.AddWindows(w =>
@@ -49,24 +84,42 @@ namespace ResQLink
                                 var hwnd = WindowNative.GetWindowHandle(window);
                                 var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(hwnd);
                                 var appWindow = AppWindow.GetFromWindowId(windowId);
-
-                                if (appWindow is not null)
-                                {
-                                    // FullScreen is valid; keep this for true fullscreen.
-                                    appWindow.SetPresenter(AppWindowPresenterKind.FullScreen);
-                                }
+                                appWindow?.SetPresenter(AppWindowPresenterKind.Overlapped);
+                                appWindow?.Resize(new Windows.Graphics.SizeInt32(1000, 700));
                             }
-                            catch
-                            {
-                                // swallow platform-specific exceptions to avoid crashing startup
-                            }
+                            catch { }
                         });
                     });
                 });
             });
 #endif
 
-            return builder.Build();
+            var app = builder.Build();
+
+            AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+                System.Diagnostics.Debug.WriteLine($"UNHANDLED: {e.ExceptionObject}");
+            TaskScheduler.UnobservedTaskException += (_, e) =>
+            {
+                System.Diagnostics.Debug.WriteLine($"UNOBSERVED: {e.Exception}");
+                e.SetObserved();
+            };
+
+            using (var scope = app.Services.CreateScope())
+            {
+                var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
+                try
+                {
+                    var users = scope.ServiceProvider.GetRequiredService<IUserService>();
+                    logger.LogInformation("Seeding admin user (if missing)...");
+                    // users.EnsureCreatedAndSeedAdminAsync().GetAwaiter().GetResult();
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Seeding failed but app will continue.");
+                }
+            }
+
+            return app;
         }
     }
 }

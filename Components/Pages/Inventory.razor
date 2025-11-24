@@ -1,9 +1,9 @@
 ﻿@page "/inventory"
-@using System.Linq
+@inject ResQLink.Data.AppDbContext Db
+@using Microsoft.EntityFrameworkCore
+@using ResQLink.Data.Entities
 
-@* DEMO PLACEHOLDER – INVENTORY PAGE (GENERIC, LOCAL, NON-PERSISTENT) *@
 <div class="inventory-root">
-    <!-- KPI SUMMARY -->
     <section class="panel kpi-panel">
         <header class="panel-head">
             <h2 class="panel-title">Inventory Overview</h2>
@@ -12,41 +12,38 @@
             </div>
         </header>
         <div class="kpi-grid">
+            <!-- KPI Cards -->
             <div class="kpi-card">
-                <div class="kpi-label">Total Items</div>
-                <div class="kpi-value text-accent">@AllItems.Count</div>
+                <div class="kpi-label">Total Goods</div>
+                <div class="kpi-value text-accent">@ReliefGoods.Count</div>
             </div>
             <div class="kpi-card">
-                <div class="kpi-label">Low Stock</div>
-                <div class="kpi-value">@LowCount</div>
+                <div class="kpi-label">Tracked Stocks</div>
+                <div class="kpi-value">@Stocks.Count</div>
             </div>
             <div class="kpi-card">
-                <div class="kpi-label">Out of Stock</div>
-                <div class="kpi-value">@OutCount</div>
+                <div class="kpi-label">Low / Out</div>
+                <div class="kpi-value">@LowCount / @OutCount</div>
             </div>
             <div class="kpi-card">
                 <div class="kpi-label">Categories</div>
                 <div class="kpi-value">@DistinctCategories.Count()</div>
             </div>
             <div class="kpi-card">
-                <div class="kpi-label">Total Value</div>
-                <div class="kpi-value">@TotalValue.ToString("C0")</div>
+                <div class="kpi-label">Total Qty</div>
+                <div class="kpi-value">@TotalQuantity</div>
             </div>
         </div>
     </section>
 
-    <!-- FILTERS + MAIN TABLE -->
     <section class="panel">
         <header class="panel-head">
             <h2 class="panel-title">Inventory Items</h2>
             <div class="panel-actions">
-                <input class="mini-input" placeholder="Search name, SKU or category…" @bind="search" @bind:event="oninput" />
+                <input class="mini-input" placeholder="Search name or category…" @bind="search" @bind:event="oninput" />
                 <select class="mini-input" @bind="categoryFilter">
                     <option value="">Category</option>
-                    @foreach (var c in DistinctCategories)
-                    {
-                        <option>@c</option>
-                    }
+                    @foreach (var c in DistinctCategories) { <option>@c</option> }
                 </select>
                 <select class="mini-input" @bind="stockFilter">
                     <option value="">Stock State</option>
@@ -58,246 +55,137 @@
                     <option value="name_asc">Name A→Z</option>
                     <option value="qty_desc">Qty High→Low</option>
                     <option value="qty_asc">Qty Low→High</option>
-                    <option value="value_desc">Value High→Low</option>
-                    <option value="category_asc">Category A→Z</option>
                 </select>
                 <button class="mini-btn" @onclick="ClearFilters">Clear</button>
             </div>
         </header>
-
         <div class="table-wrap">
             <table class="inv-table">
                 <thead>
                 <tr>
-                    <th style="width:70px">SKU</th>
+                    <th style="width:70px">ID</th>
                     <th>Name</th>
                     <th>Category</th>
                     <th class="t-right">Qty</th>
-                    <th class="t-right">Reorder</th>
-                    <th>Unit</th>
+                    <th class="t-right">Last Updated</th>
                     <th>Status</th>
-                    <th class="t-right">Unit Cost</th>
-                    <th class="t-right">Value</th>
-                    <th>Updated</th>
                 </tr>
                 </thead>
                 <tbody>
                 @foreach (var i in PagedItems)
                 {
                     <tr>
-                        <td class="t-center">@i.Sku</td>
-                        <td>@i.Name</td>
+                        <td class="t-center">@i.RgId</td>
+                        <td>@i.Name (@i.Unit)</td>
                         <td>@i.Category</td>
                         <td class="t-right">@i.Quantity</td>
-                        <td class="t-right">@i.ReorderLevel</td>
-                        <td>@i.Unit</td>
-                        <td>
-                            <span class="status-chip @StatusClass(i)">
-                                @StatusText(i)
-                            </span>
-                        </td>
-                        <td class="t-right">@i.UnitCost.ToString("C")</td>
-                        <td class="t-right">@i.TotalValue.ToString("C0")</td>
-                        <td>@i.LastUpdated.ToString("MMM dd HH:mm")</td>
+                        <td class="t-right">@i.LastUpdated.ToString("MMM dd HH:mm")</td>
+                        <td><span class="status-chip @StatusClass(i)">@StatusText(i)</span></td>
                     </tr>
                 }
                 </tbody>
             </table>
         </div>
-
         <footer class="panel-foot">
-            <div class="foot-left">
-                Showing @StartIndex-@EndIndex of @Filtered.Count()
-            </div>
+            <div class="foot-left">Showing @StartIndex-@EndIndex of @Filtered.Count()</div>
             <div class="foot-right">
                 <label class="foot-label">Rows</label>
-                <select class="mini-input" @bind="pageSize">
-                    <option>10</option>
-                    <option>20</option>
-                    <option>50</option>
-                </select>
-                <button class="mini-btn" @onclick="PrevPage" disabled="@(_pageIndex == 0)">Prev</button>
+                <select class="mini-input" @bind="pageSize"><option>10</option><option>20</option><option>50</option></select>
+                <button class="mini-btn" @onclick="PrevPage" disabled=@(_pageIndex == 0)>Prev</button>
                 <span class="page-indicator">Page @(_pageIndex + 1) / @TotalPages</span>
-                <button class="mini-btn" @onclick="NextPage" disabled="@(_pageIndex >= TotalPages - 1)">Next</button>
+                <button class="mini-btn" @onclick="NextPage" disabled=@(_pageIndex >= TotalPages - 1)>Next</button>
             </div>
         </footer>
     </section>
 
     <div class="two-col">
-        <!-- CATEGORY SUMMARY -->
         <section class="panel">
-            <header class="panel-head">
-                <h2 class="panel-title">Category Summary</h2>
-            </header>
+            <header class="panel-head"><h2 class="panel-title">Category Summary</h2></header>
             <div class="category-grid">
                 @foreach (var c in CategorySummaries)
                 {
                     <div class="category-card">
                         <div class="cat-name">@c.Category</div>
-                        <div class="cat-line">
-                            <strong>@c.ItemCount</strong><span class="muted"> items</span>
+                        <div class="cat-line"><strong>@c.ItemCount</strong><span class="muted"> goods</span></div>
+                        <div class="cat-line">Qty <strong>@c.TotalQuantity</strong></div>
+                        <div class="progress-shell thin" aria-label="Low/out percent">
+                            <div class="progress-bar" style="width:@($"{c.LowPercent}%")"></div>
                         </div>
-                        <div class="cat-line">
-                            Qty: <strong>@c.TotalQuantity</strong>
-                        </div>
-                        <div class="progress-shell thin" aria-label="Low stock percentage">
-                            <div class="progress-bar" style="width:@c.LowPercent%"></div>
-                        </div>
-                        <div class="cat-meta">
-                            <span class="low-meta">@c.LowCount low</span>
-                            <span class="sep">|</span>
-                            <span class="out-meta">@c.OutCount out</span>
-                        </div>
+                        <div class="cat-meta"><span class="low-meta">@c.LowCount low</span><span class="sep">|</span><span class="out-meta">@c.OutCount out</span></div>
                     </div>
                 }
             </div>
         </section>
-
-        <!-- LOW / CRITICAL ITEMS -->
         <section class="panel">
-            <header class="panel-head">
-                <h2 class="panel-title">Restock Attention</h2>
-            </header>
+            <header class="panel-head"><h2 class="panel-title">Restock Attention</h2></header>
             <div class="attention-list">
                 @foreach (var i in AttentionItems)
                 {
                     <div class="att-row">
-                        <div class="att-left">
-                            <div class="att-name">@i.Name</div>
-                            <div class="att-cat">@i.Category</div>
-                        </div>
+                        <div class="att-left"><div class="att-name">@i.Name</div><div class="att-cat">@i.Category</div></div>
                         <div class="att-mid">
-                            <div class="progress-shell tiny" aria-label="Stock percentage">
-                                <div class="progress-bar" style="width:@StockPercent(i)%"></div>
+                            <div class="progress-shell tiny" aria-label="Stock %">
+                                <div class="progress-bar" style="width:@($"{StockPercent(i)}%")"></div>
                             </div>
-                            <div class="att-stats">
-                                <span>Qty @i.Quantity</span>
-                                <span class="sep">/</span>
-                                <span>Reorder @i.ReorderLevel</span>
-                            </div>
+                            <div class="att-stats"><span>Qty @i.Quantity</span></div>
                         </div>
-                        <div class="att-right">
-                            <span class="status-chip @StatusClass(i)">@StatusText(i)</span>
-                        </div>
+                        <div class="att-right"><span class="status-chip @StatusClass(i)">@StatusText(i)</span></div>
                     </div>
                 }
             </div>
         </section>
     </div>
-
-    <!-- PLACEHOLDER CHARTS -->
-    <section class="panel chart-panel">
-        <header class="panel-head">
-            <h2 class="panel-title">Usage & Trends (Placeholder)</h2>
-            <div class="panel-actions">
-                <select class="mini-input" @bind="trendRange">
-                    <option>7d</option>
-                    <option selected>30d</option>
-                    <option>90d</option>
-                </select>
-            </div>
-        </header>
-        <div class="chart-grid">
-            <div class="chart-box" role="img" aria-label="Stock distribution chart placeholder">
-                <div class="chart-title">Stock Distribution</div>
-                <div class="chart-placeholder">[ Donut Chart Placeholder ]</div>
-            </div>
-            <div class="chart-box" role="img" aria-label="Low stock trend line chart placeholder">
-                <div class="chart-title">Low Stock Trend</div>
-                <div class="chart-placeholder">[ Line Chart Placeholder ]</div>
-            </div>
-            <div class="chart-box" role="img" aria-label="Category value bar chart placeholder">
-                <div class="chart-title">Category Value</div>
-                <div class="chart-placeholder">[ Bar Chart Placeholder ]</div>
-            </div>
-        </div>
-    </section>
 </div>
 
 @code {
-    // Simple POCO for safety in Razor
-    private class InventoryItem
-    {
-        public string Sku { get; set; } = "";
-        public string Name { get; set; } = "";
-        public string Category { get; set; } = "";
-        public int Quantity { get; set; }
-        public int ReorderLevel { get; set; }
-        public string Unit { get; set; } = "";
-        public decimal UnitCost { get; set; }
-        public DateTime LastUpdated { get; set; }
-        public decimal TotalValue => UnitCost * Quantity;
-    }
+    private record InventoryRow(int RgId, string Name, string Category, string Unit, int Quantity, DateTime LastUpdated);
+    private record CategorySummaryRow(string Category, int ItemCount, int TotalQuantity, int LowCount, int OutCount)
+    { public int LowPercent => ItemCount == 0 ? 0 : (int)Math.Round((LowCount + OutCount) / (double)ItemCount * 100); }
 
-    private class CategorySummary
-    {
-        public string Category { get; set; } = "";
-        public int ItemCount { get; set; }
-        public int TotalQuantity { get; set; }
-        public int LowCount { get; set; }
-        public int OutCount { get; set; }
-        public int LowPercent => ItemCount == 0 ? 0 : (int)Math.Round((LowCount + OutCount) / (double)ItemCount * 100);
-    }
+    private List<InventoryRow> All = new();
+    private List<ReliefGood> ReliefGoods = new();
+    private List<Stock> Stocks = new();
+    private List<Category> Categories = new();
 
-    // Data
-    private List<InventoryItem> AllItems = new();
-
-    // Filters / Paging / State
     private string search = string.Empty;
     private string categoryFilter = string.Empty;
-    private string stockFilter = string.Empty; // low | out | ok | ""
+    private string stockFilter = string.Empty;
     private string sortBy = "name_asc";
-    private string trendRange = "30d";
     private int _pageIndex = 0;
     private int pageSize = 10;
 
-    protected override void OnInitialized() => SeedSampleData();
+    protected override async Task OnInitializedAsync() => await LoadAsync();
 
-    private void SeedSampleData()
+    private async Task LoadAsync()
     {
-        var now = DateTime.UtcNow;
-        AllItems.AddRange(new[]
+        ReliefGoods = await Db.ReliefGoods.Include(r => r.Categories).ThenInclude(rc => rc.Category).AsNoTracking().ToListAsync();
+        Stocks = await Db.Stocks.AsNoTracking().ToListAsync();
+        Categories = await Db.Categories.AsNoTracking().ToListAsync();
+
+        // Build flattened rows taking latest stock per good (or 0 if no stock row)
+        var latestStock = Stocks.GroupBy(s => s.RgId)
+                                .Select(g => g.OrderByDescending(x => x.LastUpdated).First())
+                                .ToDictionary(s => s.RgId, s => s);
+
+        All = ReliefGoods.Select(r =>
         {
-            new InventoryItem{ Sku="WAT-01", Name="Bottled Water (1L)", Category="Water", Quantity=480, ReorderLevel=300, Unit="bottles", UnitCost=0.80m, LastUpdated=now.AddMinutes(-30)},
-            new InventoryItem{ Sku="WAT-02", Name="Drinking Water (Gallon)", Category="Water", Quantity=65, ReorderLevel=80, Unit="gallons", UnitCost=3.50m, LastUpdated=now.AddHours(-2)},
-            new InventoryItem{ Sku="FOOD-01", Name="Ready Meals", Category="Food", Quantity=120, ReorderLevel=200, Unit="packs", UnitCost=2.10m, LastUpdated=now.AddMinutes(-10)},
-            new InventoryItem{ Sku="FOOD-02", Name="Rice (Sack)", Category="Food", Quantity=42, ReorderLevel=50, Unit="sacks", UnitCost=18.00m, LastUpdated=now.AddHours(-5)},
-            new InventoryItem{ Sku="MED-01", Name="Medical Kits", Category="Medical", Quantity=18, ReorderLevel=40, Unit="kits", UnitCost=25.00m, LastUpdated=now.AddMinutes(-5)},
-            new InventoryItem{ Sku="MED-02", Name="Bandage Rolls", Category="Medical", Quantity=310, ReorderLevel=200, Unit="rolls", UnitCost=0.60m, LastUpdated=now.AddHours(-7)},
-            new InventoryItem{ Sku="SUP-01", Name="Blankets", Category="Supplies", Quantity=55, ReorderLevel=80, Unit="pcs", UnitCost=6.50m, LastUpdated=now.AddHours(-3)},
-            new InventoryItem{ Sku="SUP-02", Name="Flashlights", Category="Supplies", Quantity=72, ReorderLevel=60, Unit="pcs", UnitCost=4.20m, LastUpdated=now.AddHours(-1)},
-            new InventoryItem{ Sku="SUP-03", Name="Batteries AA", Category="Supplies", Quantity=380, ReorderLevel=250, Unit="pcs", UnitCost=0.25m, LastUpdated=now.AddMinutes(-40)},
-            new InventoryItem{ Sku="SUP-04", Name="Raincoats", Category="Supplies", Quantity=24, ReorderLevel=40, Unit="pcs", UnitCost=8.75m, LastUpdated=now.AddHours(-9)},
-            new InventoryItem{ Sku="PROT-01", Name="Masks", Category="Protective", Quantity=940, ReorderLevel=600, Unit="pcs", UnitCost=0.18m, LastUpdated=now.AddMinutes(-12)},
-            new InventoryItem{ Sku="PROT-02", Name="Gloves (Pairs)", Category="Protective", Quantity=140, ReorderLevel=160, Unit="pairs", UnitCost=0.35m, LastUpdated=now.AddHours(-6)},
-            new InventoryItem{ Sku="FUEL-01", Name="Fuel (Liter)", Category="Logistics", Quantity=150, ReorderLevel=140, Unit="L", UnitCost=1.00m, LastUpdated=now.AddHours(-2)},
-            new InventoryItem{ Sku="FUEL-02", Name="Diesel (Drum)", Category="Logistics", Quantity=8, ReorderLevel=12, Unit="drums", UnitCost=110.00m, LastUpdated=now.AddHours(-4)},
-            new InventoryItem{ Sku="TECH-01", Name="Portable Radios", Category="Technology", Quantity=22, ReorderLevel=30, Unit="pcs", UnitCost=35.00m, LastUpdated=now.AddMinutes(-55)},
-            new InventoryItem{ Sku="TECH-02", Name="Power Banks", Category="Technology", Quantity=64, ReorderLevel=50, Unit="pcs", UnitCost=9.00m, LastUpdated=now.AddMinutes(-20)},
-            new InventoryItem{ Sku="MED-03", Name="Antiseptic Bottles", Category="Medical", Quantity=0, ReorderLevel=40, Unit="bottles", UnitCost=3.10m, LastUpdated=now.AddMinutes(-3)},
-        });
+            var cat = r.Categories.FirstOrDefault()?.Category.CategoryName ?? "Uncategorized";
+            var stock = latestStock.TryGetValue(r.RgId, out var st) ? st : null;
+            return new InventoryRow(r.RgId, r.Name, cat, r.Unit, stock?.Quantity ?? 0, stock?.LastUpdated ?? r.CreatedAt);
+        }).ToList();
     }
 
-    // Derived sets / filters
-    private IEnumerable<string> DistinctCategories => AllItems.Select(i => i.Category).Distinct().OrderBy(c => c);
+    private IEnumerable<string> DistinctCategories => All.Select(i => i.Category).Distinct().OrderBy(c => c);
 
-    private IEnumerable<InventoryItem> Filtered
+    private IEnumerable<InventoryRow> Filtered
     {
         get
         {
-            var q = AllItems.AsEnumerable();
-
+            var q = All.AsEnumerable();
             if (!string.IsNullOrWhiteSpace(search))
-            {
-                q = q.Where(i =>
-                    i.Name.Contains(search, StringComparison.OrdinalIgnoreCase) ||
-                    i.Sku.Contains(search, StringComparison.OrdinalIgnoreCase) ||
-                    i.Category.Contains(search, StringComparison.OrdinalIgnoreCase));
-            }
-
+                q = q.Where(i => i.Name.Contains(search, StringComparison.OrdinalIgnoreCase) || i.Category.Contains(search, StringComparison.OrdinalIgnoreCase));
             if (!string.IsNullOrWhiteSpace(categoryFilter))
                 q = q.Where(i => i.Category.Equals(categoryFilter, StringComparison.OrdinalIgnoreCase));
-
             if (!string.IsNullOrWhiteSpace(stockFilter))
             {
                 q = stockFilter switch
@@ -308,78 +196,59 @@
                     _ => q
                 };
             }
-
             return Sort(q);
         }
     }
 
-    private IEnumerable<InventoryItem> Sort(IEnumerable<InventoryItem> source) =>
-        sortBy switch
-        {
-            "qty_desc" => source.OrderByDescending(i => i.Quantity),
-            "qty_asc" => source.OrderBy(i => i.Quantity),
-            "value_desc" => source.OrderByDescending(i => i.TotalValue),
-            "category_asc" => source.OrderBy(i => i.Category).ThenBy(i => i.Name),
-            _ => source.OrderBy(i => i.Name) // name_asc
-        };
+    private IEnumerable<InventoryRow> Sort(IEnumerable<InventoryRow> source) => sortBy switch
+    {
+        "qty_desc" => source.OrderByDescending(i => i.Quantity),
+        "qty_asc" => source.OrderBy(i => i.Quantity),
+        _ => source.OrderBy(i => i.Name)
+    };
 
-    // Pagination
     private int TotalFiltered => Filtered.Count();
     private int TotalPages => Math.Max((int)Math.Ceiling(TotalFiltered / (double)pageSize), 1);
     private int StartIndex => TotalFiltered == 0 ? 0 : (_pageIndex * pageSize) + 1;
     private int EndIndex => Math.Min((_pageIndex + 1) * pageSize, TotalFiltered);
-    private IEnumerable<InventoryItem> PagedItems => Filtered.Skip(_pageIndex * pageSize).Take(pageSize);
+    private IEnumerable<InventoryRow> PagedItems => Filtered.Skip(_pageIndex * pageSize).Take(pageSize);
 
-    // KPIs
-    private int LowCount => AllItems.Count(IsLow);
-    private int OutCount => AllItems.Count(IsOut);
-    private decimal TotalValue => AllItems.Sum(i => i.TotalValue);
+    private int LowCount => All.Count(IsLow);
+    private int OutCount => All.Count(IsOut);
+    private int TotalQuantity => All.Sum(i => i.Quantity);
 
-    // Category summaries
-    private IEnumerable<CategorySummary> CategorySummaries =>
-        DistinctCategories.Select(cat =>
-        {
-            var items = AllItems.Where(i => i.Category == cat).ToList();
-            return new CategorySummary
-            {
-                Category = cat,
-                ItemCount = items.Count,
-                TotalQuantity = items.Sum(i => i.Quantity),
-                LowCount = items.Count(IsLow),
-                OutCount = items.Count(IsOut)
-            };
-        });
+    private IEnumerable<CategorySummaryRow> CategorySummaries => DistinctCategories.Select(cat =>
+    {
+        var items = All.Where(i => i.Category == cat).ToList();
+        return new CategorySummaryRow(cat, items.Count, items.Sum(i => i.Quantity), items.Count(IsLow), items.Count(IsOut));
+    });
 
-    // Attention list (low & out)
-    private IEnumerable<InventoryItem> AttentionItems =>
-        AllItems.Where(i => IsLow(i) || IsOut(i))
-                .OrderBy(i => IsOut(i) ? 0 : 1)
-                .ThenBy(i => StockPercent(i))
-                .Take(10);
+    private IEnumerable<InventoryRow> AttentionItems => All.Where(i => IsLow(i) || IsOut(i))
+                                                           .OrderBy(i => IsOut(i) ? 0 : 1)
+                                                           .ThenBy(i => StockPercent(i))
+                                                           .Take(10);
 
-    // Helpers
-    private static bool IsOut(InventoryItem i) => i.Quantity <= 0;
-    private static bool IsLow(InventoryItem i) => !IsOut(i) && i.Quantity <= i.ReorderLevel;
-    private static int StockPercent(InventoryItem i)
+    private static bool IsOut(InventoryRow i) => i.Quantity <= 0;
+    private static bool IsLow(InventoryRow i) => !IsOut(i) && i.Quantity <= 10; // threshold placeholder until per-item reorder level added
+    private static int StockPercent(InventoryRow i)
     {
         if (IsOut(i)) return 0;
-        var cap = Math.Max(i.ReorderLevel * 2, i.ReorderLevel + 1);
+        var cap = 50; // heuristic placeholder
         return Math.Clamp((int)Math.Round(i.Quantity / (double)cap * 100), 0, 100);
     }
 
-    private string StatusText(InventoryItem i) => IsOut(i) ? "OUT" : IsLow(i) ? "LOW" : "OK";
-    private string StatusClass(InventoryItem i) => IsOut(i) ? "st-out" : IsLow(i) ? "st-low" : "st-ok";
+    private string StatusText(InventoryRow i) => IsOut(i) ? "OUT" : IsLow(i) ? "LOW" : "OK";
+    private string StatusClass(InventoryRow i) => IsOut(i) ? "st-out" : IsLow(i) ? "st-low" : "st-ok";
 
-    // Actions
-    private void Refresh() => StateHasChanged();
+    private async void Refresh()
+    {
+        await LoadAsync();
+        StateHasChanged();
+    }
     private void ClearFilters()
     {
-        search = string.Empty;
-        categoryFilter = string.Empty;
-        stockFilter = string.Empty;
-        sortBy = "name_asc";
-        _pageIndex = 0;
+        search = string.Empty; categoryFilter = string.Empty; stockFilter = string.Empty; sortBy = "name_asc"; _pageIndex = 0;
     }
     private void PrevPage() { if (_pageIndex > 0) _pageIndex--; }
     private void NextPage() { if (_pageIndex < TotalPages - 1) _pageIndex++; }
-}   
+}

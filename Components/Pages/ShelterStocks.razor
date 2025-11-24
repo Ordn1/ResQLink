@@ -1,0 +1,184 @@
+@page "/shelter/{ShelterId:int}/stocks"
+@using ResQLink.Data.Entities
+@using ResQLink.Helpers
+@using Microsoft.EntityFrameworkCore
+@inject ResQLink.Services.ResourceAllocationService AllocationSvc
+@inject ResQLink.Data.AppDbContext Db
+@inject NavigationManager Nav
+
+<div class="page-container">
+    <section class="panel">
+        <header class="panel-head">
+            <h2 class="panel-title">@(_shelter?.Name ?? "Shelter") - Stock Inventory</h2>
+            <div class="panel-actions">
+                <button class="mini-btn" @onclick="GoBack">? Back to Shelters</button>
+                <button class="mini-btn" @onclick="Refresh">? Refresh</button>
+            </div>
+        </header>
+
+        @if (_loading)
+        {
+            <p class="text-center">Loading...</p>
+        }
+        else if (_shelter == null)
+        {
+            <p class="text-center text-muted">Shelter not found.</p>
+        }
+        else
+        {
+            <div style="padding:16px;border-bottom:1px solid var(--border);background:#f8fafc;">
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;">
+                    <div>
+                        <div style="font-size:0.75rem;font-weight:600;color:#64748b;margin-bottom:4px;">Location</div>
+                        <div style="font-weight:600;">@_shelter.Location</div>
+                    </div>
+                    <div>
+                        <div style="font-size:0.75rem;font-weight:600;color:#64748b;margin-bottom:4px;">Capacity</div>
+                        <div style="font-weight:600;">@_shelter.CurrentOccupancy / @_shelter.Capacity</div>
+                    </div>
+                    <div>
+                        <div style="font-size:0.75rem;font-weight:600;color:#64748b;margin-bottom:4px;">Total Items</div>
+                        <div style="font-weight:600;">@_shelterStocks.Count items</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-body">
+                <h3 style="font-size:0.9rem;font-weight:700;margin-bottom:12px;">Current Stock</h3>
+                @if (_shelterStocks.Count == 0)
+                {
+                    <p class="text-center text-muted">No items allocated to this shelter yet.</p>
+                }
+                else
+                {
+                    <div class="table-wrap">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Item</th>
+                                    <th class="t-center">Quantity</th>
+                                    <th class="t-center">Max Capacity</th>
+                                    <th class="t-center">Status</th>
+                                    <th class="t-center">Progress</th>
+                                    <th>Last Updated</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var stock in _shelterStocks)
+                                {
+                                    <tr>
+                                        <td><strong>@stock.ReliefGood?.Name</strong> (@stock.ReliefGood?.Unit)</td>
+                                        <td class="t-center">@stock.Quantity</td>
+                                        <td class="t-center">@stock.MaxCapacity</td>
+                                        <td class="t-center">
+                                            <span class="status-chip @StockExtensions.GetStatusClass(stock.Status)">
+                                                @stock.Status
+                                            </span>
+                                        </td>
+                                        <td class="t-center">
+                                            <div class="progress-shell" style="width:120px;display:inline-block;">
+                                                <div class="progress-bar" style="width:@(stock.CapacityPercent)%"></div>
+                                            </div>
+                                            <span style="margin-left:6px;font-size:0.8em;">@stock.CapacityPercent.ToString("0.0")%</span>
+                                        </td>
+                                        <td>@stock.LastUpdated.ToString("MMM dd, yyyy HH:mm")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+
+            <div class="panel-body" style="border-top:1px solid var(--border);margin-top:20px;">
+                <h3 style="font-size:0.9rem;font-weight:700;margin-bottom:12px;">Allocation History</h3>
+                @if (_allocations.Count == 0)
+                {
+                    <p class="text-center text-muted">No allocation history.</p>
+                }
+                else
+                {
+                    <div class="table-wrap">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th style="width:80px">ID</th>
+                                    <th>Item</th>
+                                    <th class="t-center">Quantity</th>
+                                    <th>Allocated By</th>
+                                    <th>Date</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var alloc in _allocations)
+                                {
+                                    <tr>
+                                        <td class="t-center">#@alloc.AllocationId</td>
+                                        <td><strong>@alloc.Stock?.ReliefGood?.Name</strong></td>
+                                        <td class="t-center">@alloc.AllocatedQuantity @alloc.Stock?.ReliefGood?.Unit</td>
+                                        <td>@alloc.AllocatedBy?.Username</td>
+                                        <td>@alloc.AllocatedAt.ToString("MMM dd, yyyy HH:mm")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        }
+    </section>
+</div>
+
+@code {
+    [Parameter] public int ShelterId { get; set; }
+
+    private Shelter? _shelter;
+    private List<Stock> _shelterStocks = new();
+    private List<ResourceAllocation> _allocations = new();
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _loading = true;
+            
+            _shelter = await Db.Shelters.FindAsync(ShelterId);
+            
+            if (_shelter != null)
+            {
+                _shelterStocks = await AllocationSvc.GetShelterStockAsync(ShelterId);
+                _allocations = await AllocationSvc.GetByShelterAsync(ShelterId);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Handle error
+            Console.WriteLine($"Error loading shelter stocks: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task Refresh()
+    {
+        await LoadAsync();
+    }
+
+    private void GoBack()
+    {
+        Nav.NavigateTo("/shelters");
+    }
+}

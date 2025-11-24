@@ -4,6 +4,7 @@
 @using ResQLink.Components
 @inject NavigationManager Navigation
 @inject ResQLink.Services.AuthState Auth
+@inject ResQLink.Services.Users.IUserService Users
 
 <div class="login-root">
     <div class="login-card" aria-label="Login">
@@ -23,6 +24,10 @@
         <div class="login-actions">
             <button type="button" class="login-btn" @onclick="HandleLogin">LOGIN</button>
             <a href="#" class="forgot-link" @onclick="PreventDefault">Forgot password?</a>
+            @if (!string.IsNullOrEmpty(LoginError))
+            {
+                <div style="color:#ffdddd;font-size:.75rem;margin-top:6px;">@LoginError</div>
+            }
         </div>
     </div>
 
@@ -40,11 +45,23 @@
 @code {
     private string Username { get; set; } = "";
     private string Password { get; set; } = "";
+    private string LoginError { get; set; } = "";
 
     private async Task HandleLogin()
     {
+        LoginError = "";
         if (string.IsNullOrWhiteSpace(Username) || string.IsNullOrWhiteSpace(Password))
+        {
+            LoginError = "Enter username and password.";
             return;
+        }
+
+        var user = await Users.AuthenticateAsync(Username, Password);
+        if (user is null)
+        {
+            LoginError = "Invalid credentials.";
+            return;
+        }
 
         Auth.SetAuthenticated(true);
         await Task.Yield();

@@ -79,8 +79,8 @@ main {
 
 .app-shell {
     display: flex;
-    height: 100vh; 
-    overflow: hidden; 
+    height: 100vh;
+    overflow: hidden;
     background: #fff;
     font-family: 'Open Sans', Arial, sans-serif;
 }
@@ -92,9 +92,9 @@ main {
     align-items: center;
     box-sizing: border-box;
     padding: 32px 18px 32px 18px;
-    background: #fff;
-    height: 100vh; 
-    overflow-y: auto; 
+    background: #1f2f5c; /* Changed from #fff to match design */
+    height: 100vh;
+    overflow-y: auto;
 }
 
 .sidebar-brand {
@@ -122,10 +122,10 @@ main {
 }
 
 .nav-btn {
-    --pill-bg: #266f35;
-    --pill-bg-hover: #43a758;
-    --pill-active-bg: #f2ecec;
-    --pill-active-color: #3d523e;
+    --pill-bg: #07562c;
+    --pill-bg-hover: #17a13d;
+    --pill-active-bg: #003f12;
+    --pill-active-color: #035806;
     width: 100%;
     max-width: 188px;
     min-height: 38px;
@@ -142,7 +142,16 @@ main {
     justify-content: center;
     align-items: center;
     transition: background .18s, color .18s;
+    /* Ensure text and arrow split properly */
+    position: relative;
 }
+
+    /* Ensures the text pushes left and arrow pushes right inside the pill */
+    .nav-btn span {
+        display: flex;
+        justify-content: space-between;
+        width: 100%;
+    }
 
     .nav-btn:hover {
         background: var(--pill-bg-hover);
@@ -167,8 +176,8 @@ main {
     display: flex;
     flex-direction: column;
     background: #fff;
-    height: 100vh; 
-    overflow: hidden; 
+    height: 100vh;
+    overflow: hidden;
 }
 
 .shell-header {
@@ -192,7 +201,7 @@ main {
     font-size: 30px;
     font-weight: 800;
     letter-spacing: 1px;
-    color: #266f35;
+    color: #07562c;
     margin: 0;
     line-height: 1;
 }
@@ -211,7 +220,7 @@ main {
 
     .menu-icon span {
         height: 3px;
-        background: #266f35;
+        background: #1f2f5c;
         border-radius: 2px;
         width: 100%;
     }
@@ -227,7 +236,7 @@ main {
     border: none;
     cursor: pointer;
     font-size: 30px;
-    color: #266f35;
+    color: #1f2f5c;
     padding: 4px;
     line-height: 1;
     transition: transform .2s ease, filter .2s ease;
@@ -250,7 +259,7 @@ main {
     flex-direction: column;
     padding: 24px 50px 16px 50px;
     box-sizing: border-box;
-    overflow-y: auto; 
+    overflow-y: auto;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
 }
@@ -264,7 +273,7 @@ main {
     padding: 8px 0;
 }
 
-/* Scrollbar */
+
 .shell-content::-webkit-scrollbar {
     width: 8px;
 }
@@ -278,7 +287,7 @@ main {
     border-radius: 4px;
 }
 
-/* Responsive tweaks */
+
 @media (max-width: 1000px) {
     .shell-header {
         padding: 32px 34px 0 34px;
@@ -309,8 +318,8 @@ main {
         padding: 14px 14px;
         background: linear-gradient(90deg,#092f92,#ffffff);
         overflow-x: auto;
-        height: auto; /* override 100vh for horizontal top bar */
-        overflow-y: visible; /* no vertical scroll in collapsed mode */
+        height: auto;
+        overflow-y: visible;
     }
 
     .sidebar-brand {
@@ -322,6 +331,7 @@ main {
         flex-direction: row;
         gap: 10px;
         width: auto;
+        align-items: flex-start; /* Align items to top so dropdowns fall down naturally */
     }
 
     .nav-btn {
@@ -353,58 +363,75 @@ main {
     }
 }
 
-/* Added minimal dropdown styles for inventory menu */
+/* ----------------------------------------------------- */
+/* INVENTORY ACCORDION STYLES (Replacing previous CSS)  */
+/* ----------------------------------------------------- */
+
 .nav-item-with-menu {
-    position: relative;
-    width: 100%;
     display: flex;
-    justify-content: center;
+    flex-direction: column; /* Important: Stack vertical */
+    width: 100%;
+    align-items: center;
 }
 
+/* The "Drawer" that opens */
 .inventory-dropdown {
-    position: absolute;
-    left: calc(50% - 94px); /* center under the button with the same max-width as nav-btn */
-    top: 46px;
-    width: 188px;
-    background: #fff;
-    border: 1px solid rgba(0,0,0,.06);
-    border-radius: 8px;
-    box-shadow: 0 8px 24px rgba(0,0,0,.08);
     display: flex;
     flex-direction: column;
-    padding: 8px;
-    z-index: 50;
+    width: 100%;
+    max-width: 170px; /* Slightly narrower than the pill (188px) to look "nested" */
+
+    background-color: rgba(0, 0, 0, 0.03); /* Very subtle grey inset */
+    box-shadow: inset 0 4px 6px -4px rgba(0, 0, 0, 0.15); /* Inner shadow for depth */
+    border-radius: 0 0 12px 12px; /* Round bottom only */
+
+    overflow: hidden;
+    margin-top: -12px; /* Pull it UP so it sits 'inside' the bottom of the pill above */
+    padding-top: 14px; /* Push content down so it's not hidden by the overlap */
+    z-index: 0; /* Ensure it sits behind the button if needed */
 }
 
-.inventory-dropdown .dropdown-link {
-    background: transparent;
-    border: none;
-    padding: 8px 10px;
-    text-align: left;
-    font-weight: 700;
-    font-size: 0.78rem;
-    color: #163b1a;
-    cursor: pointer;
-    border-radius: 6px;
-}
-
-.inventory-dropdown .dropdown-link:hover {
-    background: rgba(2, 126, 30, 0.06);
-}
-
-/* keep responsive behavior: dropdown becomes full width on narrow viewports */
-@media (max-width: 760px) {
-    .inventory-dropdown {
-        position: static;
-        left: auto;
-        top: auto;
-        width: auto;
-        box-shadow: none;
-        background: transparent;
-        padding: 0;
-    }
+    /* The Links inside the dropdown */
     .inventory-dropdown .dropdown-link {
-        color: #fff;
-        padding: 8px 12px;
+        appearance: none;
+        background: transparent;
+        border: none;
+        color: #333; /* Dark text for readability */
+        cursor: pointer;
+        padding: 8px 12px 8px 24px; /* Indented more than normal buttons */
+        text-align: left;
+        width: 100%;
+        font-size: 0.85rem;
+        font-weight: 600;
+        border-left: 3px solid transparent;
+        transition: all 0.2s;
+    }
+
+        .inventory-dropdown .dropdown-link:hover {
+            background-color: rgba(7, 86, 44, 0.1); /* Light green hover */
+            color: #07562c; /* Match primary green */
+            border-left-color: #07562c;
+        }
+
+/* MOBILE OVERRIDES 
+   When sidebar is horizontal (max-width: 760px)
+*/
+@media (max-width: 760px) {
+    .nav-item-with-menu {
+        width: auto;
+        /* We keep flex-direction column so the dropdown falls BELOW the button */
+    }
+
+    .inventory-dropdown {
+        position: absolute; /* Float on mobile so we don't break the horizontal bar */
+        top: 100%;
+        left: 0;
+        margin-top: 4px;
+        background: #fff;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        border-radius: 8px;
+        padding-top: 4px;
+        min-width: 160px;
+        z-index: 100;
     }
 }
