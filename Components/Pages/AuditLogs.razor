@@ -1,16 +1,47 @@
 ﻿@page "/audit-logs"
 @using System.Linq
 
-@* DEMO AUDIT LOGS — local, read-only, temporary UI *@
 <div class="audit-root">
+
+    <section class="panel kpi-panel">
+        <header class="panel-head">
+            <h2 class="panel-title">Audit Logs Overview</h2>
+            <div class="panel-actions">
+                <button class="mini-btn" @onclick="Refresh" title="Refresh list">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
+        </header>
+        <div class="kpi-grid">
+            <div class="kpi-card">
+                <div class="kpi-label">Total Entries</div>
+                <div class="kpi-value text-accent">@AllLogs.Count</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Today</div>
+                <div class="kpi-value">@AllLogs.Count(l => l.Timestamp.Date == DateTime.Today)</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Actors</div>
+                <div class="kpi-value">@DistinctActors.Count()</div>
+            </div>
+        </div>
+    </section>
+
     <section class="panel">
         <header class="panel-head">
             <h2 class="panel-title">Audit Logs</h2>
             <div class="panel-actions">
-                <input class="mini-input" placeholder="Search user, resource or details…" @bind="search" @bind:event="oninput" />
+                <input class="mini-input"
+                       placeholder="Search user, resource or details…"
+                       @bind="search"
+                       @bind:event="oninput" />
                 <select class="mini-input" @bind="actorFilter">
                     <option value="">Actor</option>
-                    @foreach (var a in DistinctActors) { <option>@a</option> }
+                    @foreach (var a in DistinctActors)
+                    {
+                        <option>@a</option>
+                    }
                 </select>
                 <select class="mini-input" @bind="actionFilter">
                     <option value="">Action</option>
@@ -23,8 +54,12 @@
                 <input class="mini-input" type="date" @bind="dateFrom" />
                 <input class="mini-input" type="date" @bind="dateTo" />
                 <button class="mini-btn" @onclick="ClearFilters">Clear</button>
-                <button class="mini-btn" @onclick="Refresh">↻</button>
-                <button class="mini-btn" disabled title="Export not implemented">Export</button>
+                <button class="mini-btn" @onclick="Refresh" title="Refresh list">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+                <button class="mini-btn" disabled title="Export not implemented">
+                    Export
+                </button>
             </div>
         </header>
 
@@ -32,31 +67,31 @@
             <table class="dash-table">
                 <thead>
                     <tr>
-                        <th style="width:70px">ID</th>
-                        <th>Timestamp</th>
-                        <th>Actor</th>
-                        <th>Action</th>
-                        <th>Resource</th>
-                        <th>IP</th>
-                        <th style="width:120px">Details</th>
+                        <th class="t-center col-id">ID</th>
+                        <th class="col-time">Timestamp</th>
+                        <th class="col-actor">Actor</th>
+                        <th class="col-action">Action</th>
+                        <th class="col-resource">Resource</th>
+                        <th class="col-ip">IP</th>
+                        <th class="col-details t-center">Details</th>
                     </tr>
                 </thead>
                 <tbody>
                     @foreach (var l in PagedLogs)
                     {
                         <tr>
-                            <td class="t-center">#@l.Id</td>
-                            <td>@l.Timestamp.ToString("yyyy-MM-dd HH:mm")</td>
-                            <td>@l.Actor</td>
-                            <td><span class="status-chip @ActionClass(l.Action)">@l.Action</span></td>
-                            <td>@l.Resource</td>
-                            <td class="t-center">@l.Ip</td>
-                            <td>
-                                <div class="row-actions">
-                                    <button class="mini-btn" @onclick="() => ToggleDetails(l.Id)">
-                                        @(Expanded.Contains(l.Id) ? "Hide" : "Show")
-                                    </button>
-                                </div>
+                            <td class="t-center col-id">#@l.Id</td>
+                            <td class="col-time">@l.Timestamp.ToString("yyyy-MM-dd HH:mm")</td>
+                            <td class="col-actor">@l.Actor</td>
+                            <td class="col-action">
+                                <span class="status-chip @ActionClass(l.Action)">@l.Action</span>
+                            </td>
+                            <td class="col-resource">@l.Resource</td>
+                            <td class="t-center col-ip">@l.Ip</td>
+                            <td class="t-center col-details">
+                                <button class="mini-btn" @onclick="() => ToggleDetails(l.Id)">
+                                    @(Expanded.Contains(l.Id) ? "Hide" : "Show")
+                                </button>
                             </td>
                         </tr>
                         @if (Expanded.Contains(l.Id))
@@ -69,18 +104,29 @@
                                         <div><strong>Action:</strong> @l.Action</div>
                                         <div><strong>IP:</strong> @l.Ip</div>
                                         <div><strong>When:</strong> @l.Timestamp.ToString("f")</div>
-                                        <div class="details-msg"><strong>Payload / Notes:</strong><pre>@l.Details</pre></div>
+                                        <div class="details-msg">
+                                            <strong>Payload / Notes:</strong>
+                                            <pre>@l.Details</pre>
+                                        </div>
                                     </div>
                                 </td>
                             </tr>
                         }
+                    }
+                    @if (!PagedLogs.Any())
+                    {
+                        <tr>
+                            <td colspan="7" class="t-center text-muted">No logs match your filters.</td>
+                        </tr>
                     }
                 </tbody>
             </table>
         </div>
 
         <footer class="panel-foot">
-            <div class="foot-left">Showing @StartIndex–@EndIndex of @TotalFiltered</div>
+            <div class="foot-left">
+                Showing @StartIndex–@EndIndex of @TotalFiltered
+            </div>
             <div class="foot-right">
                 <label class="foot-label">Rows</label>
                 <select class="mini-input" @bind="pageSize">
@@ -115,12 +161,13 @@
     private string search = string.Empty;
     private string actorFilter = string.Empty;
     private string actionFilter = string.Empty;
-    private DateTime dateFrom;
-    private DateTime dateTo;
+    private DateTime dateFrom = DateTime.Today.AddDays(-7);
+    private DateTime dateTo = DateTime.Today;
     private int _pageIndex = 0;
     private int pageSize = 10;
 
-    private IEnumerable<string> DistinctActors => AllLogs.Select(l => l.Actor).Distinct().OrderBy(x => x);
+    private IEnumerable<string> DistinctActors =>
+        AllLogs.Select(l => l.Actor).Distinct().OrderBy(x => x);
 
     private IEnumerable<AuditLogItem> Filtered =>
         AllLogs
@@ -150,7 +197,8 @@
 
     private void ToggleDetails(int id)
     {
-        if (!Expanded.Add(id)) Expanded.Remove(id);
+        if (!Expanded.Add(id))
+            Expanded.Remove(id);
     }
 
     private void Refresh() => StateHasChanged();
@@ -160,9 +208,18 @@
         search = string.Empty;
         actorFilter = string.Empty;
         actionFilter = string.Empty;
+        dateFrom = DateTime.Today.AddDays(-7);
+        dateTo = DateTime.Today;
         _pageIndex = 0;
     }
 
-    private void PrevPage() { if (_pageIndex > 0) _pageIndex--; }
-    private void NextPage() { if (_pageIndex < TotalPages - 1) _pageIndex++; }
+    private void PrevPage()
+    {
+        if (_pageIndex > 0) _pageIndex--;
+    }
+
+    private void NextPage()
+    {
+        if (_pageIndex < TotalPages - 1) _pageIndex++;
+    }
 }

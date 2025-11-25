@@ -4,7 +4,33 @@
 @using ResQLink.Data.Entities
 @using Microsoft.EntityFrameworkCore
 
-<div class="page-container">
+<div class="categories-root">
+
+    <section class="panel kpi-panel">
+        <header class="panel-head">
+            <h2 class="panel-title">Categories Overview</h2>
+            <div class="panel-actions">
+                <button class="mini-btn" @onclick="Refresh" title="Refresh list">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
+        </header>
+        <div class="kpi-grid">
+            <div class="kpi-card">
+                <div class="kpi-label">Total Categories</div>
+                <div class="kpi-value text-accent">@categories.Count</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Active</div>
+                <div class="kpi-value">@categories.Count(c => c.IsActive)</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Inactive</div>
+                <div class="kpi-value">@categories.Count(c => !c.IsActive)</div>
+            </div>
+        </div>
+    </section>
+
     <section class="panel">
         <header class="panel-head">
             <h2 class="panel-title">Categories Management</h2>
@@ -16,56 +42,66 @@
                     <option value="M">Medical</option>
                     <option value="O">Others</option>
                 </select>
-                <button class="btn-primary" @onclick="OpenAddModal">+ Add Category</button>
-                <button class="mini-btn" @onclick="Refresh">?</button>
+                <button class="mini-btn btn-primary" @onclick="OpenAddModal" disabled="@showModal">
+                    <i class="bi bi-plus-circle"></i> Add Category
+                </button>
             </div>
         </header>
 
         <div class="panel-body">
             @if (isLoading)
             {
-                <p class="text-center">Loading...</p>
+                <p class="t-center text-muted">Loading…</p>
             }
             else if (!FilteredCategories.Any())
             {
-                <p class="text-center text-muted">No categories found.</p>
+                <p class="t-center text-muted">No categories found.</p>
             }
             else
             {
                 <div class="table-wrap">
-                    <table class="data-table">
+                    <table class="dash-table">
                         <thead>
                             <tr>
-                                <th style="width:80px">ID</th>
-                                <th>Category Name</th>
-                                <th>Type</th>
-                                <th>Description</th>
-                                <th class="t-center">Items</th>
-                                <th class="t-center">Status</th>
-                                <th class="t-center" style="width:150px">Actions</th>
+                                <th class="t-center col-id">ID</th>
+                                <th class="col-name">Category Name</th>
+                                <th class="col-type">Type</th>
+                                <th class="col-desc">Description</th>
+                                <th class="t-center col-items">Items</th>
+                                <th class="t-center col-status">Status</th>
+                                <th class="t-center col-actions">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             @foreach (var cat in FilteredCategories)
                             {
                                 <tr>
-                                    <td class="t-center">@cat.CategoryId</td>
-                                    <td><strong>@cat.CategoryName</strong></td>
-                                    <td>
+                                    <td class="t-center col-id">@cat.CategoryId</td>
+                                    <td class="col-name"><strong>@cat.CategoryName</strong></td>
+                                    <td class="col-type">
                                         <span class="status-chip @GetTypeClass(cat.CategoryType?.TypeCode ?? 'O')">
                                             @(cat.CategoryType?.TypeName ?? "Uncategorized")
                                         </span>
                                     </td>
-                                    <td>@(cat.Description ?? "-")</td>
-                                    <td class="t-center">@cat.ReliefGoods.Count</td>
-                                    <td class="t-center">
-                                        <span class="status-chip @(cat.IsActive ? "st-ok" : "st-out")">
+                                    <td class="col-desc">@(!string.IsNullOrWhiteSpace(cat.Description) ? cat.Description : "—")</td>
+                                    <td class="t-center col-items">@cat.ReliefGoods.Count</td>
+                                    <td class="t-center col-status">
+                                        <span class="status-chip @(cat.IsActive ? "st-active" : "st-contained")">
                                             @(cat.IsActive ? "Active" : "Inactive")
                                         </span>
                                     </td>
-                                    <td class="t-center">
-                                        <button class="mini-btn" @onclick="() => OpenEditModal(cat)">Edit</button>
-                                        <button class="mini-btn btn-danger" @onclick="() => DeleteCategory(cat.CategoryId)" disabled="@(cat.ReliefGoods.Count > 0)">Delete</button>
+                                    <td class="action-cell col-actions">
+                                        <button class="action-btn edit"
+                                                @onclick="() => OpenEditModal(cat)"
+                                                title="Edit category">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="action-btn delete"
+                                                @onclick="() => DeleteCategory(cat.CategoryId)"
+                                                title="Delete category"
+                                                disabled="@(cat.ReliefGoods.Count > 0)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
                                     </td>
                                 </tr>
                             }
@@ -73,57 +109,89 @@
                     </table>
                 </div>
             }
+
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="form-error" style="margin-top:8px;">@errorMessage</div>
+            }
         </div>
     </section>
 
+    @* Add/Edit Category modal – same style as Shelter/Evacuees *@
     @if (showModal)
     {
-        <div class="modal-overlay" @onclick="CloseModal">
-            <div class="modal-box" @onclick:stopPropagation="true">
-                <header class="modal-header">
+        <div class="modal-overlay" @onclick="CloseModal" @onclick:stopPropagation="false">
+            <div class="modal-dialog" @onclick:stopPropagation="true">
+                <div class="modal-header">
                     <h3>@(isEditMode ? "Edit Category" : "Add Category")</h3>
-                    <button class="modal-close" @onclick="CloseModal">×</button>
-                </header>
+                    <button class="modal-close" @onclick="CloseModal">&times;</button>
+                </div>
                 <div class="modal-body">
-                    <div class="form-group">
-                        <label>Category Name *</label>
-                        <input class="form-input" @bind="editModel.CategoryName" placeholder="e.g., Canned Goods, First Aid" />
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="catName">Category Name *</label>
+                            <input id="catName"
+                                   class="form-control"
+                                   placeholder="e.g., Canned Goods, First Aid"
+                                   @bind="editModel.CategoryName" />
+                        </div>
+                        <div class="form-group">
+                            <label for="catType">Category Type *</label>
+                            <select id="catType" class="form-control" @bind="editModel.CategoryTypeId">
+                                <option value="">-- Select Type --</option>
+                                @foreach (var ct in categoryTypes)
+                                {
+                                    <option value="@ct.CategoryTypeId">
+                                        @ct.TypeName - @GetTypeDescription(ct.TypeCode)
+                                    </option>
+                                }
+                            </select>
+                            <small class="hint">
+                                <strong>P</strong>=Perishable ·
+                                <strong>N</strong>=Non-Perishable ·
+                                <strong>M</strong>=Medical ·
+                                <strong>O</strong>=Others
+                            </small>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label>Category Type *</label>
-                        <select class="form-input" @bind="editModel.CategoryTypeId">
-                            <option value="">-- Select Type --</option>
-                            @foreach (var ct in categoryTypes)
-                            {
-                                <option value="@ct.CategoryTypeId">@ct.TypeName - @GetTypeDescription(ct.TypeCode)</option>
-                            }
-                        </select>
-                        <small style="color:#64748b;font-size:0.75rem;">
-                            <strong>P</strong>=Perishable (food with expiry) | 
-                            <strong>N</strong>=Non-Perishable (long-term) | 
-                            <strong>M</strong>=Medical (health supplies) | 
-                            <strong>O</strong>=Others
-                        </small>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="catDesc">Description</label>
+                            <textarea id="catDesc"
+                                      class="form-control"
+                                      rows="2"
+                                      placeholder="Brief description of this category"
+                                      @bind="editModel.Description"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label class="chk-inline">
+                                <input type="checkbox" @bind="editModel.IsActive" />
+                                <span>Active</span>
+                            </label>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label>Description</label>
-                        <textarea class="form-input" @bind="editModel.Description" rows="2" placeholder="Brief description of this category"></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label class="chk-inline">
-                            <input type="checkbox" @bind="editModel.IsActive" />
-                            Active
-                        </label>
-                    </div>
+
                     @if (!string.IsNullOrEmpty(errorMessage))
                     {
                         <div class="form-error">@errorMessage</div>
                     }
+
+                    <div class="modal-actions">
+                        <button type="button"
+                                class="btn-cancel"
+                                @onclick="CloseModal"
+                                @onclick:stopPropagation="true">
+                            Cancel
+                        </button>
+                        <button type="button"
+                                class="btn-primary"
+                                @onclick="SaveCategory"
+                                @onclick:stopPropagation="true">
+                            Save
+                        </button>
+                    </div>
                 </div>
-                <footer class="modal-footer">
-                    <button class="btn-secondary" @onclick="CloseModal">Cancel</button>
-                    <button class="btn-primary" @onclick="SaveCategory">Save</button>
-                </footer>
             </div>
         </div>
     }
@@ -167,11 +235,11 @@
 
     private string GetTypeClass(char typeCode) => typeCode switch
     {
-        'P' => "st-critical",  // Red for perishable
-        'N' => "st-ok",        // Green for non-perishable
-        'M' => "st-med",       // Yellow for medical
-        'O' => "st-stable",    // Blue for others
-        _ => "st-out"
+        'P' => "st-critical",  // red/orange style (you can map this to existing chip classes)
+        'N' => "st-active",    // green
+        'M' => "st-med",       // yellow
+        'O' => "st-contained", // gray/neutral
+        _ => "st-contained"
     };
 
     private string GetTypeDescription(char typeCode) => typeCode switch
@@ -249,7 +317,6 @@
 
     private async Task DeleteCategory(int id)
     {
-        // Removed JSRuntime confirm/alert due to compilation issues.
         try
         {
             await CategorySvc.DeleteAsync(id);

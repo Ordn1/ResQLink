@@ -1,4 +1,4 @@
-@page "/disasters"
+ï»¿@page "/disasters"
 @inject ResQLink.Services.IDisasterService DisasterService
 @inject IJSRuntime JS
 @using ResQLink.Data.Entities
@@ -30,11 +30,13 @@
         </div>
     </section>
 
+   
+
     <section class="panel">
         <header class="panel-head">
             <h2 class="panel-title">Disasters</h2>
             <div class="panel-actions">
-                <input class="mini-input" placeholder="Search title, type or location…" @bind="search" @bind:event="oninput" />
+                <input class="mini-input" placeholder="Search title, type or locationâ€¦" @bind="search" @bind:event="oninput" />
                 <select class="mini-input" @bind="severityFilter">
                     <option value="">All Severities</option>
                     <option value="Low">Low</option>
@@ -78,7 +80,7 @@
                             <td><span class="sev @SevClass(disaster.Severity)">@disaster.Severity</span></td>
                             <td><span class="status-chip @StatusClass(disaster.Status)">@disaster.Status</span></td>
                             <td>@disaster.StartDate.ToString("MMM dd, yyyy")</td>
-                            <td>@(disaster.EndDate?.ToString("MMM dd, yyyy") ?? "—")</td>
+                            <td>@(disaster.EndDate?.ToString("MMM dd, yyyy") ?? "â€”")</td>
                             <td>@disaster.Location</td>
                             <td class="action-cell">
                                 <button class="action-btn edit" @onclick="() => ShowEditModal(disaster)" title="Edit">
@@ -287,6 +289,7 @@
 }
 
 @code {
+    
     private List<Disaster> AllDisasters = new();
     private string search = string.Empty;
     private string severityFilter = string.Empty;

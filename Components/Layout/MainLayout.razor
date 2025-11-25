@@ -8,88 +8,137 @@
         </div>
 
         <nav class="nav-stack">
-            <button class='nav-btn @ActiveClass("/home")' type="button" @onclick='() => Go("/home")' disabled='@IsActive("/home")'>
-                <span>Dashboard</span>
-            </button>
-            <button class='nav-btn @ActiveClass("/evacuees")' type="button" @onclick='() => Go("/evacuees")' disabled='@IsActive("/evacuees")'>
-                <span>Evacuees</span>
-            </button>
-             <button class='nav-btn @ActiveClass("/shelters")' type="button" @onclick='() => Go("/shelters")' disabled='@IsActive("/shelters")'>
-                <span>Shelters</span>
-            </button>
-            <button class='nav-btn @ActiveClass("/disasters")' type="button" @onclick='() => Go("/disasters")' disabled='@IsActive("/disasters")'>
-                <span>Disasters</span>
+
+            <!-- Header Label -->
+            <div class="nav-header-label">Menu</div>
+
+            <button class='nav-btn @ActiveClass("/home")' @onclick='() => Go("/home")'>
+                <i class="bi bi-grid-fill nav-icon"></i>
+                <span class="nav-text">Dashboard</span>
             </button>
 
+            <button class='nav-btn @ActiveClass("/evacuees")' @onclick='() => Go("/evacuees")'>
+                <i class="bi bi-people-fill nav-icon"></i>
+                <span class="nav-text">Evacuees</span>
+            </button>
+
+            <button class='nav-btn @ActiveClass("/shelters")' @onclick='() => Go("/shelters")'>
+                <i class="bi bi-house-heart-fill nav-icon"></i>
+                <span class="nav-text">Shelters</span>
+            </button>
+
+            <button class='nav-btn @ActiveClass("/disasters")' @onclick='() => Go("/disasters")'>
+                <i class="bi bi-exclamation-triangle-fill nav-icon"></i>
+                <span class="nav-text">Disasters</span>
+            </button>
+
+            <!-- Inventory Dropdown -->
             <div class="nav-item-with-menu">
-                <button class='nav-btn nav-btn-static @(InventoryOpen ? "active" : "")' type="button"
-                        @onclick="ToggleInventoryMenu" @onclick:stopPropagation="true"
-                        aria-expanded='@InventoryOpen.ToString().ToLower()' aria-haspopup="true">
-                    <span>Inventory ▾</span>
+
+                <!-- Parent button -->
+                <button class='nav-btn @(IsInventoryActive ? "active" : "")'
+                        @onclick="ToggleInventoryMenu" @onclick:stopPropagation="true">
+                    <i class="bi bi-box-seam-fill nav-icon"></i>
+                    <span class="nav-text">
+                        Inventory
+                        <i class="bi @(InventoryOpen ? "bi-chevron-up" : "bi-chevron-down")" style="font-size: 0.7rem;"></i>
+                    </span>
                 </button>
 
                 @if (InventoryOpen)
                 {
                     <div class="inventory-dropdown" @onclick:stopPropagation="true">
-                        <button class="dropdown-link" @onclick="() => GoInventory()">Overview</button>
+
+                        <!-- Inventory Overview -->
+                        <button class="dropdown-link @(IsActive("/inventory") ? "active-link" : "")"
+                                @onclick="() => GoInventory()">Overview</button>
+
+                        <!-- Dynamic Categories -->
                         @foreach (var c in InventoryCategories)
                         {
-                            <button class="dropdown-link" @onclick="() => GoInventoryCategory(c.Slug)">@c.Label</button>
+                            var slugPath = $"/inventory/category/{c.Slug}";
+                            <button class="dropdown-link @(IsActive(slugPath) ? "active-link" : "")"
+                                    @onclick="() => GoInventoryCategory(c.Slug)">
+                                @c.Label
+                            </button>
                         }
-                        <hr style="margin: 4px 0; border: 0; border-top: 1px solid #444;" />
-                        <button class="dropdown-link" @onclick="() => GoCategories()">Manage Categories</button>
+
+                        <!-- Manage Categories -->
+                        <button class="dropdown-link @(IsActive("/categories") ? "active-link" : "")"
+                                @onclick="() => GoCategories()">
+                            + Manage Categories
+                        </button>
+
                     </div>
                 }
             </div>
 
-            <button class='nav-btn @ActiveClass("/stocks")' type="button" @onclick='() => Go("/stocks")' disabled='@IsActive("/stocks")'>
-                <span>Stocks</span>
+            <!-- Stocks -->
+            <button class='nav-btn @ActiveClass("/stocks")' @onclick='() => Go("/stocks")'>
+                <i class="bi bi-graph-up-arrow nav-icon"></i>
+                <span class="nav-text">Stocks</span>
             </button>
 
-            <button class='nav-btn @ActiveClass("/suppliers")' type="button" @onclick='() => Go("/suppliers")' disabled='@IsActive("/suppliers")'>
-                <span>Suppliers</span>
-            </button>
-            <button class='nav-btn @ActiveClass("/reports")' type="button" @onclick='() => Go("/reports")' disabled='@IsActive("/reports")'>
-                <span>Reports</span>
-            </button>
-            <button class='nav-btn @ActiveClass("/audit-logs")' type="button" @onclick='() => Go("/audit-logs")' disabled='@IsActive("/audit-logs")'>
-                <span>Audit Logs</span>
+            <!-- Suppliers -->
+            <button class='nav-btn @ActiveClass("/suppliers")' @onclick='() => Go("/suppliers")'>
+                <i class="bi bi-truck nav-icon"></i>
+                <span class="nav-text">Suppliers</span>
             </button>
 
-            @* Admin: Manage Users *@
-            <button class='nav-btn @ActiveClass("/users")' type="button" @onclick='() => Go("/users")' disabled='@IsActive("/users")'>
-                <span>Manage Users</span>
+            <!-- ADMIN LABEL -->
+            <div class="nav-header-label">Admin</div>
+
+            <button class='nav-btn @ActiveClass("/reports")' @onclick='() => Go("/reports")'>
+                <i class="bi bi-file-text-fill nav-icon"></i>
+                <span class="nav-text">Reports</span>
+            </button>
+
+            <button class='nav-btn @ActiveClass("/audit-logs")' @onclick='() => Go("/audit-logs")'>
+                <i class="bi bi-clock-history nav-icon"></i>
+                <span class="nav-text">Audit Logs</span>
+            </button>
+
+            <button class='nav-btn @ActiveClass("/users")' @onclick='() => Go("/users")'>
+                <i class="bi bi-person-badge-fill nav-icon"></i>
+                <span class="nav-text">Manage Users</span>
             </button>
         </nav>
     </aside>
 
     <section class="shell-body">
+
         <header class="shell-header">
-            <div class="header-left">
-                <button class="menu-icon" type="button" aria-label="Menu">
-                    <span></span><span></span><span></span>
-                </button>   
+
+            <!-- Mobile Menu Button -->
+            <div class="header-left-mobile">
+                <button class="menu-icon">
+                    <i class="bi bi-list"></i>
+                </button>
             </div>
+
             <div class="header-icons">
-                <button class="icon-btn" aria-label="Settings">
-                    <i class="bi bi-gear-fill"></i>
+                <button class="icon-btn">
+                    <i class="bi bi-bell"></i>
                 </button>
-                <button class="icon-btn" aria-label="Notifications">
-                    <i class="bi bi-bell-fill"></i>
-                </button>
-                <button class="icon-btn" aria-label="Profile">
-                    <i class="bi bi-person-circle"></i>
-                </button>
+
+                <div class="user-profile-preview">
+                    <img src="https://ui-avatars.com/api/?name=Admin+User&background=07562c&color=fff"
+                         class="user-avatar" />
+                    <div class="user-name-drop">Admin</div>
+                    <i class="bi bi-chevron-down" style="font-size: 0.7rem; color: #94a3b8;"></i>
+                </div>
             </div>
         </header>
 
-        <div class="page-title-bar">
-            <h1 class="page-title">@CurrentTitle</h1>
-        </div>
-
         <main class="shell-content">
+
+            <div class="page-title-bar">
+                <h1 class="page-title">@CurrentTitle</h1>
+            </div>
+
             @Body
-            <footer class="shell-footer">© All rights reserved</footer>
+
+            <footer class="shell-footer">© 2024 ResQLink System</footer>
         </main>
     </section>
 </div>
@@ -104,24 +153,66 @@
         ("Medical", "medical"),
     };
 
-    private void ToggleInventoryMenu() => InventoryOpen = !InventoryOpen;
+    // Ensure Inventory auto-opens when route is inventory-related
+    protected override void OnParametersSet()
+    {
+        InventoryOpen = IsInventoryActive;
+    }
+
+    private void ToggleInventoryMenu()
+    {
+        InventoryOpen = !InventoryOpen;
+    }
+
     private void CloseTransientMenus() => InventoryOpen = false;
-    private void GoInventory() { InventoryOpen = false; Go("/inventory"); }
-    private void GoInventoryCategory(string slug) { InventoryOpen = false; Go($"/inventory/category/{slug}"); }
-    private void GoCategories() { InventoryOpen = false; Go("/categories"); }
+
+    private void GoInventory() => Go("/inventory");
+    private void GoInventoryCategory(string slug) => Go($"/inventory/category/{slug}");
+    private void GoCategories() => Go("/categories");
 
     private void Go(string href)
     {
-        if (!IsActive(href)) Nav.NavigateTo(href);
+        if (!IsActive(href))
+            Nav.NavigateTo(href);
     }
 
-    private string ActiveClass(string href) => IsActive(href) ? "active nav-btn-disabled" : string.Empty;
+    // Top-level buttons (Dashboard, Evacuees, etc.)
+    private string ActiveClass(string href)
+{
+    var current = "/" + Nav.ToBaseRelativePath(Nav.Uri).TrimStart('/');
+    if (current == "/") current = "/home";
 
+    // Exact match
+    if (string.Equals(current, href, StringComparison.OrdinalIgnoreCase))
+        return "active";
+
+    // Nested routes (e.g. /evacuees/view/1)
+    if (current.StartsWith(href + "/", StringComparison.OrdinalIgnoreCase))
+        return "active";
+
+    return "";
+}
+
+    // For inventory submenu and other nested links
     private bool IsActive(string href)
     {
         var current = "/" + Nav.ToBaseRelativePath(Nav.Uri).TrimStart('/');
         if (current == "/") current = "/home";
-        return string.Equals(current, href, StringComparison.OrdinalIgnoreCase);
+
+        return string.Equals(current, href, StringComparison.OrdinalIgnoreCase)
+            || current.StartsWith(href + "/", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool IsInventoryActive
+    {
+        get
+        {
+            var path = "/" + Nav.ToBaseRelativePath(Nav.Uri).TrimStart('/');
+            if (path == "/") path = "/home";
+
+            return path.StartsWith("/inventory", StringComparison.OrdinalIgnoreCase)
+                || path.StartsWith("/categories", StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     private string CurrentTitle
@@ -130,19 +221,23 @@
         {
             var path = "/" + Nav.ToBaseRelativePath(Nav.Uri).TrimStart('/');
             if (path == "/") path = "/home";
+
             return path switch
             {
-                "/home" => "DASHBOARD",
-                "/evacuees" => "EVACUEES",
-                "/disasters" => "DISASTERS",
-                "/inventory" => "INVENTORY",
-                "/stocks" => "STOCKS",
-                var p when p.StartsWith("/inventory/category/") => "INVENTORY - " + Uri.UnescapeDataString(p.Split('/').Last()).Replace('-', ' ').ToUpperInvariant(),
-                "/categories" => "CATEGORIES",
-                "/suppliers" => "SUPPLIERS",
-                "/audit-logs" => "AUDIT LOGS",
-                "/users" => "MANAGE USERS",
-                _ => path.Trim('/').Replace('-', ' ').ToUpperInvariant()
+                "/home" => "Dashboard",
+                "/evacuees" => "Evacuees",
+                "/shelters" => "Shelters",
+                "/disasters" => "Disasters",
+                "/inventory" => "Inventory",
+                var p when p.StartsWith("/inventory/category/") =>
+                    "Inventory - " + Uri.UnescapeDataString(p.Split('/').Last()).Replace('-', ' ').ToUpperInvariant(),
+                "/categories" => "Categories",
+                "/stocks" => "Stocks",
+                "/suppliers" => "Suppliers",
+                "/reports" => "Reports",
+                "/audit-logs" => "Audit Logs",
+                "/users" => "Manage Users",
+                _ => path.Trim('/').Replace('-', ' ')
             };
         }
     }

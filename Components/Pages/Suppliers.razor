@@ -3,124 +3,245 @@
 @inject IJSRuntime JSRuntime
 @using ResQLink.Data.Entities
 
-<!-- Suppliers Management Page -->
-<div class="page-container">
+<div class="suppliers-root">
+
+    @* KPI / Overview panel *@
+    <section class="panel kpi-panel">
+        <header class="panel-head">
+            <h2 class="panel-title">Suppliers Overview</h2>
+            <div class="panel-actions">
+                <button class="mini-btn btn-primary" @onclick="OpenAddModal" disabled="@_showModal">
+                    <i class="bi bi-building-add"></i> Add Supplier
+                </button>
+                <button class="mini-btn" @onclick="Refresh" title="Refresh list">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
+        </header>
+        <div class="kpi-grid">
+            <div class="kpi-card">
+                <div class="kpi-label">Total Suppliers</div>
+                <div class="kpi-value text-accent">@_suppliers.Count</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Active</div>
+                <div class="kpi-value">@_suppliers.Count(s => s.IsActive)</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Inactive</div>
+                <div class="kpi-value">@_suppliers.Count(s => !s.IsActive)</div>
+            </div>
+        </div>
+    </section>
+
     <section class="panel">
         <header class="panel-head">
             <h2 class="panel-title">Suppliers Management</h2>
             <div class="panel-actions">
-                <button class="btn-primary" @onclick="OpenAddModal">+ Add Supplier</button>
-                <button class="mini-btn" @onclick="Refresh">?</button>
+                <input class="mini-input"
+                       placeholder="Search name, contact, email…"
+                       @bind="_search"
+                       @bind:event="oninput" />
+                <select class="mini-input" @bind="_statusFilter">
+                    <option value="">All Status</option>
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                </select>
+                <button class="mini-btn" @onclick="ClearFilters">Clear</button>
             </div>
         </header>
 
         <div class="panel-body">
             @if (_loading)
             {
-                <p class="text-center">Loading...</p>
+                <p class="t-center text-muted">Loading…</p>
             }
-            else if (!_suppliers.Any())
+            else if (!FilteredSuppliers.Any())
             {
-                <p class="text-center text-muted">No suppliers found.</p>
+                <p class="t-center text-muted">No suppliers found.</p>
             }
             else
             {
                 <div class="table-wrap">
-                    <table class="data-table">
+                    <table class="dash-table">
                         <thead>
                             <tr>
-                                <th style="width:80px">ID</th>
-                                <th>Supplier Name</th>
-                                <th>Contact Person</th>
-                                <th>Email</th>
-                                <th>Phone</th>
-                                <th>Address</th>
-                                <th class="t-center">Status</th>
-                                <th class="t-center" style="width:150px">Actions</th>
+                                <th class="t-center col-id">ID</th>
+                                <th class="col-name">Supplier Name</th>
+                                <th class="col-contact">Contact Person</th>
+                                <th class="col-email">Email</th>
+                                <th class="col-phone">Phone</th>
+                                <th class="col-address">Address</th>
+                                <th class="t-center col-status">Status</th>
+                                <th class="t-center col-actions">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var sup in _suppliers)
+                            @foreach (var sup in PagedSuppliers)
                             {
                                 <tr>
-                                    <td class="t-center">@sup.SupplierId</td>
-                                    <td><strong>@sup.SupplierName</strong></td>
-                                    <td>@(sup.ContactPerson ?? "-")</td>
-                                    <td>@(sup.Email ?? "-")</td>
-                                    <td>@(sup.PhoneNumber ?? "-")</td>
-                                    <td>@(sup.Address ?? "-")</td>
-                                    <td class="t-center">
-                                        <span class="status-chip @(sup.IsActive ? "st-ok" : "st-out")">@(sup.IsActive ? "Active" : "Inactive")</span>
+                                    <td class="t-center col-id">@sup.SupplierId</td>
+                                    <td class="col-name"><strong>@sup.SupplierName</strong></td>
+                                    <td class="col-contact">@(sup.ContactPerson ?? "—")</td>
+                                    <td class="col-email">@(sup.Email ?? "—")</td>
+                                    <td class="col-phone">@(sup.PhoneNumber ?? "—")</td>
+                                    <td class="col-address">@(sup.Address ?? "—")</td>
+                                    <td class="t-center col-status">
+                                        <span class="status-chip @(sup.IsActive ? "st-active" : "st-contained")">
+                                            @(sup.IsActive ? "Active" : "Inactive")
+                                        </span>
                                     </td>
-                                    <td class="t-center">
-                                        <button class="mini-btn" @onclick="() => OpenEditModal(sup)">Edit</button>
-                                        <button class="mini-btn btn-danger" @onclick="() => DeleteSupplier(sup.SupplierId)">Delete</button>
+                                    <td class="action-cell col-actions">
+                                        <button class="action-btn edit"
+                                                @onclick="() => OpenEditModal(sup)"
+                                                disabled="@_showModal"
+                                                title="Edit supplier">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="action-btn delete"
+                                                @onclick="() => DeleteSupplier(sup.SupplierId)"
+                                                title="Delete supplier">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
                                     </td>
+                                </tr>
+                            }
+                            @if (!PagedSuppliers.Any())
+                            {
+                                <tr>
+                                    <td colspan="8" class="t-center text-muted">No suppliers found.</td>
                                 </tr>
                             }
                         </tbody>
                     </table>
                 </div>
             }
+
             @if (!string.IsNullOrEmpty(_error))
             {
-                <div style="margin-top:8px;color:#dc2626;font-size:.7rem;font-weight:600;">@_error</div>
+                <div class="form-error" style="margin-top:8px;">@_error</div>
             }
         </div>
+
+        <footer class="panel-foot">
+            <div class="foot-left">
+                Showing @StartIndex–@EndIndex of @FilteredSuppliers.Count() suppliers
+            </div>
+            <div class="foot-right">
+                <label class="foot-label">Rows</label>
+                <select class="mini-input" @bind="_pageSize">
+                    <option>10</option>
+                    <option>20</option>
+                    <option>50</option>
+                </select>
+                <button class="mini-btn" @onclick="PrevPage" disabled="@(_pageIndex == 0)">Prev</button>
+                <span class="page-indicator">Page @(_pageIndex + 1) / @TotalPages</span>
+                <button class="mini-btn" @onclick="NextPage" disabled="@(_pageIndex >= TotalPages - 1)">Next</button>
+            </div>
+        </footer>
     </section>
 
+    @* Create/Edit Supplier Modal – consistent with other pages *@
     @if (_showModal)
     {
-        <div class="modal-overlay" @onclick="CloseModal">
-            <div class="modal-box modal-lg" @onclick:stopPropagation="true">
-                <header class="modal-header">
+        <div class="modal-overlay" @onclick="CloseModal" @onclick:stopPropagation="false">
+            <div class="modal-dialog" @onclick:stopPropagation="true">
+                <div class="modal-header">
                     <h3>@(_editMode ? "Edit Supplier" : "Add Supplier")</h3>
-                    <button class="modal-close" @onclick="CloseModal">×</button>
-                </header>
+                    <button class="modal-close" @onclick="CloseModal">&times;</button>
+                </div>
                 <div class="modal-body">
                     <div class="form-row">
                         <div class="form-group">
-                            <label>Supplier Name *</label>
-                            <input class="form-input" @bind="_editModel.SupplierName" />
+                            <label for="supplierName">Supplier Name *</label>
+                            <input id="supplierName" class="form-control" @bind="_editModel.SupplierName" />
                         </div>
                         <div class="form-group">
-                            <label>Contact Person</label>
-                            <input class="form-input" @bind="_editModel.ContactPerson" />
+                            <label for="contactPerson">Contact Person</label>
+                            <input id="contactPerson" class="form-control" @bind="_editModel.ContactPerson" />
                         </div>
                     </div>
+
                     <div class="form-row">
                         <div class="form-group">
-                            <label>Email</label>
-                            <input type="email" class="form-input" @bind="_editModel.Email" />
+                            <label for="email">Email</label>
+                            <input id="email" type="email" class="form-control" @bind="_editModel.Email" />
                         </div>
                         <div class="form-group">
-                            <label>Phone Number</label>
-                            <input class="form-input" @bind="_editModel.PhoneNumber" />
+                            <label for="phone">Phone Number</label>
+                            <input id="phone" class="form-control" @bind="_editModel.PhoneNumber" />
                         </div>
                     </div>
-                    <div class="form-group">
-                        <label>Address</label>
-                        <textarea class="form-input" @bind="_editModel.Address" rows="2"></textarea>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="address">Address</label>
+                            <textarea id="address" class="form-control" rows="2" @bind="_editModel.Address"></textarea>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label>Notes</label>
-                        <textarea class="form-input" @bind="_editModel.Notes" rows="3"></textarea>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="notes">Notes</label>
+                            <textarea id="notes" class="form-control" rows="3" @bind="_editModel.Notes"></textarea>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label><input type="checkbox" @bind="_editModel.IsActive" /> Active</label>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" @bind="_editModel.IsActive" />
+                                Active
+                            </label>
+                        </div>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(_error))
+                    {
+                        <div class="form-error">@_error</div>
+                    }
+
+                    <div class="modal-actions">
+                        @if (_editMode)
+                        {
+                            <button type="button"
+                                    class="btn-danger"
+                                    @onclick="() => DeleteSupplier(_editModel.SupplierId)"
+                                    disabled="@_saving"
+                                    @onclick:stopPropagation="true">
+                                @if (_saving)
+                                {
+                                    <span class="spinner"></span>
+                                }
+                                Delete
+                            </button>
+                        }
+                        <button type="button"
+                                class="btn-cancel"
+                                @onclick="CloseModal"
+                                disabled="@_saving"
+                                @onclick:stopPropagation="true">
+                            Cancel
+                        </button>
+                        <button type="button"
+                                class="btn-primary"
+                                @onclick="SaveSupplier"
+                                disabled="@_saving"
+                                @onclick:stopPropagation="true">
+                            @if (_saving)
+                            {
+                                <span class="spinner"></span>
+                            }
+                            Save
+                        </button>
                     </div>
                 </div>
-                <footer class="modal-footer">
-                    <button class="btn-secondary" @onclick="CloseModal" disabled="@_saving">Cancel</button>
-                    <button class="btn-primary" @onclick="SaveSupplier" disabled="@_saving">@(_saving ? "Saving…" : "Save")</button>
-                </footer>
             </div>
         </div>
     }
 </div>
 
 @code {
-    // State
     private List<Supplier> _suppliers = new();
     private bool _loading = true;
     private bool _showModal;
@@ -128,6 +249,11 @@
     private bool _saving;
     private Supplier _editModel = new();
     private string _error = string.Empty;
+
+    private string _search = string.Empty;
+    private string _statusFilter = string.Empty;
+    private int _pageIndex = 0;
+    private int _pageSize = 10;
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
@@ -142,7 +268,46 @@
         {
             _error = ex.Message;
         }
-        finally { _loading = false; }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private IEnumerable<Supplier> FilteredSuppliers =>
+        _suppliers
+            .Where(s =>
+                string.IsNullOrWhiteSpace(_search)
+                || s.SupplierName.Contains(_search, StringComparison.OrdinalIgnoreCase)
+                || (s.ContactPerson ?? "").Contains(_search, StringComparison.OrdinalIgnoreCase)
+                || (s.Email ?? "").Contains(_search, StringComparison.OrdinalIgnoreCase))
+            .Where(s =>
+                string.IsNullOrEmpty(_statusFilter)
+                || (_statusFilter == "Active" && s.IsActive)
+                || (_statusFilter == "Inactive" && !s.IsActive));
+
+    private int TotalFiltered => FilteredSuppliers.Count();
+    private int TotalPages => Math.Max((int)Math.Ceiling(TotalFiltered / (double)_pageSize), 1);
+    private int StartIndex => TotalFiltered == 0 ? 0 : (_pageIndex * _pageSize) + 1;
+    private int EndIndex => Math.Min((_pageIndex + 1) * _pageSize, TotalFiltered);
+    private IEnumerable<Supplier> PagedSuppliers =>
+        FilteredSuppliers.Skip(_pageIndex * _pageSize).Take(_pageSize);
+
+    private void PrevPage()
+    {
+        if (_pageIndex > 0) _pageIndex--;
+    }
+
+    private void NextPage()
+    {
+        if (_pageIndex < TotalPages - 1) _pageIndex++;
+    }
+
+    private void ClearFilters()
+    {
+        _search = string.Empty;
+        _statusFilter = string.Empty;
+        _pageIndex = 0;
     }
 
     private void OpenAddModal()
@@ -176,40 +341,67 @@
         if (_saving) return;
         _showModal = false;
         _editModel = new();
+        _error = string.Empty;
     }
 
     private async Task SaveSupplier()
     {
         if (_saving) return;
         _error = string.Empty;
-        if (string.IsNullOrWhiteSpace(_editModel.SupplierName)) { _error = "Name required"; return; }
+
+        if (string.IsNullOrWhiteSpace(_editModel.SupplierName))
+        {
+            _error = "Supplier name is required.";
+            return;
+        }
+
         _saving = true;
         try
         {
             if (_editMode)
+            {
                 await SupplierSvc.UpdateAsync(_editModel.SupplierId, _editModel);
+            }
             else
+            {
                 await SupplierSvc.CreateAsync(_editModel);
+            }
+
             _showModal = false;
             await LoadAsync();
         }
-        catch (Exception ex) { _error = ex.Message; }
-        finally { _saving = false; }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
     }
 
     private async Task DeleteSupplier(int id)
     {
         if (_saving) return;
+
         var ok = await JSRuntime.InvokeAsync<bool>("confirm", "Delete supplier?");
         if (!ok) return;
+
         _saving = true;
+        _error = string.Empty;
         try
         {
             await SupplierSvc.DeleteAsync(id);
             await LoadAsync();
         }
-        catch (Exception ex) { _error = ex.Message; }
-        finally { _saving = false; }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
     }
 
     private Task Refresh() => LoadAsync();

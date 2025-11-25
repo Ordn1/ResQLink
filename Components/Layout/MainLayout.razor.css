@@ -1,437 +1,274 @@
-.page {
-    position: relative;
-    display: flex;
-    flex-direction: column;
+/* MainLayout.razor.css */
+
+/* --- Global Layout Variables --- */
+:root {
+    --primary-color: #07562c;
+    --text-main: #1e293b;
+    --text-muted: #64748b;
+    --bg-body: #f3f4f6;
+    --bg-surface: #ffffff;
+    --sidebar-width: 260px;
+    --header-height: 80px;
+    --border-color: #e2e8f0;
 }
-
-main {
-    flex: 1;
-}
-
-.sidebar {
-    background-image: linear-gradient(180deg, rgb(5, 39, 103) 0%, #3a0647 70%);
-}
-
-.top-row {
-    background-color: #f7f7f7;
-    border-bottom: 1px solid #d6d5d5;
-    justify-content: flex-end;
-    height: 3.5rem;
-    display: flex;
-    align-items: center;
-}
-
-    .top-row ::deep a, .top-row ::deep .btn-link {
-        white-space: nowrap;
-        margin-left: 1.5rem;
-        text-decoration: none;
-    }
-
-        .top-row ::deep a:hover, .top-row ::deep .btn-link:hover {
-            text-decoration: underline;
-        }
-
-        .top-row ::deep a:first-child {
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-@media (max-width: 640.98px) {
-    .top-row {
-        justify-content: space-between;
-    }
-
-        .top-row ::deep a, .top-row ::deep .btn-link {
-            margin-left: 0;
-        }
-}
-
-@media (min-width: 641px) {
-    .page {
-        flex-direction: row;
-    }
-
-    .sidebar {
-        width: 250px;
-        height: 100vh;
-        position: sticky;
-        top: 0;
-    }
-
-    .top-row {
-        position: sticky;
-        top: 0;
-        z-index: 1;
-    }
-
-        .top-row.auth ::deep a:first-child {
-            flex: 1;
-            text-align: right;
-            width: 0;
-        }
-
-    .top-row, article {
-        padding-left: 2rem !important;
-        padding-right: 1.5rem !important;
-    }
-}
-
 
 .app-shell {
     display: flex;
     height: 100vh;
     overflow: hidden;
-    background: #fff;
-    font-family: 'Open Sans', Arial, sans-serif;
+    background: var(--bg-body);
+    font-family: 'Poppins', sans-serif;
+    color: var(--text-main);
 }
 
+/* --- Sidebar Styling --- */
 .shell-sidebar {
-    width: 280px;
+    width: var(--sidebar-width);
     display: flex;
     flex-direction: column;
-    align-items: center;
-    box-sizing: border-box;
-    padding: 32px 18px 32px 18px;
-    background: #1f2f5c; /* Changed from #fff to match design */
+    background: var(--bg-surface);
+    border-right: 1px solid var(--border-color);
     height: 100vh;
-    overflow-y: auto;
+    z-index: 20;
+    transition: transform 0.3s ease;
 }
 
 .sidebar-brand {
-    width: 100%;
+    height: var(--header-height);
     display: flex;
-    justify-content: center;
-    margin-bottom: 26px;
-    padding: 0 4px;
+    align-items: center;
+    padding: 0 24px;
 }
 
 .brand-logo {
-    max-width: 170px;
-    width: 100%;
+    max-width: 140px;
     height: auto;
-    display: block;
+    object-fit: contain;
 }
 
-/* Nav stack */
+/* Navigation Menu */
 .nav-stack {
-    width: 100%;
+    padding: 20px 16px;
     display: flex;
     flex-direction: column;
-    gap: 16px;
-    align-items: center;
+    gap: 8px;
+    overflow-y: auto;
 }
 
-.nav-btn {
-    --pill-bg: #07562c;
-    --pill-bg-hover: #17a13d;
-    --pill-active-bg: #003f12;
-    --pill-active-color: #035806;
-    width: 100%;
-    max-width: 188px;
-    min-height: 38px;
-    padding: 8px 16px;
-    border-radius: 22px;
-    background: var(--pill-bg);
-    color: #fff;
-    font-size: 0.80rem;
+/* Section labels */
+.nav-header-label {
+    font-size: 0.85rem;
     font-weight: 700;
-    letter-spacing: .4px;
+    color: var(--text-muted);
+    padding: 8px 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+/* --- BUTTON STYLES --- */
+.nav-btn {
+    width: 100%;
+    min-height: 48px;
+    padding: 0 16px;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    font-weight: 600;
     border: none;
     cursor: pointer;
     display: flex;
-    justify-content: center;
     align-items: center;
-    transition: background .18s, color .18s;
-    /* Ensure text and arrow split properly */
+    gap: 12px;
+    transition: all 0.2s ease;
+    text-align: left;
     position: relative;
+    margin-bottom: 2px;
 }
 
-    /* Ensures the text pushes left and arrow pushes right inside the pill */
-    .nav-btn span {
-        display: flex;
-        justify-content: space-between;
-        width: 100%;
-    }
-
+    /* HOVER STATE */
     .nav-btn:hover {
-        background: var(--pill-bg-hover);
+        background-color: #c2ffd0 !important;
+        opacity: 1;
     }
 
+    /* ACTIVE STATE (The one you are fixing) */
     .nav-btn.active {
-        background: var(--pill-active-bg);
-        color: var(--pill-active-color);
-        backdrop-filter: saturate(140%) blur(1px);
-        box-shadow: inset 0 0 0 1px rgba(6,128,4,0.15);
+        /* Change this to a visible Light Green */
+        background-color: #38bd60 !important;
+        /* Text Color */
+        color: var(--primary-color) !important;
+        /* Make it Bold */
+        font-weight: 800 !important;
+        /* Add a green bar on the left so it definitely looks selected */
+        box-shadow: inset 4px 0 0 0 var(--primary-color) !important;
     }
 
-.nav-btn-disabled {
-    pointer-events: none;
-    cursor: default;
-    opacity: 0.95;
+        /* Ensure the icon inside the active button turns green too */
+        .nav-btn.active .nav-icon {
+            color: var(--primary-color) !important;
+        }
+
+
+/* Icons inside buttons */
+.nav-icon {
+    font-size: 1.1rem;
+    color: var(--text-muted);
+    width: 22px;
+    transition: color 0.15s;
 }
 
+/* --- Submenu / Inventory Dropdown --- */
+.nav-item-with-menu {
+    width: 100%;
+}
 
+.inventory-dropdown {
+    display: flex;
+    flex-direction: column;
+    padding-left: 12px;
+    margin-top: 6px;
+    gap: 6px;
+}
+
+    .inventory-dropdown .dropdown-link {
+        background: transparent;
+        border: none;
+        text-align: left;
+        padding: 10px 16px 10px 42px;
+        font-size: 0.85rem;
+        color: var(--text-muted);
+        cursor: pointer;
+        border-radius: 8px;
+        transition: all 0.15s ease;
+    }
+
+        /* Normal Hover (When NOT active) */
+        .inventory-dropdown .dropdown-link:hover {
+            background-color: rgba(7,86,44,0.09) !important;
+            color: var(--primary-color) !important;
+        }
+
+        /* ACTIVE STATE - Matching your Main Button colors */
+        .inventory-dropdown .dropdown-link.active-link {
+            /* The vibrant green you requested */
+            background-color: #c2ffd0 !important;
+            /* Text Color */
+            color: var(--primary-color) !important;
+            /* Font Weight */
+            font-weight: 800 !important;
+            /* Green bar on the left */
+            box-shadow: inset 4px 0 0 0 var(--primary-color) !important;
+        }
+
+/* --- Main Content Area --- */
 .shell-body {
     flex: 1;
     display: flex;
     flex-direction: column;
-    background: #fff;
     height: 100vh;
-    overflow: hidden;
 }
 
+/* --- Header --- */
 .shell-header {
+    height: 90px; /* Fixed height */
     display: flex;
     align-items: center;
+    /* FIX: This pushes the Left item (Menu) and Right item (User) apart */
     justify-content: space-between;
-    padding: 32px 50px 0 50px;
-    box-sizing: border-box;
-    min-height: 90px;
+    /* FIX: Match this padding with .shell-content so they align vertically */
+    padding: 0 40px;
+    background: var(--bg-body);
+    position: sticky;
+    top: 0;
+    z-index: 100;
 }
 
-.page-title-bar {
-    display: flex;
-    align-items: center;
-    padding: 14px 50px 10px 50px;
-    box-sizing: border-box;
-    min-height: 90px;
-}
-
-.page-title {
-    font-size: 30px;
-    font-weight: 800;
-    letter-spacing: 1px;
-    color: #07562c;
-    margin: 0;
-    line-height: 1;
-}
-
+/* --- Left Side (Menu Icon) --- */
 .menu-icon {
-    width: 40px;
-    height: 30px;
     background: transparent;
     border: none;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
+    font-size: 1.8rem;
+    color: var(--text-main);
     cursor: pointer;
-    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    border-radius: 8px;
+    transition: background 0.2s;
 }
 
-    .menu-icon span {
-        height: 3px;
-        background: #1f2f5c;
-        border-radius: 2px;
-        width: 100%;
+    .menu-icon:hover {
+        background-color: rgba(0,0,0,0.05);
     }
 
+/* --- Right Side (Icons & User) --- */
 .header-icons {
     display: flex;
     align-items: center;
-    gap: 28px;
+    gap: 24px;
 }
 
 .icon-btn {
-    background: transparent;
-    border: none;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     cursor: pointer;
-    font-size: 30px;
-    color: #1f2f5c;
-    padding: 4px;
-    line-height: 1;
-    transition: transform .2s ease, filter .2s ease;
+    color: var(--text-muted);
+    font-size: 1.2rem;
+    transition: 0.2s;
 }
 
     .icon-btn:hover {
-        transform: scale(1.1);
-        filter: brightness(1.2);
+        border-color: var(--primary-color);
+        color: var(--primary-color);
+        transform: translateY(-2px);
     }
 
-.shell-container {
+/* --- User Profile --- */
+.user-profile-preview {
     display: flex;
-    flex-direction: column;
-    min-height: 100vh;
+    align-items: center;
+    gap: 12px;
+    margin-left: 10px;
+    cursor: pointer;
+    padding: 4px 12px 4px 4px;
+    border-radius: 30px;
+    transition: background 0.2s;
 }
 
+    .user-profile-preview:hover {
+        background-color: #fff;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }
+
+.user-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.user-name-drop {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+/* --- Page Content Area --- */
 .shell-content {
     flex: 1;
-    display: flex;
-    flex-direction: column;
-    padding: 24px 50px 16px 50px;
-    box-sizing: border-box;
+    /* FIX: Match left/right padding (40px) with header to align text */
+    padding: 0 40px 40px 40px;
     overflow-y: auto;
-    overscroll-behavior: contain;
-    -webkit-overflow-scrolling: touch;
 }
 
-.shell-footer {
-    margin-top: auto;
-    text-align: center;
-    font-size: 14px;
-    font-weight: 600;
-    color: #068004;
-    padding: 8px 0;
-}
-
-
-.shell-content::-webkit-scrollbar {
-    width: 8px;
-}
-
-.shell-content::-webkit-scrollbar-track {
-    background: #f7f7f9;
-}
-
-.shell-content::-webkit-scrollbar-thumb {
-    background: #c5c9d2;
-    border-radius: 4px;
-}
-
-
-@media (max-width: 1000px) {
-    .shell-header {
-        padding: 32px 34px 0 34px;
-    }
-
-    .page-title-bar {
-        padding: 14px 34px 10px 34px;
-    }
-
-    .shell-content {
-        padding: 24px 34px 80px 34px;
-    }
-
-    .shell-footer {
-        padding: 24px 0 12px 0;
-    }
-}
-
-@media (max-width: 760px) {
-    .app-shell {
-        flex-direction: column;
-    }
-
-    .shell-sidebar {
-        width: 100%;
-        flex-direction: row;
-        align-items: center;
-        padding: 14px 14px;
-        background: linear-gradient(90deg,#092f92,#ffffff);
-        overflow-x: auto;
-        height: auto;
-        overflow-y: visible;
-    }
-
-    .sidebar-brand {
-        margin: 0 20px 0 4px;
-        min-width: 140px;
-    }
-
-    .nav-stack {
-        flex-direction: row;
-        gap: 10px;
-        width: auto;
-        align-items: flex-start; /* Align items to top so dropdowns fall down naturally */
-    }
-
-    .nav-btn {
-        max-width: none;
-        white-space: nowrap;
-    }
-
-    .shell-header {
-        padding: 24px 24px 0 24px;
-        min-height: 68px;
-    }
-
-    .page-title-bar {
-        padding: 12px 24px 8px 24px;
-        min-height: 56px;
-    }
-
-    .page-title {
-        font-size: 22px;
-    }
-
-    .shell-content {
-        padding: 20px 24px 70px 24px;
-    }
-
-    .shell-footer {
-        font-size: 14px;
-        padding: 24px 0 12px 0;
-    }
-}
-
-/* ----------------------------------------------------- */
-/* INVENTORY ACCORDION STYLES (Replacing previous CSS)  */
-/* ----------------------------------------------------- */
-
-.nav-item-with-menu {
-    display: flex;
-    flex-direction: column; /* Important: Stack vertical */
-    width: 100%;
-    align-items: center;
-}
-
-/* The "Drawer" that opens */
-.inventory-dropdown {
-    display: flex;
-    flex-direction: column;
-    width: 100%;
-    max-width: 170px; /* Slightly narrower than the pill (188px) to look "nested" */
-
-    background-color: rgba(0, 0, 0, 0.03); /* Very subtle grey inset */
-    box-shadow: inset 0 4px 6px -4px rgba(0, 0, 0, 0.15); /* Inner shadow for depth */
-    border-radius: 0 0 12px 12px; /* Round bottom only */
-
-    overflow: hidden;
-    margin-top: -12px; /* Pull it UP so it sits 'inside' the bottom of the pill above */
-    padding-top: 14px; /* Push content down so it's not hidden by the overlap */
-    z-index: 0; /* Ensure it sits behind the button if needed */
-}
-
-    /* The Links inside the dropdown */
-    .inventory-dropdown .dropdown-link {
-        appearance: none;
-        background: transparent;
-        border: none;
-        color: #333; /* Dark text for readability */
-        cursor: pointer;
-        padding: 8px 12px 8px 24px; /* Indented more than normal buttons */
-        text-align: left;
-        width: 100%;
-        font-size: 0.85rem;
-        font-weight: 600;
-        border-left: 3px solid transparent;
-        transition: all 0.2s;
-    }
-
-        .inventory-dropdown .dropdown-link:hover {
-            background-color: rgba(7, 86, 44, 0.1); /* Light green hover */
-            color: #07562c; /* Match primary green */
-            border-left-color: #07562c;
-        }
-
-/* MOBILE OVERRIDES 
-   When sidebar is horizontal (max-width: 760px)
-*/
-@media (max-width: 760px) {
-    .nav-item-with-menu {
-        width: auto;
-        /* We keep flex-direction column so the dropdown falls BELOW the button */
-    }
-
-    .inventory-dropdown {
-        position: absolute; /* Float on mobile so we don't break the horizontal bar */
-        top: 100%;
-        left: 0;
-        margin-top: 4px;
-        background: #fff;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        border-radius: 8px;
-        padding-top: 4px;
-        min-width: 160px;
-        z-index: 100;
-    }
+.page-title-bar {
+    padding: 10px 0 32px 0;
 }

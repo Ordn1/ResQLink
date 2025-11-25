@@ -1,7 +1,6 @@
 @page "/reports"
 @using System.Linq
 
-@* DEMO REPORTS PAGE – ALL DATA IS LOCAL & TEMPORARY *@
 <div class="reports-root">
 
     <!-- HEADER / FILTER BAR -->
@@ -60,7 +59,7 @@
             <div class="kpi-card">
                 <div class="kpi-label">Avg. Shelter Fill</div>
                 <div class="kpi-value">@AverageShelterFill.ToString("P0")</div>
-                <div class="kpi-trend">@KpiTrend(ShelterFillDelta,true)</div>
+                <div class="kpi-trend">@KpiTrend(ShelterFillDelta, true)</div>
             </div>
             <div class="kpi-card">
                 <div class="kpi-label">Critical Stock Items</div>
@@ -86,31 +85,32 @@
         <div class="table-wrap">
             <table class="rep-table">
                 <thead>
-                <tr>
-                    <th>#</th>
-                    <th>Bucket</th>
-                    <th class="t-right">Evacuees</th>
-                    <th class="t-right">Incidents</th>
-                    <th class="t-right">Inventory Used</th>
-                    <th class="t-right">Avg Shelter Fill %</th>
-                </tr>
+                    <tr>
+                        <th>#</th>
+                        <th>Bucket</th>
+                        <th class="t-right">Evacuees</th>
+                        <th class="t-right">Incidents</th>
+                        <th class="t-right">Inventory Used</th>
+                        <th class="t-right">Avg Shelter Fill %</th>
+                    </tr>
                 </thead>
                 <tbody>
-                @{
-                    var idx = 0;
-                    foreach (var b in LimitedBuckets)
-                    {
-                        idx++;
-                        <tr>
-                            <td class="t-center">@idx</td>
-                            <td>@b.Label</td>
-                            <td class="t-right">@b.Evacuees</td>
-                            <td class="t-right">@b.Incidents</td>
-                            <td class="t-right">@b.InventoryUsed</td>
-                            <td class="t-right">@b.AvgShelterFill.ToString("P0")</td>
-                        </tr>;
+                    @{
+                        var idx = 0;
+                        foreach (var b in LimitedBuckets)
+                        {
+                            idx++;
+                            <tr>
+                                <td class="t-center">@idx</td>
+                                <td>@b.Label</td>
+                                <td class="t-right">@b.Evacuees</td>
+                                <td class="t-right">@b.Incidents</td>
+                                <td class="t-right">@b.InventoryUsed</td>
+                                <td class="t-right">@b.AvgShelterFill.ToString("P0")</td>
+                            </tr>
+                            ;
+                        }
                     }
-                }
                 </tbody>
             </table>
         </div>
@@ -323,11 +323,7 @@
         }
     }
 
-    private void Rebuild()
-    {
-        // Nothing persistent – derived sections pull from getters.
-        StateHasChanged();
-    }
+    private void Rebuild() => StateHasChanged();
 
     private void ResetFilters()
     {
@@ -367,12 +363,12 @@
 
     private string BucketLabel(string key) => primaryGroup switch
     {
-        "week" => "W" + key,       // week key already contains week-year
-        "month" => key,            // year-month
-        _ => key                   // date
+        "week" => "W" + key,
+        "month" => key,
+        _ => key
     };
 
-    // ISO-ish week number helper (simple approximation)
+    // ISO-ish week number helper
     private static int ISOWeekOf(DateTime dt)
     {
         var day = (int)System.Globalization.CultureInfo.InvariantCulture.Calendar.GetDayOfWeek(dt);
@@ -383,10 +379,9 @@
             DayOfWeek.Monday);
     }
 
-    private IEnumerable<Bucket> LimitedBuckets =>
-        GroupedBuckets.Take(seriesLimit);
+    private IEnumerable<Bucket> LimitedBuckets => GroupedBuckets.Take(seriesLimit);
 
-    // KPI Data (compare with prior equal range)
+    // KPI data and deltas
     private DateTime PriorFrom => dateFrom.AddDays(-(dateTo - dateFrom).TotalDays - 1);
     private DateTime PriorTo => dateFrom.AddDays(-1);
 

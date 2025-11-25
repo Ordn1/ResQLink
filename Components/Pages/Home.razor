@@ -6,158 +6,235 @@
 <div class="dashboard-root">
     <div class="dashboard-grid">
 
-        <!-- KPI -->
-        <section aria-label="Key metrics" class="kpi-grid">
+        <!-- KPI Section -->
+        <section class="kpi-section">
+            
+            <!-- Active Disasters -->
             <div class="kpi-card">
-                <div class="kpi-label">Active Disasters</div>
-                <div class="kpi-value text-accent">@ActiveDisastersCount</div>
-                <div class="kpi-trend">@ActiveDisasterDeltaText</div>
-            </div>
-            <div class="kpi-card">
-                <div class="kpi-label">Registered Evacuees</div>
-                <div class="kpi-value">@TotalEvacuees</div>
-                <div class="kpi-trend">@EvacueeDeltaText</div>
-            </div>
-            <div class="kpi-card">
-                <div class="kpi-label">Shelter Capacity Used</div>
-                <div class="kpi-value">@ShelterCapacityUsed%</div>
-                <div class="progress-shell" aria-label="Shelter capacity usage">
-                    <div class="progress-bar" style="width:@ShelterCapacityUsed%"></div>
+                <div class="kpi-header">
+                    <div class="kpi-label">Active Disasters</div>
+                    <div class="kpi-icon-circle" style="background: #fee2e2; color: #ef4444;">
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+                    </div>
+                </div>
+                <div>
+                    <div class="kpi-value" style="color: #ef4444;">@ActiveDisastersCount</div>
+                    <div class="kpi-footer">
+                        <span class="trend-badge">@ActiveDisasterDeltaText</span>
+                    </div>
                 </div>
             </div>
+
+            <!-- Evacuees -->
             <div class="kpi-card">
-                <div class="kpi-label">Low Stock Items (≤@LowStockThreshold)</div>
-                <div class="kpi-value">@LowStockCount</div>
-                <div class="kpi-trend">@LowStockDeltaText</div>
+                <div class="kpi-header">
+                    <div class="kpi-label">Total Evacuees</div>
+                    <div class="kpi-icon-circle">
+                        <i class="bi bi-people-fill"></i>
+                    </div>
+                </div>
+                <div>
+                    <div class="kpi-value">@TotalEvacuees</div>
+                    <div class="kpi-footer">
+                        <span class="trend-badge">@EvacueeDeltaText</span>
+                    </div>
+                </div>
             </div>
+
+            <!-- Shelter Capacity -->
+            <div class="kpi-card">
+                <div class="kpi-header">
+                    <div class="kpi-label">Shelter Capacity</div>
+                    <div class="kpi-icon-circle">
+                        <i class="bi bi-house-heart-fill"></i>
+                    </div>
+                </div>
+                <div>
+                    <div class="kpi-value">@ShelterCapacityUsed%</div>
+                    <div class="progress-container">
+                        <div class="progress-fill" style="width:@ShelterCapacityUsed%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Low Stock -->
+            <div class="kpi-card">
+                <div class="kpi-header">
+                    <div class="kpi-label">Low Stock Items</div>
+                    <div class="kpi-icon-circle" style="background: #ffedd5; color: #d97706;">
+                        <i class="bi bi-box-seam-fill"></i>
+                    </div>
+                </div>
+                <div>
+                    <div class="kpi-value" style="color: #d97706;">@LowStockCount</div>
+                    <div class="kpi-footer">
+                         <span class="trend-badge">@LowStockDeltaText</span>
+                         <span style="font-size: 0.75rem; color: #94a3b8; margin-left: 4px;">(≤ @LowStockThreshold)</span>
+                    </div>
+                </div>
+            </div>
+
         </section>
 
-        <!-- LEFT COLUMN -->
-        <div class="col-stack">
-            <section class="panel">
-                <header class="panel-head">
-                    <h2 class="panel-title">Recent Evacuees</h2>
-                    <div class="panel-actions">
-                        <input class="mini-input" placeholder="Search…" @bind="evacueeFilter" @bind:event="oninput" />
-                        <button class="mini-btn" @onclick="Refresh" disabled="@_loading">↻</button>
+        <!-- Main Content: Left Column -->
+        <div class="col-left">
+            
+            <!-- Recent Evacuees Table -->
+            <div class="modern-card">
+                <div class="card-header">
+                    <h3 class="card-title">Recent Evacuees</h3>
+                    <div class="header-actions">
+                        <input class="search-input" placeholder="Search name..." @bind="evacueeFilter" @bind:event="oninput" />
+                        <button class="refresh-btn" @onclick="Refresh" disabled="@_loading" title="Refresh Data">
+                            <i class="bi bi-arrow-clockwise @(_loading ? "spin" : "")"></i>
+                        </button>
                     </div>
-                </header>
-                <div class="table-wrap">
-                    <table class="dash-table">
+                </div>
+                
+                <div class="table-responsive">
+                    <table class="clean-table">
                         <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>Disaster</th>
-                            <th>Shelter</th>
-                            <th>Status</th>
-                            <th>Registered</th>
-                        </tr>
+                            <tr>
+                                <th>Name</th>
+                                <th>Disaster</th>
+                                <th>Shelter</th>
+                                <th>Status</th>
+                                <th>Registered</th>
+                            </tr>
                         </thead>
                         <tbody>
-                        @if (FilteredEvacuees.Any())
-                        {
-                            foreach (var e in FilteredEvacuees)
+                            @if (FilteredEvacuees.Any())
+                            {
+                                foreach (var e in FilteredEvacuees)
+                                {
+                                    <tr>
+                                        <td>
+                                            <div style="font-weight:600;">@e.Name</div>
+                                        </td>
+                                        <td>@e.Disaster</td>
+                                        <td>@e.Shelter</td>
+                                        <td>
+                                            <span class="status-chip @StatusClass(e.Status)">@e.Status</span>
+                                        </td>
+                                        <td style="color: var(--text-muted); font-size: 0.85rem;">
+                                            @e.Registered.ToString("MMM dd, HH:mm")
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                            else
                             {
                                 <tr>
-                                    <td>@e.Name</td>
-                                    <td>@e.Disaster</td>
-                                    <td>@e.Shelter</td>
-                                    <td><span class="status-chip @StatusClass(e.Status)">@e.Status</span></td>
-                                    <td>@e.Registered.ToString("MMM dd HH:mm")</td>
+                                    <td colspan="5" class="empty-state">
+                                        No recent evacuees found.
+                                    </td>
                                 </tr>
                             }
-                        }
-                        else
-                        {
-                            <tr><td colspan="5" class="t-center" style="opacity:.6;">No evacuees found.</td></tr>
-                        }
                         </tbody>
                     </table>
                 </div>
-                <footer class="panel-foot">
-                    Showing @FilteredEvacuees.Count() of @AllEvacuees.Count
-                </footer>
-            </section>
+                <div class="card-footer">
+                    Showing @FilteredEvacuees.Count() of @AllEvacuees.Count total records
+                </div>
+            </div>
 
-            <section class="panel">
-                <header class="panel-head">
-                    <h2 class="panel-title">Active Disasters</h2>
-                </header>
-                <div class="table-wrap">
-                    <table class="dash-table">
+            <!-- Active Disasters Table -->
+            <div class="modern-card">
+                <div class="card-header">
+                    <h3 class="card-title">Active Disasters</h3>
+                </div>
+                <div class="table-responsive">
+                    <table class="clean-table">
                         <thead>
-                        <tr>
-                            <th>Title</th>
-                            <th>Type</th>
-                            <th>Severity</th>
-                            <th>Started</th>
-                            <th>Location</th>
-                        </tr>
+                            <tr>
+                                <th>Title</th>
+                                <th>Type</th>
+                                <th>Severity</th>
+                                <th>Started</th>
+                                <th>Location</th>
+                            </tr>
                         </thead>
                         <tbody>
-                        @if (ActiveDisasters.Any())
-                        {
-                            foreach (var d in ActiveDisasters)
+                            @if (ActiveDisasters.Any())
+                            {
+                                foreach (var d in ActiveDisasters)
+                                {
+                                    <tr>
+                                        <td style="font-weight: 700;">@d.Title</td>
+                                        <td>@d.DisasterType</td>
+                                        <td>
+                                            <span class="sev-chip sev-@d.Severity.ToLower()">@d.Severity</span>
+                                        </td>
+                                        <td style="color: var(--text-muted);">@d.StartDate.ToString("MMM dd, yyyy")</td>
+                                        <td>@d.Location</td>
+                                    </tr>
+                                }
+                            }
+                            else
                             {
                                 <tr>
-                                    <td>@d.Title</td>
-                                    <td>@d.DisasterType</td>
-                                    <td><span class="sev sev-@d.Severity.ToLower()">@d.Severity</span></td>
-                                    <td>@d.StartDate.ToString("MMM dd")</td>
-                                    <td>@d.Location</td>
+                                    <td colspan="5" class="empty-state">
+                                        No active disasters reported.
+                                    </td>
                                 </tr>
                             }
-                        }
-                        else
-                        {
-                            <tr><td colspan="5" class="t-center" style="opacity:.6;">No active disasters.</td></tr>
-                        }
                         </tbody>
                     </table>
                 </div>
-                <footer class="panel-foot">
-                    Total Active: @ActiveDisastersCount
-                </footer>
-            </section>
+            </div>
+
         </div>
 
-        <!-- RIGHT COLUMN -->
-        <div class="col-stack">
-            <section class="panel">
-                <header class="panel-head">
-                    <h2 class="panel-title">Inventory Snapshot (Low)</h2>
-                </header>
-                <div class="inventory-cards">
+        <!-- Side Content: Right Column -->
+        <div class="col-right">
+            
+            <!-- Low Stock Inventory List -->
+            <div class="modern-card" style="height: 100%;">
+                <div class="card-header" style="background-color: #fffaf0;">
+                    <h3 class="card-title" style="color: #9a3412;">
+                        <i class="bi bi-exclamation-circle-fill" style="margin-right: 8px;"></i>
+                        Low Stock Alert
+                    </h3>
+                </div>
+                
+                <div class="inventory-list">
                     @if (LowStockItems.Any())
                     {
-                        foreach (var item in LowStockItems.Take(6))
+                        foreach (var item in LowStockItems.Take(8))
                         {
-                            <div class="inv-card inv-low">
-                                <div class="inv-name">@item.Name</div>
-                                <div class="inv-qty">
-                                    <strong>@item.Quantity</strong>
-                                    <span class="inv-unit">@item.Unit</span>
+                            <div class="inv-item">
+                                <div class="inv-info">
+                                    <div class="inv-name">@item.Name</div>
+                                    <div class="inv-meta">Unit: @item.Unit</div>
                                 </div>
-                                <div class="progress-shell thin" aria-label="Stock level percentage">
-                                    <div class="progress-bar" style="width:@StockPercent(item.Quantity)%"></div>
+                                <div class="inv-stat">
+                                    <div class="inv-qty" style="color: #ef4444;">@item.Quantity</div>
+                                    <div class="inv-bar-mini">
+                                        <div class="inv-fill" style="width:@StockPercent(item.Quantity)%"></div>
+                                    </div>
                                 </div>
                             </div>
                         }
                     }
                     else
                     {
-                        <div style="padding:12px;font-size:.70rem;opacity:.7;">No low stock items.</div>
+                        <div class="empty-state">
+                            <i class="bi bi-check-circle-fill" style="font-size: 2rem; color: #10b981; margin-bottom: 10px; display:block;"></i>
+                            Inventory levels are healthy.
+                        </div>
                     }
                 </div>
-                <footer class="panel-foot">
-                    @LowStockCount low stock items (threshold: @LowStockThreshold)
-                </footer>
-            </section>
+                <div class="card-footer">
+                    Threshold: ≤ @LowStockThreshold items
+                </div>
+            </div>
+
         </div>
     </div>
 </div>
 
 @code {
+    // --- EXACT SAME C# CODE AS BEFORE, NO CHANGES TO LOGIC ---
     // View models
     private record EvacueeRow(string Name, string Disaster, string Shelter, string Status, DateTime Registered);
     private record StockRow(string Name, int Quantity, string Unit);
@@ -291,7 +368,6 @@
 
     private static int StockPercent(int qty)
     {
-        // Relative fill vs a nominal 'healthy' level (2× threshold)
         var cap = Math.Max(LowStockThreshold * 2, 1);
         return Math.Clamp((int)Math.Round(qty / (double)cap * 100), 0, 100);
     }

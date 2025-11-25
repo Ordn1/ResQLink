@@ -1,133 +1,122 @@
-﻿@page "/evacuees"
+﻿@* Evacuees.razor *@
+@page "/evacuees"
 @inject ResQLink.Data.AppDbContext Db
 @using Microsoft.EntityFrameworkCore
 @using ResQLink.Data.Entities
 @using System.Text.RegularExpressions
 
 <div class="evac-root">
+    @* KPI / Overview panel *@
+    <section class="panel kpi-panel">
+        <header class="panel-head">
+            <h2 class="panel-title">Evacuees Overview</h2>
+            <div class="panel-actions">
+                <button class="mini-btn btn-primary" @onclick="BeginCreate" disabled="@showForm">
+                    <i class="bi bi-person-plus"></i> Add Evacuee
+                </button>
+                <button class="mini-btn" @onclick="Refresh" title="Refresh list">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
+        </header>
+        <div class="kpi-grid">
+            <div class="kpi-card">
+                <div class="kpi-label">Total Evacuees</div>
+                <div class="kpi-value">@AllEvacuees.Count</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Admitted / Stable</div>
+                <div class="kpi-value text-accent">@AdmittedOrStableCount</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Critical</div>
+                <div class="kpi-value">@CriticalCount</div>
+            </div>
+        </div>
+    </section>
+
     <section class="panel">
         <header class="panel-head">
             <h2 class="panel-title">Evacuees</h2>
             <div class="panel-actions">
-                <input class="mini-input" placeholder="Search name, shelter or status…" @bind="search" @bind:event="oninput" />
+                <input class="mini-input" placeholder="Search name, shelter, disaster or status…" @bind="search" @bind:event="oninput" />
                 <select class="mini-input" @bind="statusFilter">
                     <option value="">All Status</option>
-                    @foreach (var s in DistinctStatuses) { <option>@s</option> }
+                    @foreach (var s in DistinctStatuses)
+                    {
+                        <option>@s</option>
+                    }
                 </select>
                 <select class="mini-input" @bind="shelterFilter">
                     <option value="">All Shelters</option>
-                    @foreach (var s in DistinctShelters) { <option>@s</option> }
+                    @foreach (var s in DistinctShelters)
+                    {
+                        <option>@s</option>
+                    }
                 </select>
                 <select class="mini-input" @bind="sortBy">
                     <option value="registered_desc">Registered: Newest</option>
                     <option value="name_asc">Name: A → Z</option>
                 </select>
                 <button class="mini-btn" @onclick="ClearFilters">Clear</button>
-                <button class="mini-btn" @onclick="Refresh">↻</button>
-                <button class="mini-btn" @onclick="BeginCreate" disabled="@showForm">New</button>
             </div>
         </header>
-
-        @if (showForm)
-        {
-            <div style="padding:14px;border-bottom:1px solid var(--border);background:#f8fafc;display:flex;flex-direction:column;gap:10px;">
-                <h3 style="margin:0;font-size:.8rem;font-weight:700;">
-                    @(editModel.EvacueeId == 0 ? "Add Evacuee" : $"Edit Evacuee #{editModel.EvacueeId}")
-                    @if (loadingForm)
-                    {
-                        <span style="font-size:.55rem;font-weight:600;margin-left:6px;opacity:.7;">(loading…)</span>
-                    }
-                </h3>
-                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
-                    <div>
-                        <label class="foot-label">First Name</label>
-                        <input class="mini-input" @bind="editModel.FirstName" />
-                    </div>
-                    <div>
-                        <label class="foot-label">Last Name</label>
-                        <input class="mini-input" @bind="editModel.LastName" />
-                    </div>
-                    <div>
-                        <label class="foot-label">Status</label>
-                        <select class="mini-input" @bind="editModel.Status">
-                            @foreach (var s in StatusChoices) { <option value="@s">@s</option> }
-                        </select>
-                    </div>
-                    <div>
-                        <label class="foot-label">Disaster</label>
-                        <select class="mini-input" @bind="editModel.DisasterId">
-                            <option value="0">(select)</option>
-                            @foreach (var d in disasters) { <option value="@d.DisasterId">@d.Title</option> }
-                        </select>
-                    </div>
-                    <div>
-                        <label class="foot-label">Shelter</label>
-                        <select class="mini-input" @bind="editModel.ShelterId">
-                            <option value="@((int?)null)">(none)</option>
-                            @foreach (var s in shelters) { <option value="@s.ShelterId">@s.Name</option> }
-                        </select>
-                    </div>
-                </div>
-                <div style="display:flex;gap:8px;align-items:center;">
-                    <button class="mini-btn" @onclick="SaveAsync" disabled="@saving">@(saving ? "Saving…" : "Save")</button>
-                    <button class="mini-btn" @onclick="CancelForm" disabled="@saving">Cancel</button>
-                    @if (editModel.EvacueeId != 0)
-                    {
-                        <button class="mini-btn" style="background:#fee2e2;border-color:#fecaca;color:#b91c1c;"
-                                @onclick="ConfirmDeleteAsync" disabled="@saving">Delete</button>
-                    }
-                    @if (!string.IsNullOrEmpty(formError))
-                    {
-                        <div style="color:#dc2626;font-size:.65rem;font-weight:600;">@formError</div>
-                    }
-                </div>
-            </div>
-        }
 
         <div class="table-wrap">
             <table class="dash-table">
                 <thead>
-                <tr>
-                    <th style="width:70px">ID</th>
-                    <th>Name</th>
-                    <th>Disaster</th>
-                    <th>Shelter</th>
-                    <th>Status</th>
-                    <th>Registered</th>
-                    <th style="width:90px">Actions</th>
-                </tr>
+                    <tr>
+                        <th style="width:70px">ID</th>
+                        <th>Name</th>
+                        <th>Disaster</th>
+                        <th>Shelter</th>
+                        <th>Status</th>
+                        <th>Registered</th>
+                        <th style="width:120px">Actions</th>
+                    </tr>
                 </thead>
                 <tbody>
-                @foreach (var e in PagedEvacuees)
-                {
-                    <tr>
-                        <td class="t-center">#@e.Id</td>
-                        <td>@e.Name</td>
-                        <td>@e.Disaster</td>
-                        <td>@e.Shelter</td>
-                        <td><span class="status-chip @StatusClass(e.Status)">@e.Status</span></td>
-                        <td>@e.Registered.ToString("MMM dd, yyyy HH:mm")</td>
-                        <td>
-                            <div style="display:flex;gap:4px;">
-                                <button class="mini-btn" @onclick="() => BeginEdit(e.Id)" disabled="@showForm">Edit</button>
-                            </div>
-                        </td>
-                    </tr>
-                }
-                @if (!PagedEvacuees.Any())
-                {
-                    <tr><td colspan="7" class="t-center" style="opacity:.6;">No results.</td></tr>
-                }
+                    @foreach (var e in PagedEvacuees)
+                    {
+                        <tr>
+                            <td class="t-center">#@e.Id</td>
+                            <td>@e.Name</td>
+                            <td>@e.Disaster</td>
+                            <td>@e.Shelter</td>
+                            <td>
+                                <span class="status-chip @StatusClass(e.Status)">@e.Status</span>
+                            </td>
+                            <td>@e.Registered.ToString("MMM dd, yyyy HH:mm")</td>
+                            <td class="action-cell">
+                                <button class="action-btn edit"
+                                        @onclick="() => BeginEdit(e.Id)"
+                                        disabled="@showForm"
+                                        title="Edit evacuee">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                    @if (!PagedEvacuees.Any())
+                    {
+                        <tr>
+                            <td colspan="7" class="t-center text-muted">No results.</td>
+                        </tr>
+                    }
                 </tbody>
             </table>
         </div>
 
         <footer class="panel-foot">
-            <div class="foot-left">Showing @StartIndex–@EndIndex of @TotalFiltered</div>
+            <div class="foot-left">
+                Showing @StartIndex–@EndIndex of @TotalFiltered evacuees
+            </div>
             <div class="foot-right">
                 <label class="foot-label">Rows</label>
                 <select class="mini-input" @bind="pageSize">
-                    <option>10</option><option>20</option><option>50</option>
+                    <option>10</option>
+                    <option>20</option>
+                    <option>50</option>
                 </select>
                 <button class="mini-btn" @onclick="PrevPage" disabled="@(_pageIndex == 0)">Prev</button>
                 <span class="page-indicator">Page @(_pageIndex + 1) / @TotalPages</span>
@@ -161,6 +150,111 @@
     </section>
 </div>
 
+@* Create/Edit Modal *@
+@if (showForm)
+{
+    <div class="modal-overlay" @onclick="CancelForm" @onclick:stopPropagation="false">
+        <div class="modal-dialog" @onclick="PreventClose" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3>@(editModel.EvacueeId == 0 ? "Add Evacuee" : $"Edit Evacuee #{editModel.EvacueeId}")</h3>
+                <button class="modal-close" @onclick="CancelForm" @onclick:stopPropagation="true">&times;</button>
+            </div>
+            <div class="modal-body">
+                @if (loadingForm)
+                {
+                    <div class="loading-text">Loading…</div>
+                }
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="firstName">First Name *</label>
+                        <input id="firstName" class="form-control" @bind="editModel.FirstName" />
+                    </div>
+                    <div class="form-group">
+                        <label for="lastName">Last Name *</label>
+                        <input id="lastName" class="form-control" @bind="editModel.LastName" />
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="status">Status *</label>
+                        <select id="status" class="form-control" @bind="editModel.Status">
+                            @foreach (var s in StatusChoices)
+                            {
+                                <option value="@s">@s</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="disaster">Disaster *</label>
+                        <select id="disaster" class="form-control" @bind="editModel.DisasterId">
+                            <option value="0">(Select disaster)</option>
+                            @foreach (var d in disasters)
+                            {
+                                <option value="@d.DisasterId">@d.Title</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="shelter">Shelter</label>
+                        <select id="shelter" class="form-control" @bind="editModel.ShelterId">
+                            <option value="@((int?)null)">(None)</option>
+                            @foreach (var s in shelters)
+                            {
+                                <option value="@s.ShelterId">@s.Name</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrEmpty(formError))
+                {
+                    <div class="form-error">@formError</div>
+                }
+
+                <div class="modal-actions">
+                    @if (editModel.EvacueeId != 0)
+                    {
+                        <button type="button"
+                                class="btn-danger"
+                                @onclick="ConfirmDeleteAsync"
+                                disabled="@saving"
+                                @onclick:stopPropagation="true">
+                            @if (saving)
+                            {
+                                <span class="spinner"></span>
+                            }
+                            Delete
+                        </button>
+                    }
+                    <button type="button"
+                            class="btn-cancel"
+                            @onclick="CancelForm"
+                            disabled="@saving"
+                            @onclick:stopPropagation="true">
+                        Cancel
+                    </button>
+                    <button type="button"
+                            class="btn-primary"
+                            @onclick="SaveAsync"
+                            disabled="@saving"
+                            @onclick:stopPropagation="true">
+                        @if (saving)
+                        {
+                            <span class="spinner"></span>
+                        }
+                        @(editModel.EvacueeId == 0 ? "Save" : "Update")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private record EvacueeRow(int Id, string Name, string Disaster, string Shelter, string Status, DateTime Registered);
     private record ShelterSummary(string Shelter, int Count, int Capacity)
@@ -172,10 +266,10 @@
     {
         public int EvacueeId { get; set; }
         public string FirstName { get; set; } = "";
-        public string LastName  { get; set; } = "";
-        public string Status    { get; set; } = "Admitted";
-        public int DisasterId   { get; set; }
-        public int? ShelterId   { get; set; }
+        public string LastName { get; set; } = "";
+        public string Status { get; set; } = "Admitted";
+        public int DisasterId { get; set; }
+        public int? ShelterId { get; set; }
     }
 
     private List<EvacueeRow> AllEvacuees = new();
@@ -194,9 +288,16 @@
     private int _pageIndex = 0;
     private int pageSize = 10;
 
-    private static readonly string[] DefaultStatusChoices = ["Admitted","Released","Transferred","Critical","Stable","Needs Med","Deceased"];
+    private static readonly string[] DefaultStatusChoices = ["Admitted", "Released", "Transferred", "Critical", "Stable", "Needs Med", "Deceased"];
     private string[] StatusChoices = DefaultStatusChoices;
-    private readonly Dictionary<string,string> StatusCanonicalMap = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> StatusCanonicalMap = new(StringComparer.OrdinalIgnoreCase);
+
+    private int AdmittedOrStableCount =>
+        AllEvacuees.Count(e => string.Equals(e.Status, "Admitted", StringComparison.OrdinalIgnoreCase)
+                            || string.Equals(e.Status, "Stable", StringComparison.OrdinalIgnoreCase));
+
+    private int CriticalCount =>
+        AllEvacuees.Count(e => string.Equals(e.Status, "Critical", StringComparison.OrdinalIgnoreCase));
 
     protected override async Task OnInitializedAsync()
     {
@@ -218,7 +319,10 @@
                     StatusChoices = list;
             }
         }
-        catch { }
+        catch
+        {
+            // fallback silently
+        }
 
         StatusCanonicalMap.Clear();
         foreach (var s in StatusChoices)
@@ -231,7 +335,7 @@
     private async Task LoadAsync()
     {
         disasters = await Db.Disasters.AsNoTracking().OrderBy(d => d.Title).ToListAsync();
-        shelters  = await Db.Shelters.AsNoTracking().OrderBy(s => s.Name).ToListAsync();
+        shelters = await Db.Shelters.AsNoTracking().OrderBy(s => s.Name).ToListAsync();
 
         var evacuees = await Db.Evacuees
             .Include(e => e.Shelter)
@@ -250,8 +354,16 @@
         )).ToList();
     }
 
-    private IEnumerable<string> DistinctShelters => AllEvacuees.Select(e => e.Shelter).Where(s => s != "―").Distinct().OrderBy(s => s);
-    private IEnumerable<string> DistinctStatuses => AllEvacuees.Select(e => e.Status).Distinct().OrderBy(s => s);
+    private IEnumerable<string> DistinctShelters =>
+        AllEvacuees.Select(e => e.Shelter)
+                   .Where(s => s != "―")
+                   .Distinct()
+                   .OrderBy(s => s);
+
+    private IEnumerable<string> DistinctStatuses =>
+        AllEvacuees.Select(e => e.Status)
+                   .Distinct()
+                   .OrderBy(s => s);
 
     private IEnumerable<EvacueeRow> Query
     {
@@ -300,31 +412,39 @@
         _pageIndex = 0;
     }
 
-    private async void Refresh()
+    private async Task Refresh()
     {
         await LoadAsync();
-        StateHasChanged();
+        _pageIndex = 0;
     }
-    private void PrevPage() { if (_pageIndex > 0) _pageIndex--; }
-    private void NextPage() { if (_pageIndex < TotalPages - 1) _pageIndex++; }
+
+    private void PrevPage()
+    {
+        if (_pageIndex > 0) _pageIndex--;
+    }
+
+    private void NextPage()
+    {
+        if (_pageIndex < TotalPages - 1) _pageIndex++;
+    }
 
     private string StatusClass(string status) => status switch
     {
-        "Critical"    => "st-critical",
-        "Needs Med"   => "st-med",
-        "Admitted"    => "st-stable",
-        "Stable"      => "st-stable",
-        "Released"    => "st-contained",
+        "Critical" => "st-critical",
+        "Needs Med" => "st-med",
+        "Admitted" => "st-stable",
+        "Stable" => "st-stable",
+        "Released" => "st-contained",
         "Transferred" => "st-contained",
-        "Deceased"    => "st-critical",
-        _             => "st-stable"
+        "Deceased" => "st-critical",
+        _ => "st-stable"
     };
 
     private void BeginCreate()
     {
         editModel = new EvacueeEditModel();
         formError = string.Empty;
-        showForm  = true;
+        showForm = true;
     }
 
     private async Task BeginEdit(int id)
@@ -334,53 +454,30 @@
         loadingForm = true;
         formError = string.Empty;
 
-        // Show empty form immediately (optimistic render)
         editModel = new EvacueeEditModel { EvacueeId = id };
         showForm = true;
-        StateHasChanged(); // immediate render so user sees form
+        StateHasChanged();
 
         try
         {
-            // Prefer in-memory lookup first (avoids extra query delay for first render)
-            var cachedRow = AllEvacuees.FirstOrDefault(r => r.Id == id);
-            if (cachedRow != null)
+            var entity = await Db.Evacuees.AsNoTracking().FirstOrDefaultAsync(e => e.EvacueeId == id);
+            if (entity == null)
             {
-                // We only have joined string fields; still need actual entity for FK ids
-                var entityCached = await Db.Evacuees.AsNoTracking().FirstOrDefaultAsync(e => e.EvacueeId == id);
-                if (entityCached != null)
-                {
-                    editModel = new EvacueeEditModel
-                    {
-                        EvacueeId  = entityCached.EvacueeId,
-                        FirstName  = entityCached.FirstName,
-                        LastName   = entityCached.LastName,
-                        Status     = entityCached.Status,
-                        DisasterId = entityCached.DisasterId,
-                        ShelterId  = entityCached.ShelterId
-                    };
-                }
-            }
-            else
-            {
-                var entity = await Db.Evacuees.AsNoTracking().FirstOrDefaultAsync(e => e.EvacueeId == id);
-                if (entity == null)
-                {
-                    formError = "Evacuee not found.";
-                    showForm = false;
-                    return;
-                }
-                editModel = new EvacueeEditModel
-                {
-                    EvacueeId  = entity.EvacueeId,
-                    FirstName  = entity.FirstName,
-                    LastName   = entity.LastName,
-                    Status     = entity.Status,
-                    DisasterId = entity.DisasterId,
-                    ShelterId  = entity.ShelterId
-                };
+                formError = "Evacuee not found.";
+                showForm = false;
+                return;
             }
 
-            // Ensure status matches a canonical value (if constraint updated mid-session)
+            editModel = new EvacueeEditModel
+            {
+                EvacueeId = entity.EvacueeId,
+                FirstName = entity.FirstName,
+                LastName = entity.LastName,
+                Status = entity.Status,
+                DisasterId = entity.DisasterId,
+                ShelterId = entity.ShelterId
+            };
+
             var key = editModel.Status.ToLowerInvariant();
             if (StatusCanonicalMap.TryGetValue(key, out var canonical))
                 editModel.Status = canonical;
@@ -400,7 +497,7 @@
     {
         if (string.IsNullOrWhiteSpace(editModel.FirstName) || string.IsNullOrWhiteSpace(editModel.LastName))
         {
-            formError = "First and last name required.";
+            formError = "First and last name are required.";
             return false;
         }
         var key = editModel.Status?.Trim().ToLowerInvariant() ?? "";
@@ -417,13 +514,13 @@
     {
         if (editModel.DisasterId <= 0 || !await Db.Disasters.AnyAsync(d => d.DisasterId == editModel.DisasterId))
         {
-            formError = "Selected disaster invalid.";
+            formError = "Selected disaster is invalid.";
             return false;
         }
         if (editModel.ShelterId.HasValue && editModel.ShelterId.Value > 0 &&
             !await Db.Shelters.AnyAsync(s => s.ShelterId == editModel.ShelterId.Value))
         {
-            formError = "Selected shelter invalid.";
+            formError = "Selected shelter is invalid.";
             return false;
         }
         if (editModel.ShelterId.HasValue && editModel.ShelterId.Value == 0)
@@ -446,11 +543,11 @@
             {
                 var entity = new Evacuee
                 {
-                    DisasterId   = editModel.DisasterId,
-                    ShelterId    = editModel.ShelterId,
-                    FirstName    = editModel.FirstName.Trim(),
-                    LastName     = editModel.LastName.Trim(),
-                    Status       = editModel.Status,
+                    DisasterId = editModel.DisasterId,
+                    ShelterId = editModel.ShelterId,
+                    FirstName = editModel.FirstName.Trim(),
+                    LastName = editModel.LastName.Trim(),
+                    Status = editModel.Status,
                     RegisteredAt = DateTime.UtcNow
                 };
                 Db.Evacuees.Add(entity);
@@ -463,11 +560,11 @@
                     formError = "Evacuee not found.";
                     return;
                 }
-                entity.FirstName  = editModel.FirstName.Trim();
-                entity.LastName   = editModel.LastName.Trim();
-                entity.Status     = editModel.Status;
+                entity.FirstName = editModel.FirstName.Trim();
+                entity.LastName = editModel.LastName.Trim();
+                entity.Status = editModel.Status;
                 entity.DisasterId = editModel.DisasterId;
-                entity.ShelterId  = editModel.ShelterId;
+                entity.ShelterId = editModel.ShelterId;
                 Db.Evacuees.Update(entity);
             }
 
@@ -497,7 +594,7 @@
     private async Task ConfirmDeleteAsync()
     {
         if (saving) return;
-        if (editModel.EvacueeId == 0) return; // nothing to delete
+        if (editModel.EvacueeId == 0) return;
 
         saving = true;
         formError = string.Empty;
@@ -510,12 +607,6 @@
                 formError = "Evacuee not found.";
                 return;
             }
-
-            // Optional: check dependencies
-            // if (await Db.Set<ResourceDistribution>().AnyAsync(d => d.EvacueeId == editModel.EvacueeId)) {
-            //     formError = "Cannot delete: evacuee has distributions.";
-            //     return;
-            // }
 
             Db.Evacuees.Remove(entity);
             await Db.SaveChangesAsync();
@@ -543,5 +634,10 @@
         showForm = false;
         formError = string.Empty;
         StateHasChanged();
+    }
+
+    private void PreventClose()
+    {
+        // Intentionally empty: stops click from bubbling to overlay
     }
 }

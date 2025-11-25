@@ -8,11 +8,12 @@
         <header class="panel-head">
             <h2 class="panel-title">Inventory Overview</h2>
             <div class="panel-actions">
-                <button class="mini-btn" @onclick="Refresh">↻</button>
+                <button class="mini-btn" @onclick="Refresh" title="Refresh">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
             </div>
         </header>
         <div class="kpi-grid">
-            <!-- KPI Cards -->
             <div class="kpi-card">
                 <div class="kpi-label">Total Goods</div>
                 <div class="kpi-value text-accent">@ReliefGoods.Count</div>
@@ -40,10 +41,16 @@
         <header class="panel-head">
             <h2 class="panel-title">Inventory Items</h2>
             <div class="panel-actions">
-                <input class="mini-input" placeholder="Search name or category…" @bind="search" @bind:event="oninput" />
+                <input class="mini-input"
+                       placeholder="Search name or category…"
+                       @bind="search"
+                       @bind:event="oninput" />
                 <select class="mini-input" @bind="categoryFilter">
                     <option value="">Category</option>
-                    @foreach (var c in DistinctCategories) { <option>@c</option> }
+                    @foreach (var c in DistinctCategories)
+                    {
+                        <option>@c</option>
+                    }
                 </select>
                 <select class="mini-input" @bind="stockFilter">
                     <option value="">Stock State</option>
@@ -59,77 +66,114 @@
                 <button class="mini-btn" @onclick="ClearFilters">Clear</button>
             </div>
         </header>
+
         <div class="table-wrap">
-            <table class="inv-table">
+            <table class="dash-table">
                 <thead>
-                <tr>
-                    <th style="width:70px">ID</th>
-                    <th>Name</th>
-                    <th>Category</th>
-                    <th class="t-right">Qty</th>
-                    <th class="t-right">Last Updated</th>
-                    <th>Status</th>
-                </tr>
+                    <tr>
+                        <th style="width:70px">ID</th>
+                        <th>Name</th>
+                        <th>Category</th>
+                        <th class="t-right">Qty</th>
+                        <th class="t-right">Last Updated</th>
+                        <th>Status</th>
+                    </tr>
                 </thead>
                 <tbody>
-                @foreach (var i in PagedItems)
-                {
-                    <tr>
-                        <td class="t-center">@i.RgId</td>
-                        <td>@i.Name (@i.Unit)</td>
-                        <td>@i.Category</td>
-                        <td class="t-right">@i.Quantity</td>
-                        <td class="t-right">@i.LastUpdated.ToString("MMM dd HH:mm")</td>
-                        <td><span class="status-chip @StatusClass(i)">@StatusText(i)</span></td>
-                    </tr>
-                }
+                    @foreach (var i in PagedItems)
+                    {
+                        <tr>
+                            <td class="t-center">@i.RgId</td>
+                            <td>@i.Name (@i.Unit)</td>
+                            <td>@i.Category</td>
+                            <td class="t-right">@i.Quantity</td>
+                            <td class="t-right">@i.LastUpdated.ToString("MMM dd HH:mm")</td>
+                            <td>
+                                <span class="status-chip @StatusClass(i)">@StatusText(i)</span>
+                            </td>
+                        </tr>
+                    }
+                    @if (!PagedItems.Any())
+                    {
+                        <tr>
+                            <td colspan="6" class="t-center text-muted">No results.</td>
+                        </tr>
+                    }
                 </tbody>
             </table>
         </div>
+
         <footer class="panel-foot">
-            <div class="foot-left">Showing @StartIndex-@EndIndex of @Filtered.Count()</div>
+            <div class="foot-left">
+                Showing @StartIndex–@EndIndex of @Filtered.Count() items
+            </div>
             <div class="foot-right">
                 <label class="foot-label">Rows</label>
-                <select class="mini-input" @bind="pageSize"><option>10</option><option>20</option><option>50</option></select>
-                <button class="mini-btn" @onclick="PrevPage" disabled=@(_pageIndex == 0)>Prev</button>
+                <select class="mini-input" @bind="pageSize">
+                    <option>10</option>
+                    <option>20</option>
+                    <option>50</option>
+                </select>
+                <button class="mini-btn" @onclick="PrevPage" disabled="@(_pageIndex == 0)">Prev</button>
                 <span class="page-indicator">Page @(_pageIndex + 1) / @TotalPages</span>
-                <button class="mini-btn" @onclick="NextPage" disabled=@(_pageIndex >= TotalPages - 1)>Next</button>
+                <button class="mini-btn" @onclick="NextPage" disabled="@(_pageIndex >= TotalPages - 1)">Next</button>
             </div>
         </footer>
     </section>
 
     <div class="two-col">
         <section class="panel">
-            <header class="panel-head"><h2 class="panel-title">Category Summary</h2></header>
+            <header class="panel-head">
+                <h2 class="panel-title">Category Summary</h2>
+            </header>
             <div class="category-grid">
                 @foreach (var c in CategorySummaries)
                 {
                     <div class="category-card">
                         <div class="cat-name">@c.Category</div>
-                        <div class="cat-line"><strong>@c.ItemCount</strong><span class="muted"> goods</span></div>
-                        <div class="cat-line">Qty <strong>@c.TotalQuantity</strong></div>
+                        <div class="cat-line">
+                            <strong>@c.ItemCount</strong>
+                            <span class="muted">goods</span>
+                        </div>
+                        <div class="cat-line">
+                            Qty <strong>@c.TotalQuantity</strong>
+                        </div>
                         <div class="progress-shell thin" aria-label="Low/out percent">
                             <div class="progress-bar" style="width:@($"{c.LowPercent}%")"></div>
                         </div>
-                        <div class="cat-meta"><span class="low-meta">@c.LowCount low</span><span class="sep">|</span><span class="out-meta">@c.OutCount out</span></div>
+                        <div class="cat-meta">
+                            <span class="low-meta">@c.LowCount low</span>
+                            <span class="sep">|</span>
+                            <span class="out-meta">@c.OutCount out</span>
+                        </div>
                     </div>
                 }
             </div>
         </section>
+
         <section class="panel">
-            <header class="panel-head"><h2 class="panel-title">Restock Attention</h2></header>
+            <header class="panel-head">
+                <h2 class="panel-title">Restock Attention</h2>
+            </header>
             <div class="attention-list">
                 @foreach (var i in AttentionItems)
                 {
                     <div class="att-row">
-                        <div class="att-left"><div class="att-name">@i.Name</div><div class="att-cat">@i.Category</div></div>
+                        <div class="att-left">
+                            <div class="att-name">@i.Name</div>
+                            <div class="att-cat">@i.Category</div>
+                        </div>
                         <div class="att-mid">
                             <div class="progress-shell tiny" aria-label="Stock %">
                                 <div class="progress-bar" style="width:@($"{StockPercent(i)}%")"></div>
                             </div>
-                            <div class="att-stats"><span>Qty @i.Quantity</span></div>
+                            <div class="att-stats">
+                                <span>Qty @i.Quantity</span>
+                            </div>
                         </div>
-                        <div class="att-right"><span class="status-chip @StatusClass(i)">@StatusText(i)</span></div>
+                        <div class="att-right">
+                            <span class="status-chip @StatusClass(i)">@StatusText(i)</span>
+                        </div>
                     </div>
                 }
             </div>
@@ -140,7 +184,11 @@
 @code {
     private record InventoryRow(int RgId, string Name, string Category, string Unit, int Quantity, DateTime LastUpdated);
     private record CategorySummaryRow(string Category, int ItemCount, int TotalQuantity, int LowCount, int OutCount)
-    { public int LowPercent => ItemCount == 0 ? 0 : (int)Math.Round((LowCount + OutCount) / (double)ItemCount * 100); }
+    {
+        public int LowPercent => ItemCount == 0
+            ? 0
+            : (int)Math.Round((LowCount + OutCount) / (double)ItemCount * 100);
+    }
 
     private List<InventoryRow> All = new();
     private List<ReliefGood> ReliefGoods = new();
@@ -158,34 +206,52 @@
 
     private async Task LoadAsync()
     {
-        ReliefGoods = await Db.ReliefGoods.Include(r => r.Categories).ThenInclude(rc => rc.Category).AsNoTracking().ToListAsync();
+        ReliefGoods = await Db.ReliefGoods
+            .Include(r => r.Categories)
+                .ThenInclude(rc => rc.Category)
+            .AsNoTracking()
+            .ToListAsync();
+
         Stocks = await Db.Stocks.AsNoTracking().ToListAsync();
         Categories = await Db.Categories.AsNoTracking().ToListAsync();
 
-        // Build flattened rows taking latest stock per good (or 0 if no stock row)
-        var latestStock = Stocks.GroupBy(s => s.RgId)
-                                .Select(g => g.OrderByDescending(x => x.LastUpdated).First())
-                                .ToDictionary(s => s.RgId, s => s);
+        var latestStock = Stocks
+            .GroupBy(s => s.RgId)
+            .Select(g => g.OrderByDescending(x => x.LastUpdated).First())
+            .ToDictionary(s => s.RgId, s => s);
 
         All = ReliefGoods.Select(r =>
         {
             var cat = r.Categories.FirstOrDefault()?.Category.CategoryName ?? "Uncategorized";
-            var stock = latestStock.TryGetValue(r.RgId, out var st) ? st : null;
-            return new InventoryRow(r.RgId, r.Name, cat, r.Unit, stock?.Quantity ?? 0, stock?.LastUpdated ?? r.CreatedAt);
+            var hasStock = latestStock.TryGetValue(r.RgId, out var st);
+            return new InventoryRow(
+                r.RgId,
+                r.Name,
+                cat,
+                r.Unit,
+                hasStock ? st!.Quantity : 0,
+                hasStock ? st!.LastUpdated : r.CreatedAt
+            );
         }).ToList();
     }
 
-    private IEnumerable<string> DistinctCategories => All.Select(i => i.Category).Distinct().OrderBy(c => c);
+    private IEnumerable<string> DistinctCategories =>
+        All.Select(i => i.Category).Distinct().OrderBy(c => c);
 
     private IEnumerable<InventoryRow> Filtered
     {
         get
         {
             var q = All.AsEnumerable();
+
             if (!string.IsNullOrWhiteSpace(search))
-                q = q.Where(i => i.Name.Contains(search, StringComparison.OrdinalIgnoreCase) || i.Category.Contains(search, StringComparison.OrdinalIgnoreCase));
+                q = q.Where(i =>
+                    i.Name.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                    i.Category.Contains(search, StringComparison.OrdinalIgnoreCase));
+
             if (!string.IsNullOrWhiteSpace(categoryFilter))
                 q = q.Where(i => i.Category.Equals(categoryFilter, StringComparison.OrdinalIgnoreCase));
+
             if (!string.IsNullOrWhiteSpace(stockFilter))
             {
                 q = stockFilter switch
@@ -196,6 +262,7 @@
                     _ => q
                 };
             }
+
             return Sort(q);
         }
     }
@@ -217,38 +284,65 @@
     private int OutCount => All.Count(IsOut);
     private int TotalQuantity => All.Sum(i => i.Quantity);
 
-    private IEnumerable<CategorySummaryRow> CategorySummaries => DistinctCategories.Select(cat =>
-    {
-        var items = All.Where(i => i.Category == cat).ToList();
-        return new CategorySummaryRow(cat, items.Count, items.Sum(i => i.Quantity), items.Count(IsLow), items.Count(IsOut));
-    });
+    private IEnumerable<CategorySummaryRow> CategorySummaries =>
+        DistinctCategories.Select(cat =>
+        {
+            var items = All.Where(i => i.Category == cat).ToList();
+            return new CategorySummaryRow(
+                cat,
+                items.Count,
+                items.Sum(i => i.Quantity),
+                items.Count(IsLow),
+                items.Count(IsOut)
+            );
+        });
 
-    private IEnumerable<InventoryRow> AttentionItems => All.Where(i => IsLow(i) || IsOut(i))
-                                                           .OrderBy(i => IsOut(i) ? 0 : 1)
-                                                           .ThenBy(i => StockPercent(i))
-                                                           .Take(10);
+    private IEnumerable<InventoryRow> AttentionItems =>
+        All.Where(i => IsLow(i) || IsOut(i))
+           .OrderBy(i => IsOut(i) ? 0 : 1)
+           .ThenBy(StockPercent)
+           .Take(10);
 
     private static bool IsOut(InventoryRow i) => i.Quantity <= 0;
-    private static bool IsLow(InventoryRow i) => !IsOut(i) && i.Quantity <= 10; // threshold placeholder until per-item reorder level added
+    private static bool IsLow(InventoryRow i) => !IsOut(i) && i.Quantity <= 10; // placeholder threshold
+
     private static int StockPercent(InventoryRow i)
     {
         if (IsOut(i)) return 0;
-        var cap = 50; // heuristic placeholder
+        var cap = 50; // heuristic cap until per-item reorder level exists
         return Math.Clamp((int)Math.Round(i.Quantity / (double)cap * 100), 0, 100);
     }
 
-    private string StatusText(InventoryRow i) => IsOut(i) ? "OUT" : IsLow(i) ? "LOW" : "OK";
-    private string StatusClass(InventoryRow i) => IsOut(i) ? "st-out" : IsLow(i) ? "st-low" : "st-ok";
+    private string StatusText(InventoryRow i) =>
+        IsOut(i) ? "OUT" :
+        IsLow(i) ? "LOW" : "OK";
+
+    private string StatusClass(InventoryRow i) =>
+        IsOut(i) ? "st-out" :
+        IsLow(i) ? "st-low" : "st-ok";
 
     private async void Refresh()
     {
         await LoadAsync();
         StateHasChanged();
     }
+
     private void ClearFilters()
     {
-        search = string.Empty; categoryFilter = string.Empty; stockFilter = string.Empty; sortBy = "name_asc"; _pageIndex = 0;
+        search = string.Empty;
+        categoryFilter = string.Empty;
+        stockFilter = string.Empty;
+        sortBy = "name_asc";
+        _pageIndex = 0;
     }
-    private void PrevPage() { if (_pageIndex > 0) _pageIndex--; }
-    private void NextPage() { if (_pageIndex < TotalPages - 1) _pageIndex++; }
+
+    private void PrevPage()
+    {
+        if (_pageIndex > 0) _pageIndex--;
+    }
+
+    private void NextPage()
+    {
+        if (_pageIndex < TotalPages - 1) _pageIndex++;
+    }
 }

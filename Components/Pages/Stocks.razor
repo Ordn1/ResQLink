@@ -1,4 +1,4 @@
-@page "/stocks"
+ï»¿@page "/stocks"
 @using ResQLink.Data.Entities
 @using ResQLink.Helpers
 @using Microsoft.EntityFrameworkCore
@@ -9,12 +9,52 @@
 @inject ResQLink.Services.AuthState AuthState
 @inject IJSRuntime JSRuntime
 
-<div class="page-container">
+<div class="stocks-root">
+    <section class="panel kpi-panel">
+        <header class="panel-head">
+            <h2 class="panel-title">Stocks Overview</h2>
+            <div class="panel-actions">
+                <button class="mini-btn btn-primary" @onclick="OpenAddModal" disabled="@_showModal">
+                    <i class="bi bi-box-seam"></i> Add Stock
+                </button>
+                <button class="mini-btn" @onclick="Refresh" title="Refresh list">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
+        </header>
+        <div class="kpi-grid">
+            <div class="kpi-card">
+                <div class="kpi-label">Total Records</div>
+                <div class="kpi-value text-accent">@_stocks.Count</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Active</div>
+                <div class="kpi-value">@_stocks.Count(s => s.IsActive)</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Inactive</div>
+                <div class="kpi-value">@_stocks.Count(s => !s.IsActive)</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Low / Empty</div>
+                <div class="kpi-value">
+                    @_stocks.Count(s => GetStatus(s) == "Low")
+                    /
+                    @_stocks.Count(s => GetStatus(s) == "Empty")
+                </div>
+            </div>
+        </div>
+    </section>
+
     <section class="panel">
         <header class="panel-head">
             <h2 class="panel-title">Stocks Management</h2>
             <div class="panel-actions">
-                <input class="mini-input" placeholder="Search..." @bind="_search" @bind:event="oninput" />
+                <input class="mini-input"
+                       placeholder="Search item or locationâ€¦"
+                       @bind="_search"
+                       @bind:event="oninput" />
+
                 <select class="mini-input" @bind="_statusFilter">
                     <option value="">All Status</option>
                     <option value="Empty">Empty</option>
@@ -22,78 +62,106 @@
                     <option value="Medium">Medium</option>
                     <option value="High">High</option>
                 </select>
-                <label class="chk-inline" style="margin-left:8px;">
-                    <input type="checkbox" @bind="_showInactive" @bind:after="LoadAsync" /> Show Inactive
+
+                <label class="chk-inline">
+                    <input type="checkbox" @bind="_showInactive" @bind:after="LoadAsync" />
+                    <span>Show Inactive</span>
                 </label>
-                <button class="btn-primary" @onclick="OpenAddModal">+ Add Stock</button>
-                <button class="mini-btn" @onclick="Refresh">?</button>
+
+                <button class="mini-btn" @onclick="ClearFilters">Clear</button>
             </div>
         </header>
 
         <div class="panel-body">
             @if (_loading)
             {
-                <p class="text-center">Loading...</p>
+                <p class="t-center text-muted">Loadingâ€¦</p>
             }
             else if (_stocks == null || _stocks.Count == 0)
             {
-                <p class="text-center text-muted">No stocks found. @(_error != string.Empty ? $"Error: {_error}" : "")</p>
+                <p class="t-center text-muted">
+                    No stocks found.
+                    @if (!string.IsNullOrEmpty(_error))
+                    {
+                        <span> Error: @_error</span>
+                    }
+                </p>
             }
             else if (!FilteredStocks.Any())
             {
-                <p class="text-center text-muted">No stocks match your filters.</p>
+                <p class="t-center text-muted">No stocks match your filters.</p>
             }
             else
             {
                 <div class="table-wrap">
-                    <table class="data-table">
+                    <table class="dash-table">
                         <thead>
                             <tr>
-                                <th style="width:80px">ID</th>
-                                <th>Relief Good</th>
-                                <th>Location</th>
-                                <th class="t-center">Quantity</th>
-                                <th class="t-center">Max Capacity</th>
-                                <th class="t-center">Status</th>
-                                <th class="t-center">Progress</th>
-                                <th class="t-center">Active</th>
-                                <th>Last Updated</th>
-                                <th class="t-center" style="width:200px">Actions</th>
+                                <th class="t-center col-id">ID</th>
+                                <th class="col-item">Relief Good</th>
+                                <th class="col-location">Location</th>
+                                <th class="t-center col-qty">Qty</th>
+                                <th class="t-center col-capacity">Max Cap.</th>
+                                <th class="t-center col-status">Status</th>
+                                <th class="t-center col-progress">Progress</th>
+                                <th class="t-center col-active">Active</th>
+                                <th class="col-updated">Last Updated</th>
+                                <th class="t-center col-actions">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             @foreach (var stock in FilteredStocks)
                             {
                                 <tr>
-                                    <td class="t-center">@stock.StockId</td>
-                                    <td><strong>@stock.ReliefGood?.Name</strong> (@stock.ReliefGood?.Unit)</td>
-                                    <td>@(stock.Location ?? "-")</td>
-                                    <td class="t-center">@stock.Quantity</td>
-                                    <td class="t-center">@stock.MaxCapacity</td>
-                                    <td class="t-center">
+                                    <td class="t-center col-id">@stock.StockId</td>
+                                    <td class="col-item">
+                                        <strong>@stock.ReliefGood?.Name</strong>
+                                        <span class="text-muted">(@stock.ReliefGood?.Unit)</span>
+                                    </td>
+                                    <td class="col-location">@(!string.IsNullOrWhiteSpace(stock.Location) ? stock.Location : "â€”")</td>
+                                    <td class="t-center col-qty">@stock.Quantity</td>
+                                    <td class="t-center col-capacity">@stock.MaxCapacity</td>
+                                    <td class="t-center col-status">
                                         <span class="status-chip @GetStatusClass(stock)">
                                             @GetStatus(stock)
                                         </span>
                                     </td>
-                                    <td class="t-center">
-                                        <div class="progress-shell" style="width:100px;display:inline-block;">
-                                            <div class="progress-bar" style="width:@(GetPercent(stock))%"></div>
+                                    <td class="t-center col-progress">
+                                        <div class="progress-shell thin">
+                                            <div class="progress-bar" style="width:@GetPercent(stock)%"></div>
                                         </div>
-                                        <span style="margin-left:4px;font-size:0.85em;">@GetPercent(stock).ToString("0.0")%</span>
+                                        <span class="progress-text">@GetPercent(stock).ToString("0.0")%</span>
                                     </td>
-                                    <td class="t-center">
-                                        <span class="status-chip @(stock.IsActive ? "st-ok" : "st-out")">
+                                    <td class="t-center col-active">
+                                        <span class="status-chip @(stock.IsActive ? "st-active" : "st-contained")">
                                             @(stock.IsActive ? "Yes" : "No")
                                         </span>
                                     </td>
-                                    <td>@stock.LastUpdated.ToString("MMM dd, yyyy HH:mm")</td>
-                                    <td class="t-center">
-                                        <button class="mini-btn" @onclick="() => OpenEditModal(stock)">Edit</button>
-                                        <button class="mini-btn" @onclick="() => OpenAdjustModal(stock)">Adjust</button>
-                                        <button class="mini-btn btn-primary" @onclick="() => OpenAllocateModal(stock)" disabled="@(stock.Quantity == 0 || stock.ShelterId != null)">
-                                            Allocate
+                                    <td class="col-updated">
+                                        @stock.LastUpdated.ToString("MMM dd, yyyy HH:mm")
+                                    </td>
+                                    <td class="action-cell col-actions">
+                                        <button class="action-btn edit"
+                                                @onclick="() => OpenEditModal(stock)"
+                                                title="Edit stock">
+                                            <i class="bi bi-pencil"></i>
                                         </button>
-                                        <button class="mini-btn btn-danger" @onclick="() => DeleteStock(stock.StockId)">Delete</button>
+                                        <button class="action-btn view"
+                                                @onclick="() => OpenAdjustModal(stock)"
+                                                title="Adjust quantity">
+                                            <i class="bi bi-sliders"></i>
+                                        </button>
+                                        <button class="action-btn allocate"
+                                                @onclick="() => OpenAllocateModal(stock)"
+                                                disabled="@(stock.Quantity == 0 || stock.ShelterId != null)"
+                                                title="Allocate to shelter">
+                                            <i class="bi bi-arrow-up-right-square"></i>
+                                        </button>
+                                        <button class="action-btn delete"
+                                                @onclick="() => DeleteStock(stock.StockId)"
+                                                title="Delete stock">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
                                     </td>
                                 </tr>
                             }
@@ -101,137 +169,240 @@
                     </table>
                 </div>
             }
+
             @if (!string.IsNullOrEmpty(_error))
             {
-                <div style="margin-top:8px;color:#dc2626;font-size:.85rem;font-weight:600;">@_error</div>
+                <div class="form-error" style="margin-top:8px;">@_error</div>
             }
         </div>
     </section>
 
+    @* Add / Edit Stock Modal *@
     @if (_showModal)
     {
-        <div class="modal-overlay" @onclick="CloseModal">
-            <div class="modal-box" @onclick:stopPropagation="true">
-                <header class="modal-header">
+        <div class="modal-overlay" @onclick="CloseModal" @onclick:stopPropagation="false">
+            <div class="modal-dialog" @onclick:stopPropagation="true">
+                <div class="modal-header">
                     <h3>@(_editMode ? "Edit Stock" : "Add Stock")</h3>
-                    <button class="modal-close" @onclick="CloseModal">×</button>
-                </header>
+                    <button class="modal-close" @onclick="CloseModal">&times;</button>
+                </div>
                 <div class="modal-body">
                     @if (!_editMode)
                     {
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="rgSelect">Relief Good *</label>
+                                <select id="rgSelect" class="form-control" @bind="_selectedRgId">
+                                    <option value="0">-- Select Relief Good --</option>
+                                    @foreach (var rg in _reliefGoods)
+                                    {
+                                        <option value="@rg.RgId">@rg.Name (@rg.Unit)</option>
+                                    }
+                                </select>
+                            </div>
+                        </div>
+                    }
+
+                    <div class="form-row">
                         <div class="form-group">
-                            <label>Relief Good *</label>
-                            <select class="form-input" @bind="_selectedRgId">
-                                <option value="0">-- Select Relief Good --</option>
-                                @foreach (var rg in _reliefGoods)
+                            <label for="qty">Quantity *</label>
+                            <input id="qty" type="number" min="0" class="form-control" @bind="_editQuantity" />
+                        </div>
+                        <div class="form-group">
+                            <label for="maxCap">Max Capacity *</label>
+                            <input id="maxCap" type="number" min="1" class="form-control" @bind="_editMaxCapacity" />
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="location">Location</label>
+                            <input id="location" class="form-control" @bind="_editLocation" />
+                        </div>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(_modalError))
+                    {
+                        <div class="form-error">@_modalError</div>
+                    }
+
+                    <div class="modal-actions">
+                        <button type="button"
+                                class="btn-cancel"
+                                @onclick="CloseModal"
+                                disabled="@_saving"
+                                @onclick:stopPropagation="true">
+                            Cancel
+                        </button>
+                        <button type="button"
+                                class="btn-primary"
+                                @onclick="SaveStock"
+                                disabled="@_saving"
+                                @onclick:stopPropagation="true">
+                            @if (_saving)
+                            {
+                                <span class="spinner"></span>
+                            }
+                            Save
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* Adjust quantity modal *@
+    @if (_showAdjustModal)
+    {
+        <div class="modal-overlay" @onclick="CloseAdjustModal" @onclick:stopPropagation="false">
+            <div class="modal-dialog modal-sm" @onclick:stopPropagation="true">
+                <div class="modal-header">
+                    <h3>Adjust Stock Quantity</h3>
+                    <button class="modal-close" @onclick="CloseAdjustModal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Current</label>
+                            <div>
+                                <strong>@_adjustStock?.Quantity</strong>
+                                /
+                                @_adjustStock?.MaxCapacity
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="adjustDelta">Adjustment (+ or -)</label>
+                            <input id="adjustDelta"
+                                   type="number"
+                                   class="form-control"
+                                   @bind="_adjustDelta"
+                                   placeholder="e.g., 50 or -20" />
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>New Quantity</label>
+                            <div>
+                                <strong>@(_adjustStock != null ? _adjustStock.Quantity + _adjustDelta : 0)</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(_modalError))
+                    {
+                        <div class="form-error">@_modalError</div>
+                    }
+
+                    <div class="modal-actions">
+                        <button type="button"
+                                class="btn-cancel"
+                                @onclick="CloseAdjustModal"
+                                disabled="@_saving"
+                                @onclick:stopPropagation="true">
+                            Cancel
+                        </button>
+                        <button type="button"
+                                class="btn-primary"
+                                @onclick="ApplyAdjustment"
+                                disabled="@_saving"
+                                @onclick:stopPropagation="true">
+                            @if (_saving)
+                            {
+                                <span class="spinner"></span>
+                            }
+                            Apply
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* Allocate modal *@
+    @if (_showAllocateModal)
+    {
+        <div class="modal-overlay" @onclick="CloseAllocateModal" @onclick:stopPropagation="false">
+            <div class="modal-dialog" @onclick:stopPropagation="true">
+                <div class="modal-header">
+                    <h3>Allocate Stock to Shelter</h3>
+                    <button class="modal-close" @onclick="CloseAllocateModal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Item</label>
+                            <div class="text-strong">
+                                @_allocateStock?.ReliefGood?.Name (@_allocateStock?.ReliefGood?.Unit)
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Available Quantity</label>
+                            <div class="text-strong text-accent">
+                                @_allocateStock?.Quantity @_allocateStock?.ReliefGood?.Unit
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="allocShelter">Select Shelter *</label>
+                            <select id="allocShelter" class="form-control" @bind="_allocateShelterId">
+                                <option value="0">-- Select Shelter --</option>
+                                @foreach (var shelter in _shelters)
                                 {
-                                    <option value="@rg.RgId">@rg.Name (@rg.Unit)</option>
+                                    <option value="@shelter.ShelterId">@shelter.Name (@shelter.Location)</option>
                                 }
                             </select>
                         </div>
-                    }
-                    <div class="form-group">
-                        <label>Quantity *</label>
-                        <input type="number" class="form-input" @bind="_editQuantity" min="0" />
+                        <div class="form-group">
+                            <label for="allocQty">Quantity to Allocate *</label>
+                            <input id="allocQty"
+                                   type="number"
+                                   class="form-control"
+                                   @bind="_allocateQuantity"
+                                   min="1"
+                                   max="@(_allocateStock?.Quantity ?? 0)" />
+                            <small class="hint">Max: @_allocateStock?.Quantity</small>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label>Max Capacity *</label>
-                        <input type="number" class="form-input" @bind="_editMaxCapacity" min="1" />
-                    </div>
-                    <div class="form-group">
-                        <label>Location</label>
-                        <input class="form-input" @bind="_editLocation" />
-                    </div>
-                    @if (!string.IsNullOrEmpty(_modalError))
-                    {
-                        <div class="form-error">@_modalError</div>
-                    }
-                </div>
-                <footer class="modal-footer">
-                    <button class="btn-secondary" @onclick="CloseModal" disabled="@_saving">Cancel</button>
-                    <button class="btn-primary" @onclick="SaveStock" disabled="@_saving">@(_saving ? "Saving…" : "Save")</button>
-                </footer>
-            </div>
-        </div>
-    }
 
-    @if (_showAdjustModal)
-    {
-        <div class="modal-overlay" @onclick="CloseAdjustModal">
-            <div class="modal-box modal-sm" @onclick:stopPropagation="true">
-                <header class="modal-header">
-                    <h3>Adjust Stock Quantity</h3>
-                    <button class="modal-close" @onclick="CloseAdjustModal">×</button>
-                </header>
-                <div class="modal-body">
-                    <div class="form-group">
-                        <label>Current: <strong>@_adjustStock?.Quantity</strong> / @_adjustStock?.MaxCapacity</label>
-                    </div>
-                    <div class="form-group">
-                        <label>Adjustment (+ or -)</label>
-                        <input type="number" class="form-input" @bind="_adjustDelta" placeholder="e.g., +50 or -20" />
-                    </div>
-                    <div class="form-group">
-                        <label>New Quantity: <strong>@(_adjustStock != null ? _adjustStock.Quantity + _adjustDelta : 0)</strong></label>
-                    </div>
-                    @if (!string.IsNullOrEmpty(_modalError))
-                    {
-                        <div class="form-error">@_modalError</div>
-                    }
-                </div>
-                <footer class="modal-footer">
-                    <button class="btn-secondary" @onclick="CloseAdjustModal" disabled="@_saving">Cancel</button>
-                    <button class="btn-primary" @onclick="ApplyAdjustment" disabled="@_saving">@(_saving ? "Applying…" : "Apply")</button>
-                </footer>
-            </div>
-        </div>
-    }
-
-    @if (_showAllocateModal)
-    {
-        <div class="modal-overlay" @onclick="CloseAllocateModal">
-            <div class="modal-box" @onclick:stopPropagation="true">
-                <header class="modal-header">
-                    <h3>Allocate Stock to Shelter</h3>
-                    <button class="modal-close" @onclick="CloseAllocateModal">×</button>
-                </header>
-                <div class="modal-body">
-                    <div class="form-group">
-                        <label>Item</label>
-                        <div style="font-weight:600;">@_allocateStock?.ReliefGood?.Name (@_allocateStock?.ReliefGood?.Unit)</div>
-                    </div>
-                    <div class="form-group">
-                        <label>Available Quantity</label>
-                        <div style="font-weight:600;color:#16a34a;">@_allocateStock?.Quantity @_allocateStock?.ReliefGood?.Unit</div>
-                    </div>
-                    <div class="form-group">
-                        <label>Select Shelter *</label>
-                        <select class="form-input" @bind="_allocateShelterId">
-                            <option value="0">-- Select Shelter --</option>
-                            @foreach (var shelter in _shelters)
-                            {
-                                <option value="@shelter.ShelterId">@shelter.Name (@shelter.Location)</option>
-                            }
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Quantity to Allocate *</label>
-                        <input type="number" class="form-input" @bind="_allocateQuantity" min="1" max="@(_allocateStock?.Quantity ?? 0)" />
-                        <small style="font-size:0.75rem;color:#64748b;">Max: @_allocateStock?.Quantity</small>
-                    </div>
                     @if (!string.IsNullOrEmpty(_modalError))
                     {
                         <div class="form-error">@_modalError</div>
                     }
                     @if (!string.IsNullOrEmpty(_allocateSuccess))
                     {
-                        <div style="color:#16a34a;font-size:.85rem;font-weight:600;margin-top:8px;">@_allocateSuccess</div>
+                        <div class="success-message">@_allocateSuccess</div>
                     }
+
+                    <div class="modal-actions">
+                        <button type="button"
+                                class="btn-cancel"
+                                @onclick="CloseAllocateModal"
+                                disabled="@_saving"
+                                @onclick:stopPropagation="true">
+                            Cancel
+                        </button>
+                        <button type="button"
+                                class="btn-primary"
+                                @onclick="AllocateToShelter"
+                                disabled="@_saving"
+                                @onclick:stopPropagation="true">
+                            @if (_saving)
+                            {
+                                <span class="spinner"></span>
+                            }
+                            Allocate
+                        </button>
+                    </div>
                 </div>
-                <footer class="modal-footer">
-                    <button class="btn-secondary" @onclick="CloseAllocateModal" disabled="@_saving">Cancel</button>
-                    <button class="btn-primary" @onclick="AllocateToShelter" disabled="@_saving">@(_saving ? "Allocating…" : "Allocate")</button>
-                </footer>
             </div>
         </div>
     }
@@ -281,9 +452,13 @@
         {
             _loading = true;
             _error = string.Empty;
+
             _stocks = await StockSvc.GetAllAsync(!_showInactive);
             _reliefGoods = await InventorySvc.GetAllAsync();
-            _shelters = await Db.Shelters.Where(s => s.IsActive).OrderBy(s => s.Name).ToListAsync();
+            _shelters = await Db.Shelters
+                .Where(s => s.IsActive)
+                .OrderBy(s => s.Name)
+                .ToListAsync();
         }
         catch (Exception ex)
         {
@@ -292,37 +467,30 @@
             _reliefGoods = new();
             _shelters = new();
         }
-        finally 
-        { 
-            _loading = false; 
+        finally
+        {
+            _loading = false;
         }
     }
 
-    // Computed helpers - use database computed columns if available, otherwise calculate
     private decimal GetPercent(Stock stock)
     {
-        // Try to use database computed value first
         if (stock.CapacityPercent > 0 || stock.Quantity == 0)
             return stock.CapacityPercent;
-        
-        // Fallback calculation
+
         return StockExtensions.ComputePercent(stock.Quantity, stock.MaxCapacity);
     }
 
     private string GetStatus(Stock stock)
     {
-        // Try to use database computed value first
         if (!string.IsNullOrEmpty(stock.Status))
             return stock.Status;
-        
-        // Fallback calculation
+
         return StockExtensions.ComputeStatus(stock.Quantity, stock.MaxCapacity);
     }
 
-    private string GetStatusClass(Stock stock)
-    {
-        return StockExtensions.GetStatusClass(GetStatus(stock));
-    }
+    private string GetStatusClass(Stock stock) =>
+        StockExtensions.GetStatusClass(GetStatus(stock));
 
     private IEnumerable<Stock> FilteredStocks
     {
@@ -334,13 +502,18 @@
             var q = _stocks.AsEnumerable();
 
             if (!string.IsNullOrWhiteSpace(_search))
-                q = q.Where(s => (s.ReliefGood?.Name?.Contains(_search, StringComparison.OrdinalIgnoreCase) ?? false) ||
-                                 (s.Location?.Contains(_search, StringComparison.OrdinalIgnoreCase) ?? false));
+            {
+                q = q.Where(s =>
+                    (s.ReliefGood?.Name?.Contains(_search, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    (s.Location?.Contains(_search, StringComparison.OrdinalIgnoreCase) ?? false));
+            }
 
             if (!string.IsNullOrWhiteSpace(_statusFilter))
+            {
                 q = q.Where(s => GetStatus(s).Equals(_statusFilter, StringComparison.OrdinalIgnoreCase));
+            }
 
-            return q;
+            return q.OrderBy(s => s.ReliefGood?.Name);
         }
     }
 
@@ -350,6 +523,7 @@
         _showModal = true;
         _modalError = string.Empty;
         _selectedRgId = 0;
+        _editStockId = 0;
         _editQuantity = 0;
         _editMaxCapacity = 1000;
         _editLocation = string.Empty;
@@ -386,7 +560,7 @@
 
         if (_editQuantity < 0 || _editMaxCapacity <= 0)
         {
-            _modalError = "Invalid quantity or capacity.";
+            _modalError = "Quantity must be â‰¥ 0 and capacity must be â‰¥ 1.";
             return;
         }
 
@@ -476,7 +650,7 @@
     private async Task DeleteStock(int stockId)
     {
         if (_saving) return;
-        
+
         try
         {
             var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "Delete this stock record?");
@@ -484,7 +658,9 @@
 
             _saving = true;
             var (ok, err) = await StockSvc.DeleteAsync(stockId);
-            if (!ok && err != null) _error = err;
+            if (!ok && err != null)
+                _error = err;
+
             await LoadAsync();
         }
         catch (Exception ex)
@@ -546,10 +722,9 @@
         _saving = true;
         try
         {
-            // Get current user ID (hardcoded to 1 for now - admin user)
-            var userId = 1; // TODO: Replace with AuthState.CurrentUser?.UserId when auth is implemented
+            var userId = 1; // TODO: use AuthState when available
 
-            (ResourceAllocation? allocation, string? err) = await AllocationSvc.AllocateToShelterAsync(
+            var (allocation, err) = await AllocationSvc.AllocateToShelterAsync(
                 _allocateStock.StockId,
                 _allocateShelterId,
                 _allocateQuantity,
@@ -562,11 +737,10 @@
                 return;
             }
 
-            _allocateSuccess = $"Successfully allocated {_allocateQuantity} {_allocateStock.ReliefGood?.Unit} to shelter!";
-            
-            // Wait a moment to show success message
-            await Task.Delay(1500);
-            
+            _allocateSuccess = $"Successfully allocated {_allocateQuantity} {_allocateStock.ReliefGood?.Unit} to shelter.";
+
+            await Task.Delay(1200);
+
             _showAllocateModal = false;
             await LoadAsync();
         }
@@ -578,5 +752,9 @@
         {
             _saving = false;
         }
+    }
+    private Task ClearFilters(MouseEventArgs args)
+    {
+        throw new NotImplementedException();
     }
 }

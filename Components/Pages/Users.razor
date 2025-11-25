@@ -1,10 +1,373 @@
 @page "/users"
 
-<div class="panel">
-    <header class="panel-head">
-        <h2 class="panel-title">Manage Users</h2>
-    </header>
-    <div style="padding:12px;">
-        <p style="margin:0;color:#6b7280;">Placeholder. Admin account is now persisted in SQL Server (resqlink). We will implement user CRUD next.</p>
-    </div>
+<div class="users-root">
+
+    <section class="panel">
+        <header class="panel-head">
+            <h2 class="panel-title">Users Management</h2>
+            <div class="panel-actions">
+                <input class="mini-input"
+                       placeholder="Search name or email…"
+                       @bind="search"
+                       @bind:event="oninput" />
+                <select class="mini-input" @bind="roleFilter">
+                    <option value="">All Roles</option>
+                    <option>Admin</option>
+                    <option>Staff</option>
+                    <option>Viewer</option>
+                </select>
+                <button class="mini-btn" @onclick="ApplyFilters">Filter</button>
+                <button class="mini-btn" @onclick="ClearFilters">Clear</button>
+                <button class="mini-btn btn-primary" @onclick="OpenAddModal">
+                    <i class="bi bi-person-plus"></i> Add User
+                </button>
+            </div>
+        </header>
+
+        <div class="panel-body">
+            <div class="table-wrap">
+                <table class="dash-table">
+                    <thead>
+                        <tr>
+                            <th class="col-id t-center">ID</th>
+                            <th class="col-name">Name</th>
+                            <th class="col-email">Email</th>
+                            <th class="col-role">Role</th>
+                            <th class="col-status t-center">Status</th>
+                            <th class="col-actions t-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var u in FilteredUsers)
+                        {
+                            <tr>
+                                <td class="t-center">@u.Id</td>
+                                <td>@u.Name</td>
+                                <td>@u.Email</td>
+                                <td>
+                                    <span class="status-chip @RoleChipClass(u.Role)">@u.Role.ToUpper()</span>
+                                </td>
+                                <td class="t-center">
+                                    <span class="status-chip @(u.IsActive ? "st-active" : "st-contained")">
+                                        @(u.IsActive ? "ACTIVE" : "INACTIVE")
+                                    </span>
+                                </td>
+                                <td class="action-cell">
+                                    <button class="action-btn edit" @onclick="() => OpenEditModal(u)" title="Edit">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button class="action-btn delete" @onclick="() => ConfirmDelete(u)" title="Delete">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                        @if (!FilteredUsers.Any())
+                        {
+                            <tr>
+                                <td colspan="6" class="t-center text-muted">
+                                    No users found. Use "Add User" to create one.
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <footer class="panel-foot">
+            <span>Showing @FilteredUsers.Count() of @users.Count users</span>
+        </footer>
+    </section>
+
+    @* Add/Edit User Modal *@
+    @if (showModal)
+    {
+        <div class="modal-overlay" @onclick="CloseModal" @onclick:stopPropagation="false">
+            <div class="modal-dialog" @onclick:stopPropagation="true">
+                <div class="modal-header">
+                    <h3>@(editMode ? "Edit User" : "Add User")</h3>
+                    <button class="modal-close" @onclick="CloseModal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="userName">Name *</label>
+                            <input id="userName" class="form-control" @bind="editUser.Name" />
+                        </div>
+                        <div class="form-group">
+                            <label for="userEmail">Email *</label>
+                            <input id="userEmail" class="form-control" type="email" @bind="editUser.Email" />
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="userRole">Role *</label>
+                            <select id="userRole" class="form-control" @bind="editUser.Role">
+                                <option value="">-- Select Role --</option>
+                                <option>Admin</option>
+                                <option>Staff</option>
+                                <option>Viewer</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="chk-inline">
+                                <input type="checkbox" @bind="editUser.IsActive" />
+                                <span>Active</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(errorMessage))
+                    {
+                        <div class="form-error">@errorMessage</div>
+                    }
+
+                    <div class="modal-actions">
+                        @if (editMode)
+                        {
+                            <button type="button"
+                                    class="btn-danger"
+                                    @onclick="() => DeleteUser(editUser.Id)"
+                                    disabled="@saving"
+                                    @onclick:stopPropagation="true">
+                                @if (saving)
+                                {
+                                    <span class="spinner"></span>
+                                }
+                                Delete
+                            </button>
+                        }
+                        <button type="button"
+                                class="btn-cancel"
+                                @onclick="CloseModal"
+                                disabled="@saving"
+                                @onclick:stopPropagation="true">
+                            Cancel
+                        </button>
+                        <button type="button"
+                                class="btn-primary"
+                                @onclick="SaveUser"
+                                disabled="@saving"
+                                @onclick:stopPropagation="true">
+                            @if (saving)
+                            {
+                                <span class="spinner"></span>
+                            }
+                            Save
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* Simple delete confirmation modal *@
+    @if (showDeleteConfirm)
+    {
+        <div class="modal-overlay" @onclick="() => showDeleteConfirm = false" @onclick:stopPropagation="false">
+            <div class="modal-dialog modal-sm" @onclick:stopPropagation="true">
+                <div class="modal-header">
+                    <h3>Delete User</h3>
+                    <button class="modal-close" @onclick="() => showDeleteConfirm = false">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p style="font-size:.85rem;">
+                        Are you sure you want to delete user
+                        <strong>@userToDelete?.Name</strong>?
+                    </p>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn-cancel" @onclick="() => showDeleteConfirm = false">Cancel</button>
+                    <button class="btn-danger" @onclick="PerformDelete">Delete</button>
+                </div>
+            </div>
+        </div>
+    }
 </div>
+
+@code {
+    private class UserVm
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = "";
+        public string Email { get; set; } = "";
+        public string Role { get; set; } = "";
+        public bool IsActive { get; set; } = true;
+    }
+
+    private List<UserVm> users = new();
+    private string search = string.Empty;
+    private string roleFilter = string.Empty;
+
+    // modal state
+    private bool showModal;
+    private bool editMode;
+    private bool saving;
+    private UserVm editUser = new();
+    private string errorMessage = string.Empty;
+
+    // delete confirm state
+    private bool showDeleteConfirm;
+    private UserVm? userToDelete;
+
+    protected override void OnInitialized()
+    {
+        // seed demo admin user
+        users = new List<UserVm>
+        {
+            new UserVm
+            {
+                Id = 1,
+                Name = "Admin User",
+                Email = "admin@example.com",
+                Role = "Admin",
+                IsActive = true
+            }
+        };
+    }
+
+    private IEnumerable<UserVm> FilteredUsers =>
+        users
+            .Where(u =>
+                string.IsNullOrWhiteSpace(search)
+                || u.Name.Contains(search, StringComparison.OrdinalIgnoreCase)
+                || u.Email.Contains(search, StringComparison.OrdinalIgnoreCase))
+            .Where(u =>
+                string.IsNullOrWhiteSpace(roleFilter)
+                || string.Equals(u.Role, roleFilter, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(u => u.Id);
+
+    private void ApplyFilters()
+    {
+        StateHasChanged();
+    }
+
+    private void ClearFilters()
+    {
+        search = string.Empty;
+        roleFilter = string.Empty;
+    }
+
+    private void OpenAddModal()
+    {
+        editMode = false;
+        errorMessage = string.Empty;
+        editUser = new UserVm { IsActive = true };
+        showModal = true;
+    }
+
+    private void OpenEditModal(UserVm user)
+    {
+        editMode = true;
+        errorMessage = string.Empty;
+        editUser = new UserVm
+        {
+            Id = user.Id,
+            Name = user.Name,
+            Email = user.Email,
+            Role = user.Role,
+            IsActive = user.IsActive
+        };
+        showModal = true;
+    }
+
+    private void CloseModal()
+    {
+        if (saving) return;
+        showModal = false;
+        errorMessage = string.Empty;
+        editUser = new();
+    }
+
+    private async Task SaveUser()
+    {
+        if (saving) return;
+        errorMessage = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(editUser.Name))
+        {
+            errorMessage = "Name is required.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(editUser.Email))
+        {
+            errorMessage = "Email is required.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(editUser.Role))
+        {
+            errorMessage = "Role is required.";
+            return;
+        }
+
+        saving = true;
+        try
+        {
+            if (editMode)
+            {
+                var existing = users.FirstOrDefault(u => u.Id == editUser.Id);
+                if (existing != null)
+                {
+                    existing.Name = editUser.Name.Trim();
+                    existing.Email = editUser.Email.Trim();
+                    existing.Role = editUser.Role;
+                    existing.IsActive = editUser.IsActive;
+                }
+            }
+            else
+            {
+                var nextId = users.Any() ? users.Max(u => u.Id) + 1 : 1;
+                var newUser = new UserVm
+                {
+                    Id = nextId,
+                    Name = editUser.Name.Trim(),
+                    Email = editUser.Email.Trim(),
+                    Role = editUser.Role,
+                    IsActive = editUser.IsActive
+                };
+                users.Add(newUser);
+            }
+
+            await Task.Delay(150); // tiny delay to simulate async
+            showModal = false;
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private void ConfirmDelete(UserVm user)
+    {
+        userToDelete = user;
+        showDeleteConfirm = true;
+    }
+
+    private void PerformDelete()
+    {
+        if (userToDelete != null)
+        {
+            users.RemoveAll(u => u.Id == userToDelete.Id);
+        }
+        showDeleteConfirm = false;
+        userToDelete = null;
+    }
+
+    private void DeleteUser(int id)
+    {
+        users.RemoveAll(u => u.Id == id);
+        showModal = false;
+    }
+
+    private string RoleChipClass(string role) => role.ToLowerInvariant() switch
+    {
+        "admin" => "st-admin",
+        "staff" => "st-staff",
+        "viewer" => "st-contained",
+        _ => "st-contained"
+    };
+}
