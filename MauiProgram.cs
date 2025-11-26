@@ -5,6 +5,8 @@ using Microsoft.EntityFrameworkCore;
 using ResQLink.Data;
 using ResQLink.Services;
 using ResQLink.Services.Users;
+using ResQLink.Services.Validation;
+using ResQLink.Services.ErrorHandling;
 using System.IO;
 
 #if WINDOWS
@@ -35,7 +37,7 @@ namespace ResQLink
 
 #if WINDOWS
             var connectionString =
-                "Data Source=(localdb)\\MSSQLLocalDB;Initial Catalog=Resqlink;Integrated Security=True;Encrypt=True;TrustServerCertificate=True";
+                "Data Source=(localdb)\\MSSQLLocalDB;Initial Catalog=Resqlink;Integrated Security=True;Encrypt=True;Trust Server Certificate=True";
             builder.Services.AddDbContext<AppDbContext>(opt =>
             {
                 opt.UseSqlServer(connectionString);
@@ -56,14 +58,19 @@ namespace ResQLink
             });
 #endif
 
-            // Register Services
+            // Register Business Services
             builder.Services.AddScoped<IUserService, UserService>();
             builder.Services.AddScoped<IDisasterService, DisasterService>();
-            builder.Services.AddScoped<CategoryService>();     // Added
-            builder.Services.AddScoped<SupplierService>();     // Added
+            builder.Services.AddScoped<CategoryService>();
+            builder.Services.AddScoped<SupplierService>();
             builder.Services.AddScoped<InventoryService>();
             builder.Services.AddScoped<StockService>();
             builder.Services.AddScoped<ResourceAllocationService>();
+
+            // Register Global Validation & Error Handling Services
+            builder.Services.AddScoped<IValidationService, ValidationService>();
+            builder.Services.AddScoped<IValidationRules, ValidationRules>();
+            builder.Services.AddScoped<IErrorHandlerService, ErrorHandlerService>();
 
 #if DEBUG
             builder.Services.AddBlazorWebViewDeveloperTools();

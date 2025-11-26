@@ -1,12 +1,13 @@
 ﻿@page "/shelters"
 @inject ResQLink.Data.AppDbContext Db
 @inject NavigationManager Nav
+@inject IJSRuntime JS
 @using Microsoft.EntityFrameworkCore
 @using ResQLink.Data.Entities
 
 <div class="shelters-root">
 
-    @* KPI / Overview panel (same pattern as Disasters/Evacuees) *@
+    @* KPI / Overview panel *@
     <section class="panel kpi-panel">
         <header class="panel-head">
             <h2 class="panel-title">Shelters Overview</h2>
@@ -31,6 +32,14 @@
             </div>
         </div>
     </section>
+
+    @if (!string.IsNullOrEmpty(globalError))
+    {
+        <div class="alert alert-danger" role="alert">
+            <i class="bi bi-exclamation-triangle-fill"></i> @globalError
+            <button type="button" class="btn-close" @onclick="() => globalError = string.Empty"></button>
+        </div>
+    }
 
     <section class="panel">
         <header class="panel-head">
@@ -129,7 +138,7 @@
     </section>
 </div>
 
-@* Create/Edit Shelter Modal – same structure and classes as Evacuees/Disasters *@
+@* Create/Edit Shelter Modal *@
 @if (showForm)
 {
     <div class="modal-overlay" @onclick="CancelForm" @onclick:stopPropagation="false">
@@ -139,25 +148,70 @@
                 <button class="modal-close" @onclick="CancelForm" @onclick:stopPropagation="true">&times;</button>
             </div>
             <div class="modal-body">
+                @if (loadingForm)
+                {
+                    <div class="loading-text">Loading…</div>
+                }
+
                 <div class="form-row">
                     <div class="form-group">
                         <label for="shelterName">Name *</label>
-                        <input id="shelterName" class="form-control" @bind="editModel.Name" />
+                        <input id="shelterName" 
+                               class="form-control @(fieldErrors.ContainsKey("Name") ? "is-invalid" : "")" 
+                               @bind="editModel.Name" 
+                               @bind:event="oninput"
+                               @onblur="() => ValidateField(nameof(editModel.Name))"
+                               maxlength="255" />
+                        @if (fieldErrors.ContainsKey("Name"))
+                        {
+                            <div class="invalid-feedback">@fieldErrors["Name"]</div>
+                        }
                     </div>
                     <div class="form-group">
                         <label for="shelterLocation">Location</label>
-                        <input id="shelterLocation" class="form-control" @bind="editModel.Location" />
+                        <input id="shelterLocation" 
+                               class="form-control" 
+                               @bind="editModel.Location" 
+                               maxlength="255" />
                     </div>
                 </div>
 
                 <div class="form-row">
                     <div class="form-group">
                         <label for="capacity">Capacity *</label>
-                        <input id="capacity" class="form-control" type="number" @bind="editModel.Capacity" />
+                        <input id="capacity" 
+                               class="form-control @(fieldErrors.ContainsKey("Capacity") ? "is-invalid" : "")" 
+                               type="number" 
+                               @bind="editModel.Capacity" 
+                               @bind:event="oninput"
+                               @onblur="() => ValidateField(nameof(editModel.Capacity))"
+                               min="0" 
+                               max="100000" />
+                        @if (fieldErrors.ContainsKey("Capacity"))
+                        {
+                            <div class="invalid-feedback">@fieldErrors["Capacity"]</div>
+                        }
                     </div>
                     <div class="form-group">
                         <label for="occupancy">Current Occupancy *</label>
-                        <input id="occupancy" class="form-control" type="number" @bind="editModel.CurrentOccupancy" />
+                        <input id="occupancy" 
+                               class="form-control @(fieldErrors.ContainsKey("CurrentOccupancy") ? "is-invalid" : "")" 
+                               type="number" 
+                               @bind="editModel.CurrentOccupancy" 
+                               @bind:event="oninput"
+                               @onblur="() => ValidateField(nameof(editModel.CurrentOccupancy))"
+                               min="0" 
+                               max="@editModel.Capacity" />
+                        @if (fieldErrors.ContainsKey("CurrentOccupancy"))
+                        {
+                            <div class="invalid-feedback">@fieldErrors["CurrentOccupancy"]</div>
+                        }
+                        <small class="form-text text-muted">
+                            @if (editModel.Capacity > 0)
+                            {
+                                @:(@(Math.Round((double)editModel.CurrentOccupancy / editModel.Capacity * 100, 1))% occupied)
+                            }
+                        </small>
                     </div>
                 </div>
 
@@ -183,7 +237,9 @@
 
                 @if (!string.IsNullOrEmpty(formError))
                 {
-                    <div class="form-error">@formError</div>
+                    <div class="form-error">
+                        <i class="bi bi-exclamation-circle"></i> @formError
+                    </div>
                 }
 
                 <div class="modal-actions">
@@ -248,7 +304,10 @@
 
     private bool showForm = false;
     private bool saving = false;
+    private bool loadingForm = false;
     private string formError = string.Empty;
+    private string globalError = string.Empty;
+    private Dictionary<string, string> fieldErrors = new();
 
     private ShelterEditModel editModel = new();
 
@@ -263,32 +322,51 @@
         public bool IsActive { get; set; } = true;
     }
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            globalError = $"Failed to load shelters: {ex.Message}";
+            await LogErrorAsync("OnInitializedAsync", ex);
+        }
+    }
 
     private async Task LoadAsync()
     {
-        DisasterOptions = await Db.Disasters
-            .AsNoTracking()
-            .OrderBy(d => d.Title)
-            .ToListAsync();
+        try
+        {
+            DisasterOptions = await Db.Disasters
+                .AsNoTracking()
+                .OrderBy(d => d.Title)
+                .ToListAsync();
 
-        var data = await Db.Shelters
-            .Include(s => s.Disaster)
-            .AsNoTracking()
-            .ToListAsync();
+            var data = await Db.Shelters
+                .Include(s => s.Disaster)
+                .AsNoTracking()
+                .ToListAsync();
 
-        All = data.Select(s => new ShelterRow(
-                s.ShelterId,
-                s.Name,
-                s.Location ?? "—",
-                s.Disaster?.Title,
-                s.Capacity,
-                s.CurrentOccupancy,
-                s.IsActive,
-                s.DisasterId
-            ))
-            .OrderBy(s => s.Name)
-            .ToList();
+            All = data.Select(s => new ShelterRow(
+                    s.ShelterId,
+                    s.Name,
+                    s.Location ?? "—",
+                    s.Disaster?.Title,
+                    s.Capacity,
+                    s.CurrentOccupancy,
+                    s.IsActive,
+                    s.DisasterId
+                ))
+                .OrderBy(s => s.Name)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            globalError = $"Error loading data: {ex.Message}";
+            await LogErrorAsync("LoadAsync", ex);
+        }
     }
 
     private IEnumerable<ShelterRow> Query => All
@@ -328,51 +406,124 @@
     {
         editModel = new ShelterEditModel();
         formError = string.Empty;
+        fieldErrors.Clear();
         showForm = true;
     }
 
-    private async void BeginEdit(int id)
+    private async Task BeginEdit(int id)
     {
-        var entity = await Db.Shelters.FirstOrDefaultAsync(s => s.ShelterId == id);
-        if (entity == null) return;
+        if (loadingForm || saving) return;
 
-        editModel = new ShelterEditModel
-        {
-            ShelterId = entity.ShelterId,
-            Name = entity.Name,
-            Location = entity.Location,
-            DisasterId = entity.DisasterId,
-            Capacity = entity.Capacity,
-            CurrentOccupancy = entity.CurrentOccupancy,
-            IsActive = entity.IsActive
-        };
+        loadingForm = true;
         formError = string.Empty;
+        fieldErrors.Clear();
         showForm = true;
+        StateHasChanged();
+
+        try
+        {
+            var entity = await Db.Shelters.AsNoTracking().FirstOrDefaultAsync(s => s.ShelterId == id);
+            if (entity == null)
+            {
+                formError = "Shelter not found.";
+                showForm = false;
+                return;
+            }
+
+            editModel = new ShelterEditModel
+            {
+                ShelterId = entity.ShelterId,
+                Name = entity.Name,
+                Location = entity.Location,
+                DisasterId = entity.DisasterId,
+                Capacity = entity.Capacity,
+                CurrentOccupancy = entity.CurrentOccupancy,
+                IsActive = entity.IsActive
+            };
+        }
+        catch (Exception ex)
+        {
+            formError = $"Error loading shelter: {ex.Message}";
+            await LogErrorAsync("BeginEdit", ex);
+        }
+        finally
+        {
+            loadingForm = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void ValidateField(string fieldName)
+    {
+        fieldErrors.Remove(fieldName);
+
+        switch (fieldName)
+        {
+            case nameof(editModel.Name):
+                if (string.IsNullOrWhiteSpace(editModel.Name))
+                    fieldErrors[fieldName] = "Name is required";
+                else if (editModel.Name.Trim().Length < 3)
+                    fieldErrors[fieldName] = "Name must be at least 3 characters";
+                else if (editModel.Name.Length > 255)
+                    fieldErrors[fieldName] = "Name must not exceed 255 characters";
+                break;
+
+            case nameof(editModel.Capacity):
+                if (editModel.Capacity < 0)
+                    fieldErrors[fieldName] = "Capacity must be ≥ 0";
+                else if (editModel.Capacity > 100000)
+                    fieldErrors[fieldName] = "Capacity seems unrealistically high";
+                else if (editModel.CurrentOccupancy > editModel.Capacity)
+                    fieldErrors["CurrentOccupancy"] = "Occupancy cannot exceed capacity";
+                break;
+
+            case nameof(editModel.CurrentOccupancy):
+                if (editModel.CurrentOccupancy < 0)
+                    fieldErrors[fieldName] = "Occupancy must be ≥ 0";
+                else if (editModel.CurrentOccupancy > editModel.Capacity)
+                    fieldErrors[fieldName] = "Occupancy cannot exceed capacity";
+                break;
+        }
     }
 
     private bool Validate()
     {
-        if (string.IsNullOrWhiteSpace(editModel.Name))
+        fieldErrors.Clear();
+
+        ValidateField(nameof(editModel.Name));
+        ValidateField(nameof(editModel.Capacity));
+        ValidateField(nameof(editModel.CurrentOccupancy));
+
+        if (fieldErrors.Any())
         {
-            formError = "Name required";
+            formError = "Please correct the highlighted errors";
             return false;
         }
-        if (editModel.Capacity < 0)
-        {
-            formError = "Capacity must be ≥ 0";
-            return false;
-        }
-        if (editModel.CurrentOccupancy < 0)
-        {
-            formError = "Occupancy must be ≥ 0";
-            return false;
-        }
-        if (editModel.CurrentOccupancy > editModel.Capacity)
-        {
-            formError = "Occupancy cannot exceed capacity";
-            return false;
-        }
+
         return true;
+    }
+
+    private async Task<bool> ValidateForeignKeysAsync()
+    {
+        try
+        {
+            if (editModel.DisasterId.HasValue && editModel.DisasterId.Value > 0)
+            {
+                var disasterExists = await Db.Disasters.AnyAsync(d => d.DisasterId == editModel.DisasterId.Value);
+                if (!disasterExists)
+                {
+                    formError = "Selected disaster is invalid";
+                    return false;
+                }
+            }
+            return true;
+        }
+        catch (Exception ex)
+        {
+            formError = $"Validation error: {ex.Message}";
+            await LogErrorAsync("ValidateForeignKeysAsync", ex);
+            return false;
+        }
     }
 
     private async Task SaveAsync()
@@ -380,10 +531,12 @@
         if (saving) return;
         saving = true;
         formError = string.Empty;
+        fieldErrors.Clear();
 
         try
         {
             if (!Validate()) return;
+            if (!await ValidateForeignKeysAsync()) return;
 
             if (editModel.ShelterId == 0)
             {
@@ -403,7 +556,7 @@
                 var entity = await Db.Shelters.FirstOrDefaultAsync(s => s.ShelterId == editModel.ShelterId);
                 if (entity == null)
                 {
-                    formError = "Record missing";
+                    formError = "Shelter record not found";
                     return;
                 }
                 entity.Name = editModel.Name.Trim();
@@ -416,43 +569,87 @@
             }
 
             await Db.SaveChangesAsync();
+            await JS.InvokeVoidAsync("alert", "Shelter saved successfully!");
             showForm = false;
             await LoadAsync();
         }
+        catch (DbUpdateException ex) when (ex.InnerException is Microsoft.Data.SqlClient.SqlException sql)
+        {
+            formError = sql.Number switch
+            {
+                2601 or 2627 => "A shelter with this name already exists",
+                547 => "Cannot save: Referenced data is invalid or missing",
+                _ => $"Database error: {sql.Message}"
+            };
+            await LogErrorAsync("SaveAsync", ex);
+        }
+        catch (DbUpdateException ex)
+        {
+            formError = $"Database update error: {ex.InnerException?.Message ?? ex.Message}";
+            await LogErrorAsync("SaveAsync", ex);
+        }
         catch (Exception ex)
         {
-            formError = ex.Message;
+            formError = $"Unexpected error: {ex.Message}";
+            await LogErrorAsync("SaveAsync", ex);
         }
         finally
         {
             saving = false;
+            await InvokeAsync(StateHasChanged);
         }
     }
 
-    private async void ConfirmDeleteAsync()
+    private async Task ConfirmDeleteAsync()
     {
-        if (editModel.ShelterId == 0) return;
+        if (editModel.ShelterId == 0 || saving) return;
+
+        var confirmed = await JS.InvokeAsync<bool>("confirm", 
+            $"Are you sure you want to delete shelter '{editModel.Name}'? This action cannot be undone.");
+        
+        if (!confirmed) return;
+
         saving = true;
         formError = string.Empty;
 
         try
         {
-            var entity = await Db.Shelters.FirstOrDefaultAsync(s => s.ShelterId == editModel.ShelterId);
-            if (entity != null)
+            var entity = await Db.Shelters
+                .Include(s => s.Evacuees)
+                .FirstOrDefaultAsync(s => s.ShelterId == editModel.ShelterId);
+            
+            if (entity == null)
             {
-                Db.Shelters.Remove(entity);
-                await Db.SaveChangesAsync();
+                formError = "Shelter not found";
+                return;
             }
+
+            if (entity.Evacuees.Any())
+            {
+                formError = $"Cannot delete: {entity.Evacuees.Count} evacuee(s) are currently assigned to this shelter";
+                return;
+            }
+
+            Db.Shelters.Remove(entity);
+            await Db.SaveChangesAsync();
+            await JS.InvokeVoidAsync("alert", "Shelter deleted successfully!");
             showForm = false;
             await LoadAsync();
         }
+        catch (DbUpdateException ex)
+        {
+            formError = $"Cannot delete: This shelter may have related records. {ex.InnerException?.Message ?? ex.Message}";
+            await LogErrorAsync("ConfirmDeleteAsync", ex);
+        }
         catch (Exception ex)
         {
-            formError = ex.Message;
+            formError = $"Delete failed: {ex.Message}";
+            await LogErrorAsync("ConfirmDeleteAsync", ex);
         }
         finally
         {
             saving = false;
+            await InvokeAsync(StateHasChanged);
         }
     }
 
@@ -461,15 +658,23 @@
         if (saving) return;
         showForm = false;
         formError = string.Empty;
+        fieldErrors.Clear();
     }
 
     private void PreventClose()
     {
-        // same behavior as Evacuees: stop click bubbling to overlay
+        // Intentionally empty: stops click from bubbling to overlay
     }
 
     private void ViewStock(int shelterId)
     {
         Nav.NavigateTo($"/shelter/{shelterId}/stocks");
+    }
+
+    private async Task LogErrorAsync(string method, Exception ex)
+    {
+        // Log to console in debug mode
+        System.Diagnostics.Debug.WriteLine($"[Shelters.{method}] {ex.GetType().Name}: {ex.Message}");
+        await Task.CompletedTask;
     }
 }

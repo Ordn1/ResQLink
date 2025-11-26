@@ -1,0 +1,37 @@
+@* ValidationMessageDisplay.razor - Reusable validation message component *@
+
+@if (!string.IsNullOrEmpty(Message))
+{
+    <div class="validation-message @TypeClass">
+        <i class="bi @IconClass"></i>
+        <span>@Message</span>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string? Message { get; set; }
+
+    [Parameter]
+    public ValidationMessageType Type { get; set; } = ValidationMessageType.Error;
+
+    private string TypeClass => Type switch
+    {
+        ValidationMessageType.Error => "validation-error",
+        ValidationMessageType.Warning => "validation-warning",
+        _ => "validation-error"
+    };
+
+    private string IconClass => Type switch
+    {
+        ValidationMessageType.Error => "bi-exclamation-circle-fill",
+        ValidationMessageType.Warning => "bi-exclamation-triangle-fill",
+        _ => "bi-exclamation-circle-fill"
+    };
+
+    public enum ValidationMessageType
+    {
+        Error,
+        Warning
+    }
+}

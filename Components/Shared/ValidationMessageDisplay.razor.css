@@ -1,0 +1,25 @@
+.validation-message {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: .7rem;
+    margin-top: 4px;
+    padding: 6px 10px;
+    border-radius: 6px;
+}
+
+.validation-error {
+    color: #dc2626;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+}
+
+.validation-warning {
+    color: #d97706;
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+}
+
+.validation-message i {
+    font-size: .8rem;
+}
