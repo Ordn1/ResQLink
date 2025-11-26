@@ -30,16 +30,16 @@ public class DisasterService : IDisasterService
             .Include(d => d.Shelters)
             .Include(d => d.Evacuees)
             .OrderByDescending(d => d.StartDate)
+            .AsNoTracking()
             .ToListAsync();
     }
 
-    public async Task<Disaster?> GetByIdAsync(int id)
-    {
-        return await _context.Disasters
+    public async Task<Disaster?> GetByIdAsync(int id) =>
+        await _context.Disasters
             .Include(d => d.Shelters)
             .Include(d => d.Evacuees)
+            .AsNoTracking()
             .FirstOrDefaultAsync(d => d.DisasterId == id);
-    }
 
     public async Task<Disaster> CreateAsync(Disaster disaster)
     {
@@ -51,9 +51,23 @@ public class DisasterService : IDisasterService
 
     public async Task<Disaster> UpdateAsync(Disaster disaster)
     {
-        _context.Disasters.Update(disaster);
+        // Load tracked original entity
+        var existing = await _context.Disasters.FirstOrDefaultAsync(d => d.DisasterId == disaster.DisasterId);
+        if (existing == null)
+            throw new InvalidOperationException("Disaster not found.");
+
+        // Apply scalar property updates (avoid overwriting nav collections unintentionally)
+        existing.Title        = disaster.Title;
+        existing.DisasterType = disaster.DisasterType;
+        existing.Severity     = disaster.Severity;
+        existing.Status       = disaster.Status;
+        existing.StartDate    = disaster.StartDate;
+        existing.EndDate      = disaster.EndDate;
+        existing.Location     = disaster.Location;
+        // existing.CreatedAt remains unchanged
+
         await _context.SaveChangesAsync();
-        return disaster;
+        return existing;
     }
 
     public async Task<bool> DeleteAsync(int id)
