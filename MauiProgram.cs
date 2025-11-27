@@ -7,6 +7,7 @@ using ResQLink.Services;
 using ResQLink.Services.Users;
 using ResQLink.Services.Validation;
 using ResQLink.Services.ErrorHandling;
+using ResQLink.Services.Sync;
 using System.IO;
 
 #if WINDOWS
@@ -26,10 +27,17 @@ namespace ResQLink
                 .UseMauiApp<App>()
                 .ConfigureFonts(fonts =>
                 {
+#if WINDOWS
                     fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
                     fonts.AddFont("Poppins-Regular.ttf", "PoppinsRegular");
                     fonts.AddFont("Poppins-SemiBold.ttf", "PoppinsSemiBold");
                     fonts.AddFont("Poppins-Bold.ttf", "PoppinsBold");
+#else
+                    fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
+                    fonts.AddFont("Poppins-Regular.ttf", "PoppinsRegular");
+                    fonts.AddFont("Poppins-SemiBold.ttf", "PoppinsSemiBold");
+                    fonts.AddFont("Poppins-Bold.ttf", "PoppinsBold");
+#endif
                 });
 
             builder.Services.AddMauiBlazorWebView();
@@ -37,8 +45,8 @@ namespace ResQLink
 
 #if WINDOWS
             var connectionString =
-                "Data Source=(localdb)\\MSSQLLocalDB;Initial Catalog=Resqlink;Integrated Security=True;Encrypt=True;Trust Server Certificate=True";
-            builder.Services.AddDbContext<AppDbContext>(opt =>
+                @"Data Source=Karoshi\SQLEXPRESS;Initial Catalog=Resqlink;Integrated Security=True;Encrypt=True;Trust Server Certificate=True";
+            builder.Services.AddDbContextFactory<AppDbContext>(opt =>
             {
                 opt.UseSqlServer(connectionString);
 #if DEBUG
@@ -48,7 +56,7 @@ namespace ResQLink
             });
 #else
             var dbPath = Path.Combine(FileSystem.AppDataDirectory, "resqlink.db");
-            builder.Services.AddDbContext<AppDbContext>(opt =>
+            builder.Services.AddDbContextFactory<AppDbContext>(opt =>
             {
                 opt.UseSqlite($"Data Source={dbPath}");
 #if DEBUG
@@ -71,6 +79,21 @@ namespace ResQLink
             builder.Services.AddScoped<IValidationService, ValidationService>();
             builder.Services.AddScoped<IValidationRules, ValidationRules>();
             builder.Services.AddScoped<IErrorHandlerService, ErrorHandlerService>();
+
+            // Sync services
+            builder.Services.AddHttpClient("RemoteApi", client =>
+            {
+                client.Timeout = TimeSpan.FromSeconds(30);
+            });
+            var syncSettings = new SyncSettings
+            {
+                RemoteEnabled = true,
+                RemoteConnectionString = "Server=db32781.public.databaseasp.net; Database=db32781; User Id=db32781; Password=7Cb#g8_X-Q5n; Encrypt=False; MultipleActiveResultSets=True",
+                IntervalMinutes = 5
+            };
+            builder.Services.AddSingleton(syncSettings);
+            builder.Services.AddSingleton<ISyncSettingsStorage, PreferencesSyncSettingsStorage>();
+            builder.Services.AddScoped<ISyncService, SyncService>();
 
 #if DEBUG
             builder.Services.AddBlazorWebViewDeveloperTools();
@@ -123,6 +146,25 @@ namespace ResQLink
                 catch (Exception ex)
                 {
                     logger.LogError(ex, "Seeding failed but app will continue.");
+                }
+
+                // Load persisted sync settings and start auto-sync if configured
+                try
+                {
+                    var settings = scope.ServiceProvider.GetRequiredService<SyncSettings>();
+                    var storage = scope.ServiceProvider.GetRequiredService<ISyncSettingsStorage>();
+                    storage.LoadInto(settings);
+
+                    var sync = scope.ServiceProvider.GetRequiredService<ISyncService>();
+                    if (settings.RemoteEnabled && settings.IntervalMinutes > 0)
+                    {
+                        sync.StartAutoSync(TimeSpan.FromMinutes(settings.IntervalMinutes));
+                        logger.LogInformation("Auto sync started every {Interval} minutes.", settings.IntervalMinutes);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Failed to initialize sync settings at startup");
                 }
             }
 

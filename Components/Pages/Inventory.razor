@@ -1,5 +1,5 @@
 ﻿@page "/inventory"
-@inject ResQLink.Data.AppDbContext Db
+@inject IDbContextFactory<ResQLink.Data.AppDbContext> DbFactory
 @using Microsoft.EntityFrameworkCore
 @using ResQLink.Data.Entities
 
@@ -117,7 +117,7 @@
                 <button class="mini-btn" @onclick="PrevPage" disabled="@(_pageIndex == 0)">Prev</button>
                 <span class="page-indicator">Page @(_pageIndex + 1) / @TotalPages</span>
                 <button class="mini-btn" @onclick="NextPage" disabled="@(_pageIndex >= TotalPages - 1)">Next</button>
-            </div>
+                </div>
         </footer>
     </section>
 
@@ -206,14 +206,16 @@
 
     private async Task LoadAsync()
     {
-        ReliefGoods = await Db.ReliefGoods
+        await using var db = await DbFactory.CreateDbContextAsync();
+        
+        ReliefGoods = await db.ReliefGoods
             .Include(r => r.Categories)
                 .ThenInclude(rc => rc.Category)
             .AsNoTracking()
             .ToListAsync();
 
-        Stocks = await Db.Stocks.AsNoTracking().ToListAsync();
-        Categories = await Db.Categories.AsNoTracking().ToListAsync();
+        Stocks = await db.Stocks.AsNoTracking().ToListAsync();
+        Categories = await db.Categories.AsNoTracking().ToListAsync();
 
         var latestStock = Stocks
             .GroupBy(s => s.RgId)

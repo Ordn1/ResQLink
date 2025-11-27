@@ -1,0 +1,160 @@
+@page "/settings"
+@inject ResQLink.Services.Sync.SyncSettings SyncConfig
+@inject ResQLink.Services.Sync.ISyncSettingsStorage Storage
+@inject ResQLink.Services.Sync.ISyncService Sync
+@inject IJSRuntime JS
+
+<h2>Synchronization Settings</h2>
+
+<div class="panel" style="max-width:700px">
+    <header class="panel-head">
+        <h3 class="panel-title">Remote Database</h3>
+    </header>
+    <div class="panel-body">
+        <div class="form-row" style="align-items: center;">
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" @bind="remoteEnabled" /> Enable remote sync
+                </label>
+            </div>
+        </div>
+        <div class="form-row" style="align-items: center;">
+            <div class="form-group">
+                <label for="interval">Auto-sync interval</label>
+                <select id="interval" class="form-control" @bind="interval">
+                    <option value="0">Off</option>
+                    <option value="5">Every 5 minutes</option>
+                    <option value="10">Every 10 minutes</option>
+                    <option value="15">Every 15 minutes</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-row" style="align-items: center; margin-top: 1rem;">
+            <div class="form-group">
+                <button class="btn-primary" @onclick="SaveAsync" disabled="@busy">Save</button>
+                <button class="mini-btn" @onclick="CheckOnlineAsync" disabled="@busy">Check Online</button>
+            </div>
+            <div class="form-group">
+                <span style="margin-left:10px; font-weight:600;">
+                    Status:
+                    @if (!remoteEnabled)
+                    {
+                        <span style="color:#64748b">Disabled</span>
+                    }
+                    else if (online is true)
+                    {
+                        <span style="color:#059669">Online</span>
+                    }
+                    else if (online is false)
+                    {
+                        <span style="color:#ef4444">Offline</span>
+                    }
+                    else
+                    {
+                        <span style="color:#64748b">Unknown</span>
+                    }
+                </span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="panel" style="max-width:700px">
+    <header class="panel-head">
+        <h3 class="panel-title">Manual Sync</h3>
+    </header>
+    <div class="panel-body">
+        <div class="form-row">
+            <div class="form-group">
+                <button class="btn-primary" @onclick="SyncNowAsync" disabled="@(busy || !remoteEnabled)">Sync Now (Pull then Push)</button>
+                <button class="mini-btn" @onclick="PullAsync" disabled="@(busy || !remoteEnabled)">Pull</button>
+                <button class="mini-btn" @onclick="PushAsync" disabled="@(busy || !remoteEnabled)">Push</button>
+            </div>
+        </div>
+        @if (!string.IsNullOrWhiteSpace(message))
+        {
+            <div style="margin-top:8px; color:#64748b">@message</div>
+        }
+    </div>
+</div>
+
+@code {
+    private bool remoteEnabled;
+    private int interval;
+    private bool? online;
+    private bool busy;
+    private string message = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        Storage.LoadInto(SyncConfig);
+        remoteEnabled = SyncConfig.RemoteEnabled;
+        interval = SyncConfig.IntervalMinutes;
+    }
+
+    private async Task SaveAsync()
+    {
+        busy = true; message = string.Empty;
+        try
+        {
+            SyncConfig.RemoteEnabled = remoteEnabled;
+            SyncConfig.IntervalMinutes = interval;
+            Storage.Save(SyncConfig);
+
+            if (remoteEnabled && interval > 0)
+            {
+                Sync.StartAutoSync(TimeSpan.FromMinutes(interval));
+            }
+            else
+            {
+                Sync.StopAutoSync();
+            }
+
+            message = "Settings saved.";
+        }
+        catch (Exception ex)
+        {
+            message = "Save failed: " + ex.Message;
+        }
+        finally { busy = false; }
+    }
+
+    private async Task CheckOnlineAsync()
+    {
+        busy = true; message = string.Empty;
+        try
+        {
+            online = await Sync.CheckOnlineAsync();
+        }
+        catch (Exception ex)
+        {
+            online = false;
+            message = ex.Message;
+        }
+        finally { busy = false; }
+    }
+
+    private async Task PullAsync()
+    {
+        busy = true; message = string.Empty;
+        var res = await Sync.PullAsync();
+        message = res.ok ? "Pull completed." : ($"Pull failed: {res.error}");
+        busy = false;
+    }
+
+    private async Task PushAsync()
+    {
+        busy = true; message = string.Empty;
+        var res = await Sync.PushAsync();
+        message = res.ok ? "Push completed." : ($"Push failed: {res.error}");
+        busy = false;
+    }
+
+    private async Task SyncNowAsync()
+    {
+        busy = true; message = string.Empty;
+        var res = await Sync.SyncNowAsync();
+        message = res.ok ? "Sync completed." : ($"Sync failed: {res.error}");
+        busy = false;
+    }
+}
