@@ -1,0 +1,135 @@
+@* Reusable Confirmation Dialog Component *@
+
+@if (IsVisible)
+{
+    <div class="confirm-overlay" @onclick="Cancel" @onclick:stopPropagation="false">
+        <div class="confirm-dialog @SizeClass" @onclick:stopPropagation="true">
+            <div class="confirm-header @TypeClass">
+                <div class="confirm-icon">
+                    <i class="bi @GetIcon()"></i>
+                </div>
+                <h3 class="confirm-title">@Title</h3>
+                <button class="confirm-close" @onclick="Cancel" @onclick:stopPropagation="true">
+                    <i class="bi bi-x"></i>
+                </button>
+            </div>
+            
+            <div class="confirm-body">
+                <p class="confirm-message">@Message</p>
+                
+                @if (!string.IsNullOrEmpty(WarningMessage))
+                {
+                    <div class="confirm-warning">
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+                        <span>@WarningMessage</span>
+                    </div>
+                }
+
+                @if (!string.IsNullOrEmpty(DetailMessage))
+                {
+                    <details class="confirm-details">
+                        <summary>Show Details</summary>
+                        <div class="confirm-details-content">@DetailMessage</div>
+                    </details>
+                }
+            </div>
+
+            <div class="confirm-footer">
+                <button type="button" 
+                        class="btn-secondary" 
+                        @onclick="Cancel" 
+                        disabled="@IsProcessing"
+                        @onclick:stopPropagation="true">
+                    @CancelText
+                </button>
+                <button type="button" 
+                        class="@ConfirmButtonClass" 
+                        @onclick="Confirm" 
+                        disabled="@IsProcessing"
+                        @onclick:stopPropagation="true">
+                    @if (IsProcessing)
+                    {
+                        <span class="spinner"></span>
+                    }
+                    @ConfirmText
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public string Title { get; set; } = "Confirm Action";
+    [Parameter] public string Message { get; set; } = "Are you sure you want to proceed?";
+    [Parameter] public string? WarningMessage { get; set; }
+    [Parameter] public string? DetailMessage { get; set; }
+    [Parameter] public string ConfirmText { get; set; } = "Confirm";
+    [Parameter] public string CancelText { get; set; } = "Cancel";
+    [Parameter] public ConfirmDialogType Type { get; set; } = ConfirmDialogType.Danger;
+    [Parameter] public ConfirmDialogSize Size { get; set; } = ConfirmDialogSize.Medium;
+    [Parameter] public bool IsProcessing { get; set; }
+    [Parameter] public EventCallback OnConfirm { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private string TypeClass => Type switch
+    {
+        ConfirmDialogType.Danger => "danger",
+        ConfirmDialogType.Warning => "warning",
+        ConfirmDialogType.Info => "info",
+        _ => "danger"
+    };
+
+    private string SizeClass => Size switch
+    {
+        ConfirmDialogSize.Small => "small",
+        ConfirmDialogSize.Large => "large",
+        _ => ""
+    };
+
+    private string ConfirmButtonClass => Type switch
+    {
+        ConfirmDialogType.Danger => "btn-danger",
+        ConfirmDialogType.Warning => "btn-warning",
+        ConfirmDialogType.Info => "btn-primary",
+        _ => "btn-danger"
+    };
+
+    private string GetIcon() => Type switch
+    {
+        ConfirmDialogType.Danger => "bi-trash-fill",
+        ConfirmDialogType.Warning => "bi-exclamation-triangle-fill",
+        ConfirmDialogType.Info => "bi-info-circle-fill",
+        _ => "bi-question-circle-fill"
+    };
+
+    private async Task Confirm()
+    {
+        if (!IsProcessing && OnConfirm.HasDelegate)
+        {
+            await OnConfirm.InvokeAsync();
+        }
+    }
+
+    private async Task Cancel()
+    {
+        if (!IsProcessing && OnCancel.HasDelegate)
+        {
+            await OnCancel.InvokeAsync();
+        }
+    }
+
+    public enum ConfirmDialogType
+    {
+        Danger,
+        Warning,
+        Info
+    }
+
+    public enum ConfirmDialogSize
+    {
+        Small,
+        Medium,
+        Large
+    }
+}

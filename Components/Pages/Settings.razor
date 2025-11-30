@@ -4,76 +4,173 @@
 @inject ResQLink.Services.Sync.ISyncService Sync
 @inject IJSRuntime JS
 
-<h2>Synchronization Settings</h2>
+<div class="settings-root">
+    <div class="settings-section-header">
+        <i class="bi bi-gear-fill"></i>
+        <h3>Synchronization Settings</h3>
+    </div>
 
-<div class="panel" style="max-width:700px">
-    <header class="panel-head">
-        <h3 class="panel-title">Remote Database</h3>
-    </header>
-    <div class="panel-body">
-        <div class="form-row" style="align-items: center;">
-            <div class="form-group">
-                <label>
-                    <input type="checkbox" @bind="remoteEnabled" /> Enable remote sync
-                </label>
+    <div class="panel @(busy ? "loading-pulse" : "")">
+        <header class="panel-head">
+            <h3 class="panel-title">Remote Database</h3>
+            @if (busy)
+            {
+                <span class="loading-text" style="padding: 0; margin: 0;">
+                    <span class="spinner"></span>
+                    <span>Processing...</span>
+                </span>
+            }
+        </header>
+        <div class="panel-body">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" @bind="remoteEnabled" disabled="@busy" /> 
+                        Enable remote sync
+                    </label>
+                    <span class="help-text">Enable synchronization with remote database server</span>
+                </div>
             </div>
-        </div>
-        <div class="form-row" style="align-items: center;">
-            <div class="form-group">
-                <label for="interval">Auto-sync interval</label>
-                <select id="interval" class="form-control" @bind="interval">
-                    <option value="0">Off</option>
-                    <option value="5">Every 5 minutes</option>
-                    <option value="10">Every 10 minutes</option>
-                    <option value="15">Every 15 minutes</option>
-                </select>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="interval">Auto-sync interval</label>
+                    <select id="interval" class="form-control" @bind="interval" disabled="@busy">
+                        <option value="0">Off</option>
+                        <option value="5">Every 5 minutes</option>
+                        <option value="10">Every 10 minutes</option>
+                        <option value="15">Every 15 minutes</option>
+                    </select>
+                    <span class="help-text">Set automatic synchronization frequency</span>
+                </div>
             </div>
-        </div>
-        <div class="form-row" style="align-items: center; margin-top: 1rem;">
-            <div class="form-group">
-                <button class="btn-primary" @onclick="SaveAsync" disabled="@busy">Save</button>
-                <button class="mini-btn" @onclick="CheckOnlineAsync" disabled="@busy">Check Online</button>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <div class="button-group">
+                        <button class="btn-primary" @onclick="SaveAsync" disabled="@busy">
+                            @if (isSaving)
+                            {
+                                <span class="spinner"></span>
+                            }
+                            <span>Save Settings</span>
+                        </button>
+                        <button class="mini-btn" @onclick="CheckOnlineAsync" disabled="@busy">
+                            @if (isCheckingOnline)
+                            {
+                                <span class="spinner"></span>
+                            }
+                            <i class="bi bi-wifi"></i>
+                            <span>Check Online</span>
+                        </button>
+                    </div>
+                </div>
             </div>
-            <div class="form-group">
-                <span style="margin-left:10px; font-weight:600;">
-                    Status:
-                    @if (!remoteEnabled)
+
+            <div class="info-card">
+                <div class="info-label">Connection Status</div>
+                <div class="info-value">
+                    @if (isCheckingOnline)
                     {
-                        <span style="color:#64748b">Disabled</span>
+                        <span class="status-indicator checking">
+                            <span class="spinner"></span>
+                            Checking...
+                        </span>
+                    }
+                    else if (!remoteEnabled)
+                    {
+                        <span class="status-indicator disabled">
+                            <i class="bi bi-dash-circle"></i>
+                            Disabled
+                        </span>
                     }
                     else if (online is true)
                     {
-                        <span style="color:#059669">Online</span>
+                        <span class="status-indicator online">
+                            <i class="bi bi-check-circle-fill"></i>
+                            Online
+                        </span>
                     }
                     else if (online is false)
                     {
-                        <span style="color:#ef4444">Offline</span>
+                        <span class="status-indicator offline">
+                            <i class="bi bi-x-circle-fill"></i>
+                            Offline
+                        </span>
                     }
                     else
                     {
-                        <span style="color:#64748b">Unknown</span>
+                        <span class="status-indicator unknown">
+                            <i class="bi bi-question-circle"></i>
+                            Unknown
+                        </span>
                     }
-                </span>
+                </div>
             </div>
         </div>
     </div>
-</div>
 
-<div class="panel" style="max-width:700px">
-    <header class="panel-head">
-        <h3 class="panel-title">Manual Sync</h3>
-    </header>
-    <div class="panel-body">
-        <div class="form-row">
-            <div class="form-group">
-                <button class="btn-primary" @onclick="SyncNowAsync" disabled="@(busy || !remoteEnabled)">Sync Now (Pull then Push)</button>
-                <button class="mini-btn" @onclick="PullAsync" disabled="@(busy || !remoteEnabled)">Pull</button>
-                <button class="mini-btn" @onclick="PushAsync" disabled="@(busy || !remoteEnabled)">Push</button>
+    <div class="panel @(busy ? "loading-pulse" : "")">
+        <header class="panel-head">
+            <h3 class="panel-title">Manual Sync</h3>
+        </header>
+        <div class="panel-body">
+            <div class="form-row">
+                <div class="form-group">
+                    <div class="button-group">
+                        <button class="btn-primary" @onclick="SyncNowAsync" disabled="@(busy || !remoteEnabled)">
+                            @if (isSyncing)
+                            {
+                                <span class="spinner"></span>
+                            }
+                            <i class="bi bi-arrow-repeat"></i>
+                            <span>Sync Now</span>
+                        </button>
+                        <button class="mini-btn" @onclick="PullAsync" disabled="@(busy || !remoteEnabled)">
+                            @if (isPulling)
+                            {
+                                <span class="spinner"></span>
+                            }
+                            <i class="bi bi-download"></i>
+                            <span>Pull</span>
+                        </button>
+                        <button class="mini-btn" @onclick="PushAsync" disabled="@(busy || !remoteEnabled)">
+                            @if (isPushing)
+                            {
+                                <span class="spinner"></span>
+                            }
+                            <i class="bi bi-upload"></i>
+                            <span>Push</span>
+                        </button>
+                    </div>
+                    <span class="help-text">Manually trigger data synchronization operations</span>
+                </div>
             </div>
+
+            @if (busy && !string.IsNullOrWhiteSpace(operationStatus))
+            {
+                <div class="progress-indicator">
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: 100%"></div>
+                    </div>
+                    <span style="font-size: .75rem; color: var(--text-dim); white-space: nowrap;">@operationStatus</span>
+                </div>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(message))
+            {
+                <div class="message-box @GetMessageType()">
+                    <i class="bi @GetMessageIcon()"></i>
+                    <span>@message</span>
+                </div>
+            }
         </div>
-        @if (!string.IsNullOrWhiteSpace(message))
+
+        @if (!remoteEnabled)
         {
-            <div style="margin-top:8px; color:#64748b">@message</div>
+            <div class="panel-foot">
+                <span><i class="bi bi-info-circle"></i> Enable remote sync to use manual sync operations</span>
+            </div>
         }
     </div>
 </div>
@@ -83,7 +180,13 @@
     private int interval;
     private bool? online;
     private bool busy;
+    private bool isSaving;
+    private bool isCheckingOnline;
+    private bool isSyncing;
+    private bool isPulling;
+    private bool isPushing;
     private string message = string.Empty;
+    private string operationStatus = string.Empty;
 
     protected override void OnInitialized()
     {
@@ -94,9 +197,16 @@
 
     private async Task SaveAsync()
     {
-        busy = true; message = string.Empty;
+        busy = true;
+        isSaving = true;
+        message = string.Empty;
+        operationStatus = "Saving settings...";
+        StateHasChanged();
+
         try
         {
+            await Task.Delay(300); // Brief delay for visual feedback
+
             SyncConfig.RemoteEnabled = remoteEnabled;
             SyncConfig.IntervalMinutes = interval;
             Storage.Save(SyncConfig);
@@ -110,51 +220,151 @@
                 Sync.StopAutoSync();
             }
 
-            message = "Settings saved.";
+            message = "Settings saved successfully!";
         }
         catch (Exception ex)
         {
             message = "Save failed: " + ex.Message;
         }
-        finally { busy = false; }
+        finally
+        {
+            busy = false;
+            isSaving = false;
+            operationStatus = string.Empty;
+            StateHasChanged();
+        }
     }
 
     private async Task CheckOnlineAsync()
     {
-        busy = true; message = string.Empty;
+        busy = true;
+        isCheckingOnline = true;
+        message = string.Empty;
+        operationStatus = "Checking connection...";
+        StateHasChanged();
+
         try
         {
             online = await Sync.CheckOnlineAsync();
+            message = online == true ? "Connection successful!" : "Cannot reach remote server";
         }
         catch (Exception ex)
         {
             online = false;
-            message = ex.Message;
+            message = "Connection check failed: " + ex.Message;
         }
-        finally { busy = false; }
+        finally
+        {
+            busy = false;
+            isCheckingOnline = false;
+            operationStatus = string.Empty;
+            StateHasChanged();
+        }
     }
 
     private async Task PullAsync()
     {
-        busy = true; message = string.Empty;
-        var res = await Sync.PullAsync();
-        message = res.ok ? "Pull completed." : ($"Pull failed: {res.error}");
-        busy = false;
+        busy = true;
+        isPulling = true;
+        message = string.Empty;
+        operationStatus = "Pulling data from remote...";
+        StateHasChanged();
+
+        try
+        {
+            var res = await Sync.PullAsync();
+            message = res.ok ? "Pull completed successfully!" : $"Pull failed: {res.error}";
+        }
+        catch (Exception ex)
+        {
+            message = "Pull operation failed: " + ex.Message;
+        }
+        finally
+        {
+            busy = false;
+            isPulling = false;
+            operationStatus = string.Empty;
+            StateHasChanged();
+        }
     }
 
     private async Task PushAsync()
     {
-        busy = true; message = string.Empty;
-        var res = await Sync.PushAsync();
-        message = res.ok ? "Push completed." : ($"Push failed: {res.error}");
-        busy = false;
+        busy = true;
+        isPushing = true;
+        message = string.Empty;
+        operationStatus = "Pushing data to remote...";
+        StateHasChanged();
+
+        try
+        {
+            var res = await Sync.PushAsync();
+            message = res.ok ? "Push completed successfully!" : $"Push failed: {res.error}";
+        }
+        catch (Exception ex)
+        {
+            message = "Push operation failed: " + ex.Message;
+        }
+        finally
+        {
+            busy = false;
+            isPushing = false;
+            operationStatus = string.Empty;
+            StateHasChanged();
+        }
     }
 
     private async Task SyncNowAsync()
     {
-        busy = true; message = string.Empty;
-        var res = await Sync.SyncNowAsync();
-        message = res.ok ? "Sync completed." : ($"Sync failed: {res.error}");
-        busy = false;
+        busy = true;
+        isSyncing = true;
+        message = string.Empty;
+        operationStatus = "Synchronizing data...";
+        StateHasChanged();
+
+        try
+        {
+            var res = await Sync.SyncNowAsync();
+            message = res.ok ? "Sync completed successfully!" : $"Sync failed: {res.error}";
+        }
+        catch (Exception ex)
+        {
+            message = "Sync operation failed: " + ex.Message;
+        }
+        finally
+        {
+            busy = false;
+            isSyncing = false;
+            operationStatus = string.Empty;
+            StateHasChanged();
+        }
+    }
+
+    private string GetMessageType()
+    {
+        if (message.Contains("success", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("completed", StringComparison.OrdinalIgnoreCase))
+            return "success";
+        
+        if (message.Contains("failed", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("error", StringComparison.OrdinalIgnoreCase))
+            return "error";
+        
+        if (message.Contains("cannot", StringComparison.OrdinalIgnoreCase))
+            return "warning";
+        
+        return "info";
+    }
+
+    private string GetMessageIcon()
+    {
+        var type = GetMessageType();
+        return type switch
+        {
+            "success" => "bi-check-circle-fill",
+            "error" => "bi-x-circle-fill",
+            "warning" => "bi-exclamation-triangle-fill",
+            _ => "bi-info-circle-fill"
+        };
     }
 }

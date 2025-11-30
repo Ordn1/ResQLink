@@ -1,0 +1,54 @@
+@inject ResQLink.Services.AuthState Auth
+@inject NavigationManager Nav
+@using ResQLink.Services
+
+@if (Auth.CanAccess(RequiredPath ?? GetCurrentPath()))
+{
+    @ChildContent
+}
+else if (!Auth.IsAuthenticated)
+{
+    <div class="unauthorized-container">
+        <div class="unauthorized-card">
+            <i class="bi bi-shield-x" style="font-size: 4rem; color: #dc2626;"></i>
+            <h2>Authentication Required</h2>
+            <p>Please log in to access this page.</p>
+            <button class="btn-primary" @onclick="RedirectToLogin">Go to Login</button>
+        </div>
+    </div>
+}
+else
+{
+    <div class="unauthorized-container">
+        <div class="unauthorized-card">
+            <i class="bi bi-exclamation-triangle" style="font-size: 4rem; color: #f59e0b;"></i>
+            <h2>Access Denied</h2>
+            <p>You don't have permission to access this page.</p>
+            <p>Your role: <strong>@Auth.CurrentRole</strong></p>
+            <button class="btn-primary" @onclick="RedirectToHome">Go to Home</button>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public string? RequiredPath { get; set; }
+
+    private string GetCurrentPath()
+    {
+        return "/" + Nav.ToBaseRelativePath(Nav.Uri).TrimStart('/');
+    }
+
+    private void RedirectToLogin()
+    {
+        Nav.NavigateTo("/", true);
+    }
+
+    private void RedirectToHome()
+    {
+        Nav.NavigateTo("/home");
+    }
+}

@@ -1,0 +1,599 @@
+﻿@page "/manage-users"
+@using ResQLink.Data.Entities
+@using ResQLink.Services.Users
+@inject IUserService UserService
+@inject NavigationManager Navigation
+
+<div class="manage-users-container">
+    <div class="page-header">
+        <h2>Manage Users</h2>
+        <button class="btn btn-primary" @onclick="OpenCreateModal">
+            <span class="icon">+</span> Add New User
+        </button>
+    </div>
+
+    @if (!string.IsNullOrEmpty(ErrorMessage))
+    {
+        <div class="alert alert-error">@ErrorMessage</div>
+    }
+
+    @if (!string.IsNullOrEmpty(SuccessMessage))
+    {
+        <div class="alert alert-success">@SuccessMessage</div>
+    }
+
+    @if (Loading)
+    {
+        <div class="loading">Loading users...</div>
+    }
+    else
+    {
+        <div class="users-table-container">
+            <table class="users-table">
+                <thead>
+                    <tr>
+                        <th>User ID</th>
+                        <th>Username</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var user in Users)
+                    {
+                        <tr class="@(user.IsActive ? "" : "inactive-row")">
+                            <td>@user.UserId</td>
+                            <td>@user.Username</td>
+                            <td>@user.Email</td>
+                            <td>
+                                <span class="role-badge role-@(user.Role?.RoleName?.Replace(" ", "-").ToLower())">
+                                    @user.Role?.RoleName
+                                </span>
+                            </td>
+                            <td>
+                                <span class="status-badge status-@(user.IsActive ? "active" : "inactive")">
+                                    @(user.IsActive ? "Active" : "Inactive")
+                                </span>
+                            </td>
+                            <td>@user.CreatedAt.ToString("yyyy-MM-dd")</td>
+                            <td class="actions-cell">
+                                <button class="btn-icon btn-view" @onclick="() => OpenViewModal(user)" title="View Details">
+                                    👁️
+                                </button>
+                                <button class="btn-icon btn-edit" @onclick="() => OpenEditModal(user)" title="Edit User">
+                                    ✏️
+                                </button>
+                                <button class="btn-icon btn-reset" @onclick="() => OpenResetPasswordModal(user)" title="Reset Password">
+                                    🔑
+                                </button>
+                                <button class="btn-icon btn-delete" @onclick="() => ShowDeleteConfirmation(user)" title="Delete User">
+                                    🗑️
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@* View User Modal *@
+@if (ShowViewModal && SelectedUser is not null)
+{
+    <div class="modal-overlay" @onclick="CloseModals" @onclick:stopPropagation="false">
+        <div class="modal-content" @onclick="PreventClose" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3>User Details</h3>
+                <button class="btn-close" @onclick="CloseModals" @onclick:stopPropagation="true">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="detail-row">
+                    <span class="detail-label">User ID:</span>
+                    <span class="detail-value">@SelectedUser.UserId</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Username:</span>
+                    <span class="detail-value">@SelectedUser.Username</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Email:</span>
+                    <span class="detail-value">@SelectedUser.Email</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Role:</span>
+                    <span class="detail-value">@SelectedUser.Role?.RoleName</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Status:</span>
+                    <span class="detail-value">@(SelectedUser.IsActive ? "Active" : "Inactive")</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Password Hash:</span>
+                    <span class="detail-value password-hash">@SelectedUser.PasswordHash</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Created:</span>
+                    <span class="detail-value">@SelectedUser.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Updated:</span>
+                    <span class="detail-value">@SelectedUser.UpdatedAt.ToString("yyyy-MM-dd HH:mm:ss")</span>
+                </div>
+                <div class="password-note">
+                    <strong>Note:</strong> Passwords are securely hashed and cannot be decrypted. Only password reset is available.
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* Edit User Modal *@
+@if (ShowEditModal && SelectedUser is not null)
+{
+    <div class="modal-overlay" @onclick="CloseModals" @onclick:stopPropagation="false">
+        <div class="modal-content" @onclick="PreventClose" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3>Edit User - @SelectedUser.Username</h3>
+                <button class="btn-close" @onclick="CloseModals" @onclick:stopPropagation="true">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" class="form-input" @bind="EditEmail" />
+                </div>
+                <div class="form-group">
+                    <label>Role</label>
+                    <select class="form-input" @bind="EditRoleId">
+                        @foreach (var role in Roles)
+                        {
+                            <option value="@role.RoleId">@role.RoleName</option>
+                        }
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" @bind="EditIsActive" />
+                        Active
+                    </label>
+                </div>
+                @if (!string.IsNullOrEmpty(ModalError))
+                {
+                    <div class="alert alert-error">@ModalError</div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseModals" @onclick:stopPropagation="true">Cancel</button>
+                <button class="btn btn-primary" @onclick="SaveEdit" disabled="@Saving" @onclick:stopPropagation="true">
+                    @(Saving ? "Saving..." : "Save Changes")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@* Create User Modal *@
+@if (ShowCreateModal)
+{
+    <div class="modal-overlay" @onclick="CloseModals" @onclick:stopPropagation="false">
+        <div class="modal-content" @onclick="PreventClose" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3>Create New User</h3>
+                <button class="btn-close" @onclick="CloseModals" @onclick:stopPropagation="true">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" class="form-input" @bind="CreateUsername" />
+                </div>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" class="form-input" @bind="CreateEmail" />
+                </div>
+                <div class="form-group">
+                    <label>Password (min 12 characters)</label>
+                    <input type="password" class="form-input" @bind="CreatePassword" />
+                </div>
+                <div class="form-group">
+                    <label>Confirm Password</label>
+                    <input type="password" class="form-input" @bind="CreateConfirmPassword" />
+                </div>
+                <div class="form-group">
+                    <label>Role</label>
+                    <select class="form-input" @bind="CreateRoleId">
+                        <option value="0">-- Select Role --</option>
+                        @foreach (var role in Roles)
+                        {
+                            <option value="@role.RoleId">@role.RoleName</option>
+                        }
+                    </select>
+                </div>
+                @if (!string.IsNullOrEmpty(ModalError))
+                {
+                    <div class="alert alert-error">@ModalError</div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseModals" @onclick:stopPropagation="true">Cancel</button>
+                <button class="btn btn-primary" @onclick="SaveCreate" disabled="@Saving" @onclick:stopPropagation="true">
+                    @(Saving ? "Creating..." : "Create User")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@* Reset Password Modal *@
+@if (ShowResetPasswordModal && SelectedUser is not null)
+{
+    <div class="modal-overlay" @onclick="CloseModals" @onclick:stopPropagation="false">
+        <div class="modal-content" @onclick="PreventClose" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3>Reset Password - @SelectedUser.Username</h3>
+                <button class="btn-close" @onclick="CloseModals" @onclick:stopPropagation="true">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>New Password (min 12 characters)</label>
+                    <input type="password" class="form-input" @bind="ResetPassword" />
+                </div>
+                <div class="form-group">
+                    <label>Confirm Password</label>
+                    <input type="password" class="form-input" @bind="ResetConfirmPassword" />
+                </div>
+                @if (!string.IsNullOrEmpty(ModalError))
+                {
+                    <div class="alert alert-error">@ModalError</div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseModals" @onclick:stopPropagation="true">Cancel</button>
+                <button class="btn btn-primary" @onclick="SaveResetPassword" disabled="@Saving" @onclick:stopPropagation="true">
+                    @(Saving ? "Resetting..." : "Reset Password")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@* Delete Confirmation Modal *@
+@if (showDeleteConfirmation && userToDelete is not null)
+{
+    <div class="modal-overlay" @onclick="CloseDeleteModal" @onclick:stopPropagation="false">
+        <div class="modal-content small" @onclick="PreventClose" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3>Confirm Delete</h3>
+                <button class="btn-close" @onclick="CloseDeleteModal" @onclick:stopPropagation="true">×</button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete the user <strong>"@userToDelete.Username"</strong>?</p>
+                <p class="warning-text">This action cannot be undone and will also delete all related data.</p>
+                @if (!string.IsNullOrEmpty(GetDeleteWarning()))
+                {
+                    <p class="warning-text" style="margin-top: 12px;">
+                        <strong>⚠️ @GetDeleteWarning()</strong>
+                    </p>
+                }
+                <div style="margin-top: 16px; padding: 12px; background: #f5f5f5; border-radius: 4px; font-size: 0.9em;">
+                    <div><strong>User Details:</strong></div>
+                    <div style="margin-top: 8px;">User ID: @userToDelete.UserId</div>
+                    <div>Email: @userToDelete.Email</div>
+                    <div>Role: @(userToDelete.Role?.RoleName ?? "Unknown")</div>
+                    <div>Status: @(userToDelete.IsActive ? "Active" : "Inactive")</div>
+                    <div>Created: @userToDelete.CreatedAt.ToString("yyyy-MM-dd")</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseDeleteModal" @onclick:stopPropagation="true">Cancel</button>
+                <button class="btn btn-danger" @onclick="ConfirmDelete" disabled="@(isDeleting || IsLastActiveAdmin())" @onclick:stopPropagation="true">
+                    @if (isDeleting)
+                    {
+                        <span class="spinner"></span>
+                    }
+                    @(IsLastActiveAdmin() ? "Cannot Delete" : "Delete")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<User> Users = new();
+    private List<UserRole> Roles = new();
+    private bool Loading = true;
+    private bool Saving = false;
+    private bool isDeleting = false;
+    private string ErrorMessage = "";
+    private string SuccessMessage = "";
+    private string ModalError = "";
+
+    // Modal states
+    private bool ShowViewModal = false;
+    private bool ShowEditModal = false;
+    private bool ShowCreateModal = false;
+    private bool ShowResetPasswordModal = false;
+    private bool showDeleteConfirmation = false;
+    private User? SelectedUser = null;
+    private User? userToDelete = null;
+
+    // Edit form fields
+    private string EditEmail = "";
+    private int EditRoleId = 0;
+    private bool EditIsActive = true;
+
+    // Create form fields
+    private string CreateUsername = "";
+    private string CreateEmail = "";
+    private string CreatePassword = "";
+    private string CreateConfirmPassword = "";
+    private int CreateRoleId = 0;
+
+    // Reset password fields
+    private string ResetPassword = "";
+    private string ResetConfirmPassword = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        Loading = true;
+        ErrorMessage = "";
+        try
+        {
+            Users = await UserService.GetAllUsersAsync();
+            Roles = await UserService.GetAllRolesAsync();
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Failed to load users: {ex.Message}";
+        }
+        finally
+        {
+            Loading = false;
+        }
+    }
+
+    private bool IsLastActiveAdmin()
+    {
+        if (userToDelete == null) return false;
+
+        var isAdmin = userToDelete.Role?.RoleName?.Equals("Admin", StringComparison.OrdinalIgnoreCase) == true;
+        if (!isAdmin || !userToDelete.IsActive) return false;
+
+        var activeAdminCount = Users.Count(u => 
+            u.Role?.RoleName?.Equals("Admin", StringComparison.OrdinalIgnoreCase) == true 
+            && u.IsActive);
+        
+        return activeAdminCount <= 1;
+    }
+
+    private string GetDeleteWarning()
+    {
+        if (IsLastActiveAdmin())
+        {
+            return "WARNING: This is the last active admin user. Deletion is not allowed.";
+        }
+        return string.Empty;
+    }
+
+    // Event handler to prevent modal from closing when clicking inside
+    private void PreventClose()
+    {
+        // This method intentionally does nothing - it just prevents the click from bubbling up
+    }
+
+    private void OpenViewModal(User user)
+    {
+        SelectedUser = user;
+        ShowViewModal = true;
+    }
+
+    private void OpenEditModal(User user)
+    {
+        SelectedUser = user;
+        EditEmail = user.Email;
+        EditRoleId = user.RoleId;
+        EditIsActive = user.IsActive;
+        ModalError = "";
+        ShowEditModal = true;
+    }
+
+    private void OpenCreateModal()
+    {
+        CreateUsername = "";
+        CreateEmail = "";
+        CreatePassword = "";
+        CreateConfirmPassword = "";
+        CreateRoleId = 0;
+        ModalError = "";
+        ShowCreateModal = true;
+    }
+
+    private void OpenResetPasswordModal(User user)
+    {
+        SelectedUser = user;
+        ResetPassword = "";
+        ResetConfirmPassword = "";
+        ModalError = "";
+        ShowResetPasswordModal = true;
+    }
+
+    private void ShowDeleteConfirmation(User user)
+    {
+        userToDelete = user;
+        showDeleteConfirmation = true;
+    }
+
+    private void CloseDeleteModal()
+    {
+        showDeleteConfirmation = false;
+        userToDelete = null;
+        isDeleting = false;
+    }
+
+    private void CloseModals()
+    {
+        ShowViewModal = false;
+        ShowEditModal = false;
+        ShowCreateModal = false;
+        ShowResetPasswordModal = false;
+        SelectedUser = null;
+        ModalError = "";
+    }
+
+    private async Task SaveEdit()
+    {
+        if (SelectedUser is null) return;
+
+        Saving = true;
+        ModalError = "";
+        try
+        {
+            var (success, error) = await UserService.UpdateUserAsync(
+                SelectedUser.UserId,
+                EditEmail,
+                EditRoleId,
+                EditIsActive
+            );
+
+            if (success)
+            {
+                SuccessMessage = "User updated successfully";
+                CloseModals();
+                await LoadData();
+            }
+            else
+            {
+                ModalError = error ?? "Failed to update user";
+            }
+        }
+        catch (Exception ex)
+        {
+            ModalError = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            Saving = false;
+        }
+    }
+
+    private async Task SaveCreate()
+    {
+        if (CreatePassword != CreateConfirmPassword)
+        {
+            ModalError = "Passwords do not match";
+            return;
+        }
+
+        Saving = true;
+        ModalError = "";
+        try
+        {
+            var (user, error) = await UserService.RegisterUserAsync(
+                CreateUsername,
+                CreatePassword,
+                CreateEmail,
+                CreateRoleId,
+                0 // TODO: Pass actual admin user ID
+            );
+
+            if (user is not null)
+            {
+                SuccessMessage = "User created successfully";
+                CloseModals();
+                await LoadData();
+            }
+            else
+            {
+                ModalError = error ?? "Failed to create user";
+            }
+        }
+        catch (Exception ex)
+        {
+            ModalError = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            Saving = false;
+        }
+    }
+
+    private async Task SaveResetPassword()
+    {
+        if (SelectedUser is null) return;
+
+        if (ResetPassword != ResetConfirmPassword)
+        {
+            ModalError = "Passwords do not match";
+            return;
+        }
+
+        Saving = true;
+        ModalError = "";
+        try
+        {
+            var (success, error) = await UserService.ResetPasswordAsync(
+                SelectedUser.UserId,
+                ResetPassword
+            );
+
+            if (success)
+            {
+                SuccessMessage = "Password reset successfully";
+                CloseModals();
+            }
+            else
+            {
+                ModalError = error ?? "Failed to reset password";
+            }
+        }
+        catch (Exception ex)
+        {
+            ModalError = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            Saving = false;
+        }
+    }
+
+    private async Task ConfirmDelete()
+    {
+        if (userToDelete is null || isDeleting || IsLastActiveAdmin()) return;
+
+        isDeleting = true;
+        ErrorMessage = "";
+
+        try
+        {
+            var (success, error) = await UserService.DeleteUserAsync(userToDelete.UserId);
+
+            if (success)
+            {
+                SuccessMessage = $"User '{userToDelete.Username}' deleted successfully";
+                CloseDeleteModal();
+                await LoadData();
+            }
+            else
+            {
+                ErrorMessage = error ?? "Failed to delete user";
+                CloseDeleteModal();
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Error: {ex.Message}";
+            CloseDeleteModal();
+        }
+        finally
+        {
+            isDeleting = false;
+        }
+    }
+}

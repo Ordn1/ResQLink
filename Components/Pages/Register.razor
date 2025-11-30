@@ -1,0 +1,230 @@
+@page "/register"
+@layout ResQLink.Components.Layout.LoginLayout
+@namespace ResQLink.Components.Pages
+@using ResQLink.Data.Entities
+@inject NavigationManager Navigation
+@inject ResQLink.Services.Users.IUserService UserService
+@inject ResQLink.Services.AuthState Auth
+
+<div class="login-root">
+    <div class="login-card register-card" aria-label="Register">
+        <div class="login-logo" aria-hidden="true"></div>
+
+        <div class="login-title">USER REGISTRATION</div>
+
+        @if (RequiresAdminAuth && !AdminAuthorized)
+        {
+            <div class="login-field-group">
+                <label class="login-label" for="adminUsername">Admin Username:</label>
+                <input id="adminUsername" @bind="AdminUsername" class="login-input" />
+
+                <label class="login-label" for="adminPassword" style="margin-top:12px;">Admin Password:</label>
+                <input id="adminPassword" type="password" @bind="AdminPassword" class="login-input" />
+            </div>
+
+            <div class="login-actions">
+                <button type="button" class="login-btn" @onclick="VerifyAdmin">VERIFY ADMIN</button>
+                <a href="/" class="forgot-link">Back to Login</a>
+                @if (!string.IsNullOrEmpty(ErrorMessage))
+                {
+                    <div style="color:#ffdddd;font-size:.75rem;margin-top:6px;">@ErrorMessage</div>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="login-field-group">
+                <label class="login-label" for="username">Username *</label>
+                <input id="username" @bind="Username" class="login-input" />
+
+                <label class="login-label" for="email" style="margin-top:12px;">Email *</label>
+                <input id="email" type="email" @bind="Email" class="login-input" />
+
+                <label class="login-label" for="password" style="margin-top:12px;">Password *</label>
+                <input id="password" type="password" @bind="Password" class="login-input" />
+
+                <label class="login-label" for="confirmPassword" style="margin-top:12px;">Confirm Password *</label>
+                <input id="confirmPassword" type="password" @bind="ConfirmPassword" class="login-input" />
+
+                <label class="login-label" for="role" style="margin-top:12px;">Role *</label>
+                <select id="role" @bind="SelectedRoleId" class="login-input">
+                    <option value="0">-- Select Role --</option>
+                    @foreach (var role in AvailableRoles)
+                    {
+                        <option value="@role.RoleId">@role.RoleName</option>
+                    }
+                </select>
+                <small class="role-description">
+                    @if (SelectedRoleId > 0 && AvailableRoles.Any(r => r.RoleId == SelectedRoleId))
+                    {
+                        @AvailableRoles.First(r => r.RoleId == SelectedRoleId).Description
+                    }
+                </small>
+            </div>
+
+            <div class="login-actions">
+                <button type="button" class="login-btn" @onclick="HandleRegister" disabled="@Saving">
+                    @if (Saving)
+                    {
+                        <span>REGISTERING...</span>
+                    }
+                    else
+                    {
+                        <span>REGISTER</span>
+                    }
+                </button>
+                <a href="/" class="forgot-link">Back to Login</a>
+                @if (!string.IsNullOrEmpty(ErrorMessage))
+                {
+                    <div style="color:#ffdddd;font-size:.75rem;margin-top:6px;">@ErrorMessage</div>
+                }
+                @if (!string.IsNullOrEmpty(SuccessMessage))
+                {
+                    <div style="color:#a7f3d0;font-size:.75rem;margin-top:6px;">@SuccessMessage</div>
+                }
+            </div>
+
+            <div class="password-hint">
+                <small>Password must be at least 8 characters, contain uppercase letters and numbers</small>
+            </div>
+        }
+    </div>
+
+    <div class="login-frame">
+        <h1 class="resqlink-header">
+            <span class="resq">ResQ</span><span class="link">Link</span>
+        </h1>
+        <div class="underline"></div>
+        <p class="login-subtext">Join the team.</p>
+        <p class="login-subtext">Make a difference.</p>
+        <div class="frame-visual"></div>
+    </div>
+</div>
+
+@code {
+    private bool RequiresAdminAuth = true;
+    private bool AdminAuthorized = false;
+    private int AuthorizedAdminId = 0;
+
+    private string AdminUsername = "";
+    private string AdminPassword = "";
+
+    private string Username = "";
+    private string Email = "";
+    private string Password = "";
+    private string ConfirmPassword = "";
+    private int SelectedRoleId = 0;
+
+    private List<UserRole> AvailableRoles = new();
+    private string ErrorMessage = "";
+    private string SuccessMessage = "";
+    private bool Saving = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Load available roles (exclude Admin role from self-registration)
+        var allRoles = await UserService.GetAllRolesAsync();
+        AvailableRoles = allRoles.Where(r => r.RoleName != "Admin").ToList();
+    }
+
+    private async Task VerifyAdmin()
+    {
+        ErrorMessage = "";
+
+        if (string.IsNullOrWhiteSpace(AdminUsername) || string.IsNullOrWhiteSpace(AdminPassword))
+        {
+            ErrorMessage = "Enter admin credentials to proceed.";
+            return;
+        }
+
+        var admin = await UserService.AuthenticateAsync(AdminUsername, AdminPassword);
+        if (admin == null)
+        {
+            ErrorMessage = "Invalid admin credentials.";
+            return;
+        }
+
+        var isAdmin = await UserService.ValidateAdminAccessAsync(admin.UserId);
+        if (!isAdmin)
+        {
+            ErrorMessage = "Only administrators can register new users.";
+            return;
+        }
+
+        AdminAuthorized = true;
+        AuthorizedAdminId = admin.UserId;
+        ErrorMessage = "";
+        StateHasChanged();
+    }
+
+    private async Task HandleRegister()
+    {
+        ErrorMessage = "";
+        SuccessMessage = "";
+
+        // Validate input
+        if (string.IsNullOrWhiteSpace(Username))
+        {
+            ErrorMessage = "Username is required.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(Email))
+        {
+            ErrorMessage = "Email is required.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(Password))
+        {
+            ErrorMessage = "Password is required.";
+            return;
+        }
+
+        if (Password != ConfirmPassword)
+        {
+            ErrorMessage = "Passwords do not match.";
+            return;
+        }
+
+        if (SelectedRoleId == 0)
+        {
+            ErrorMessage = "Please select a role.";
+            return;
+        }
+
+        Saving = true;
+
+        try
+        {
+            var (user, error) = await UserService.RegisterUserAsync(
+                Username,
+                Password,
+                Email,
+                SelectedRoleId,
+                AuthorizedAdminId
+            );
+
+            if (error != null)
+            {
+                ErrorMessage = error;
+                return;
+            }
+
+            SuccessMessage = $"User '{Username}' registered successfully! Redirecting to login...";
+            await Task.Delay(2000);
+            Navigation.NavigateTo("/");
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Registration failed: {ex.Message}";
+        }
+        finally
+        {
+            Saving = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void PreventDefault(MouseEventArgs e) { }
+}

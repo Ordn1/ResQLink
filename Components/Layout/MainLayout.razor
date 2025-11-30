@@ -1,10 +1,16 @@
 ﻿@inherits LayoutComponentBase
 @inject NavigationManager Nav
+@inject ResQLink.Services.AuthState Auth
+@using ResQLink.Services
+@using Microsoft.AspNetCore.Components.Web
 
 <div class="app-shell" @onclick="CloseTransientMenus">
     <aside class="shell-sidebar">
         <div class="sidebar-brand">
-            <img src="images/ResQLinkLogoFull.png" alt="ResQLink" class="brand-logo" />
+            <img src="images/ResQLinkLogoFull.png" 
+                 alt="ResQLink" 
+                 class="brand-logo"
+                 @onerror="HandleImageError" />
         </div>
 
         <nav class="nav-stack">
@@ -17,91 +23,130 @@
                 <span class="nav-text">Dashboard</span>
             </button>
 
-            <button class='nav-btn @ActiveClass("/evacuees")' @onclick='() => Go("/evacuees")'>
-                <i class="bi bi-people-fill nav-icon"></i>
-                <span class="nav-text">Evacuees</span>
-            </button>
-
-            <button class='nav-btn @ActiveClass("/shelters")' @onclick='() => Go("/shelters")'>
-                <i class="bi bi-house-heart-fill nav-icon"></i>
-                <span class="nav-text">Shelters</span>
-            </button>
-
-            <button class='nav-btn @ActiveClass("/disasters")' @onclick='() => Go("/disasters")'>
-                <i class="bi bi-exclamation-triangle-fill nav-icon"></i>
-                <span class="nav-text">Disasters</span>
-            </button>
-
-            <!-- Inventory Dropdown -->
-            <div class="nav-item-with-menu">
-
-                <!-- Parent button -->
-                <button class='nav-btn @(IsInventoryActive ? "active" : "")'
-                        @onclick="ToggleInventoryMenu" @onclick:stopPropagation="true">
-                    <i class="bi bi-box-seam-fill nav-icon"></i>
-                    <span class="nav-text">
-                        Inventory
-                        <i class="bi @(InventoryOpen ? "bi-chevron-up" : "bi-chevron-down")" style="font-size: 0.7rem;"></i>
-                    </span>
+            @* Only show Evacuees, Shelters, Disasters if NOT Inventory Manager or Finance Manager *@
+            @if (!Auth.IsInventoryManager() && !Auth.IsFinanceManager())
+            {
+                <button class='nav-btn @ActiveClass("/evacuees")' @onclick='() => Go("/evacuees")'>
+                    <i class="bi bi-people-fill nav-icon"></i>
+                    <span class="nav-text">Evacuees</span>
                 </button>
 
-                @if (InventoryOpen)
+                <button class='nav-btn @ActiveClass("/shelters")' @onclick='() => Go("/shelters")'>
+                    <i class="bi bi-house-heart-fill nav-icon"></i>
+                    <span class="nav-text">Shelters</span>
+                </button>
+
+                <button class='nav-btn @ActiveClass("/disasters")' @onclick='() => Go("/disasters")'>
+                    <i class="bi bi-exclamation-triangle-fill nav-icon"></i>
+                    <span class="nav-text">Disasters</span>
+                </button>
+            }
+
+            @* Show Inventory section for Admin, Inventory Manager, and Finance Manager *@
+            @if (Auth.CanViewInventory())
+            {
+                @if (Auth.IsFinanceManager())
                 {
-                    <div class="inventory-dropdown" @onclick:stopPropagation="true">
+                    @* Finance Manager: Only show Inventory Overview (read-only) *@
+                    <button class='nav-btn @ActiveClass("/inventory")' @onclick='() => Go("/inventory")'>
+                        <i class="bi bi-box-seam-fill nav-icon"></i>
+                        <span class="nav-text">Inventory Overview</span>
+                    </button>
+                }
+                else
+                {
+                    @* Admin and Inventory Manager: Full inventory menu with dropdown *@
+                    <div class="nav-item-with-menu">
 
-                        <!-- Inventory Overview -->
-                        <button class="dropdown-link @(IsActive("/inventory") ? "active-link" : "")"
-                                @onclick="() => GoInventory()">Overview</button>
-
-                        <!-- Dynamic Categories -->
-                        @foreach (var c in InventoryCategories)
-                        {
-                            var slugPath = $"/inventory/category/{c.Slug}";
-                            <button class="dropdown-link @(IsActive(slugPath) ? "active-link" : "")"
-                                    @onclick="() => GoInventoryCategory(c.Slug)">
-                                @c.Label
-                            </button>
-                        }
-
-                        <!-- Manage Categories -->
-                        <button class="dropdown-link @(IsActive("/categories") ? "active-link" : "")"
-                                @onclick="() => GoCategories()">
-                            + Manage Categories
+                        <!-- Parent button -->
+                        <button class='nav-btn @(IsInventoryActive ? "active" : "")'
+                                @onclick="ToggleInventoryMenu" @onclick:stopPropagation="true">
+                            <i class="bi bi-box-seam-fill nav-icon"></i>
+                            <span class="nav-text">
+                                Inventory
+                                <i class="bi @(InventoryOpen ? "bi-chevron-up" : "bi-chevron-down")" style="font-size: 0.7rem;"></i>
+                            </span>
                         </button>
 
+                        @if (InventoryOpen)
+                        {
+                            <div class="inventory-dropdown" @onclick:stopPropagation="true">
+
+                                <!-- Inventory Overview -->
+                                <button class="dropdown-link @(IsActive("/inventory") ? "active-link" : "")"
+                                        @onclick="() => GoInventory()">Overview</button>
+
+                                <!-- Dynamic Categories -->
+                                @foreach (var c in InventoryCategories)
+                                {
+                                    var slugPath = $"/inventory/category/{c.Slug}";
+                                    <button class="dropdown-link @(IsActive(slugPath) ? "active-link" : "")"
+                                            @onclick="() => GoInventoryCategory(c.Slug)">
+                                        @c.Label
+                                    </button>
+                                }
+
+                                <!-- Manage Categories -->
+                                <button class="dropdown-link @(IsActive("/categories") ? "active-link" : "")"
+                                        @onclick="() => GoCategories()">
+                                    + Manage Categories
+                                </button>
+
+                            </div>
+                        }
                     </div>
+
+                    <!-- Stocks -->
+                    <button class='nav-btn @ActiveClass("/stocks")' @onclick='() => Go("/stocks")'>
+                        <i class="bi bi-graph-up-arrow nav-icon"></i>
+                        <span class="nav-text">Stocks</span>
+                    </button>
+
+                    <!-- Suppliers -->
+                    <button class='nav-btn @ActiveClass("/suppliers")' @onclick='() => Go("/suppliers")'>
+                        <i class="bi bi-truck nav-icon"></i>
+                        <span class="nav-text">Suppliers</span>
+                    </button>
                 }
-            </div>
+            }
 
-            <!-- Stocks -->
-            <button class='nav-btn @ActiveClass("/stocks")' @onclick='() => Go("/stocks")'>
-                <i class="bi bi-graph-up-arrow nav-icon"></i>
-                <span class="nav-text">Stocks</span>
-            </button>
+            @* Show Reports for Finance Manager and Admin *@
+            @if (Auth.CanAccessReports())
+            {
+                @if (!Auth.IsFinanceManager())
+                {
+                    <!-- ADMIN LABEL (only for non-Finance Manager) -->
+                    <div class="nav-header-label">Admin</div>
+                }
 
-            <!-- Suppliers -->
-            <button class='nav-btn @ActiveClass("/suppliers")' @onclick='() => Go("/suppliers")'>
-                <i class="bi bi-truck nav-icon"></i>
-                <span class="nav-text">Suppliers</span>
-            </button>
+                <button class='nav-btn @ActiveClass("/reports")' @onclick='() => Go("/reports")'>
+                    <i class="bi bi-file-text-fill nav-icon"></i>
+                    <span class="nav-text">@(Auth.IsFinanceManager() ? "Inventory Reports" : "Reports")</span>
+                </button>
+            }
 
-            <!-- ADMIN LABEL -->
-            <div class="nav-header-label">Admin</div>
+            @* Only show Admin section if NOT Inventory Manager or Finance Manager *@
+            @if (!Auth.IsInventoryManager() && !Auth.IsFinanceManager())
+            {
+                @if (!Auth.CanAccessReports())
+                {
+                    <!-- ADMIN LABEL (if not already shown) -->
+                    <div class="nav-header-label">Admin</div>
+                }
 
-            <button class='nav-btn @ActiveClass("/reports")' @onclick='() => Go("/reports")'>
-                <i class="bi bi-file-text-fill nav-icon"></i>
-                <span class="nav-text">Reports</span>
-            </button>
+                <button class='nav-btn @ActiveClass("/audit-logs")' @onclick='() => Go("/audit-logs")'>
+                    <i class="bi bi-clock-history nav-icon"></i>
+                    <span class="nav-text">Audit Logs</span>
+                </button>
 
-            <button class='nav-btn @ActiveClass("/audit-logs")' @onclick='() => Go("/audit-logs")'>
-                <i class="bi bi-clock-history nav-icon"></i>
-                <span class="nav-text">Audit Logs</span>
-            </button>
-
-            <button class='nav-btn @ActiveClass("/users")' @onclick='() => Go("/users")'>
-                <i class="bi bi-person-badge-fill nav-icon"></i>
-                <span class="nav-text">Manage Users</span>
-            </button>
+                @if (Auth.IsInRole("Admin"))
+                {
+                    <button class='nav-btn @ActiveClass("/manage-users")' @onclick='() => Go("/manage-users")'>
+                        <i class="bi bi-person-badge-fill nav-icon"></i>
+                        <span class="nav-text">Manage Users</span>
+                    </button>
+                }
+            }
 
             <button class='nav-btn @ActiveClass("/settings")' @onclick='() => Go("/settings")'>
                 <i class="bi bi-gear-fill nav-icon"></i>
@@ -127,21 +172,79 @@
                 </button>
 
                 <div class="user-profile-preview">
-                    <img src="https://ui-avatars.com/api/?name=Admin+User&background=07562c&color=fff"
-                         class="user-avatar" />
-                    <div class="user-name-drop">Admin</div>
+                    <img src="@GetUserAvatarUrl()"
+                         alt="User Avatar"
+                         class="user-avatar"
+                         @onerror="HandleAvatarError" />
+                    <div class="user-name-drop">@GetDisplayName()</div>
                     <i class="bi bi-chevron-down" style="font-size: 0.7rem; color: #94a3b8;"></i>
                 </div>
+                
+                <button class="icon-btn" @onclick="Logout" title="Logout">
+                    <i class="bi bi-box-arrow-right"></i>
+                </button>
             </div>
         </header>
 
         <main class="shell-content">
 
+            <!-- Error/Success Message Toast -->
+            @if (!string.IsNullOrEmpty(ToastMessage))
+            {
+                <div class="toast-notification @ToastType" @onclick="DismissToast">
+                    <div class="toast-icon">
+                        <i class="bi @GetToastIcon()"></i>
+                    </div>
+                    <div class="toast-content">
+                        <div class="toast-title">@ToastTitle</div>
+                        <div class="toast-message">@ToastMessage</div>
+                    </div>
+                    <button class="toast-close" @onclick="DismissToast" @onclick:stopPropagation="true">
+                        <i class="bi bi-x"></i>
+                    </button>
+                </div>
+            }
+
             <div class="page-title-bar">
-                <h1 class="page-title">@CurrentTitle</h1>
+                <h1 class="page-title">@GetCurrentTitle()</h1>
+                @if (Auth.CurrentRole != null)
+                {
+                    <span class="user-role-badge">@Auth.CurrentRole</span>
+                }
             </div>
 
-            @Body
+            <ErrorBoundary>
+                <ChildContent>
+                    @Body
+                </ChildContent>
+                <ErrorContent Context="exception">
+                    <div class="error-container">
+                        <div class="error-icon">
+                            <i class="bi bi-exclamation-triangle-fill"></i>
+                        </div>
+                        <h2 class="error-title">Something went wrong</h2>
+                        <p class="error-message">
+                            We encountered an unexpected error while loading this page. 
+                            Please try refreshing or contact support if the problem persists.
+                        </p>
+                        <div class="error-actions">
+                            <button class="btn-primary" @onclick="ReloadPage">
+                                <i class="bi bi-arrow-clockwise"></i> Refresh Page
+                            </button>
+                            <button class="btn-secondary" @onclick='() => SafeNavigate("/home")'>
+                                <i class="bi bi-house-fill"></i> Go to Dashboard
+                            </button>
+                        </div>
+                        @if (!string.IsNullOrEmpty(exception?.Message))
+                        {
+                            <details class="error-details">
+                                <summary>Technical Details</summary>
+                                <code>@exception.Message</code>
+                            </details>
+                        }
+                    </div>
+                </ErrorContent>
+            </ErrorBoundary>
 
             <footer class="shell-footer">© 2024 ResQLink System</footer>
         </main>
@@ -150,6 +253,12 @@
 
 @code {
     private bool InventoryOpen;
+    private string? ToastMessage;
+    private string? ToastTitle;
+    private string ToastType = "info"; // info, success, warning, error
+    private System.Threading.Timer? _toastTimer;
+    private bool _logoImageError;
+    private bool _avatarImageError;
 
     private readonly (string Label, string Slug)[] InventoryCategories = new[]
     {
@@ -158,18 +267,73 @@
         ("Medical", "medical"),
     };
 
-    // Ensure Inventory auto-opens when route is inventory-related
     protected override void OnParametersSet()
     {
-        InventoryOpen = IsInventoryActive;
+        try
+        {
+            InventoryOpen = IsInventoryActive;
+        }
+        catch (Exception ex)
+        {
+            ShowToast("Navigation Error", "Unable to determine current page. Using default navigation state.", "warning");
+            Console.WriteLine($"Error in OnParametersSet: {ex.Message}");
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        try
+        {
+            base.OnInitialized();
+            
+            // Subscribe to location changes for error handling
+            Nav.LocationChanged += HandleLocationChanged;
+        }
+        catch (Exception ex)
+        {
+            ShowToast("Initialization Error", "Some features may not work correctly.", "error");
+            Console.WriteLine($"Error in OnInitialized: {ex.Message}");
+        }
+    }
+
+    private void HandleLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        try
+        {
+            // Clear any error messages on navigation
+            DismissToast();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error handling location change: {ex.Message}");
+        }
     }
 
     private void ToggleInventoryMenu()
     {
-        InventoryOpen = !InventoryOpen;
+        try
+        {
+            InventoryOpen = !InventoryOpen;
+        }
+        catch (Exception ex)
+        {
+            ShowToast("Menu Error", "Unable to toggle inventory menu.", "error");
+            Console.WriteLine($"Error toggling inventory menu: {ex.Message}");
+        }
     }
 
-    private void CloseTransientMenus() => InventoryOpen = false;
+    private void CloseTransientMenus()
+    {
+        try
+        {
+            InventoryOpen = false;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error closing menus: {ex.Message}");
+        }
+    }
 
     private void GoInventory() => Go("/inventory");
     private void GoInventoryCategory(string slug) => Go($"/inventory/category/{slug}");
@@ -177,53 +341,213 @@
 
     private void Go(string href)
     {
-        if (!IsActive(href))
-            Nav.NavigateTo(href);
+        try
+        {
+            if (string.IsNullOrWhiteSpace(href))
+            {
+                ShowToast("Navigation Error", "Invalid navigation path.", "error");
+                return;
+            }
+
+            // Check authorization before navigation
+            if (Auth == null)
+            {
+                ShowToast("Authentication Error", "Unable to verify permissions. Please log in again.", "error");
+                Nav.NavigateTo("/", true);
+                return;
+            }
+
+            if (!Auth.CanAccess(href))
+            {
+                ShowToast("Access Denied", "You don't have permission to access this page.", "warning");
+                SafeNavigate("/home");
+                return;
+            }
+
+            if (!IsActive(href))
+            {
+                SafeNavigate(href);
+            }
+        }
+        catch (UnauthorizedAccessException)
+        {
+            ShowToast("Access Denied", "You don't have permission to access this page.", "warning");
+            SafeNavigate("/home");
+        }
+        catch (Exception ex)
+        {
+            ShowToast("Navigation Error", "Unable to navigate to the requested page. Please try again.", "error");
+            Console.WriteLine($"Navigation error to {href}: {ex.Message}");
+        }
     }
 
-    // Top-level buttons (Dashboard, Evacuees, etc.)
+    private void SafeNavigate(string href)
+    {
+        try
+        {
+            if (Nav != null && !string.IsNullOrWhiteSpace(href))
+            {
+                Nav.NavigateTo(href);
+            }
+            else
+            {
+                ShowToast("Navigation Error", "Unable to navigate. Invalid navigation state.", "error");
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowToast("Navigation Error", "Failed to navigate to the requested page.", "error");
+            Console.WriteLine($"Safe navigation error to {href}: {ex.Message}");
+        }
+    }
+
+    private void Logout()
+    {
+        try
+        {
+            if (Auth == null)
+            {
+                Nav.NavigateTo("/", true);
+                return;
+            }
+
+            Auth.Logout();
+            ShowToast("Logged Out", "You have been successfully logged out.", "success");
+            
+            // Small delay to show the message before redirecting
+            Task.Delay(500).ContinueWith(_ => 
+            {
+                Nav.NavigateTo("/", true);
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Logout error: {ex.Message}");
+            // Even if logout fails, redirect to login
+            Nav.NavigateTo("/", true);
+        }
+    }
+
+    private string GetDisplayName()
+    {
+        try
+        {
+            return Auth?.CurrentUser?.Username ?? "User";
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error getting display name: {ex.Message}");
+            return "User";
+        }
+    }
+
+    private string GetUserAvatarUrl()
+    {
+        try
+        {
+            if (_avatarImageError)
+            {
+                // Fallback to default avatar if there was an error
+                return "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2307562c'%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z'/%3E%3C/svg%3E";
+            }
+
+            var name = Auth?.CurrentUser?.Username ?? "User";
+            return $"https://ui-avatars.com/api/?name={Uri.EscapeDataString(name)}&background=07562c&color=fff";
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error generating avatar URL: {ex.Message}");
+            return "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2307562c'%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z'/%3E%3C/svg%3E";
+        }
+    }
+
+    private void HandleImageError(ErrorEventArgs e)
+    {
+        _logoImageError = true;
+        Console.WriteLine("Failed to load ResQLink logo image");
+    }
+
+    private void HandleAvatarError(ErrorEventArgs e)
+    {
+        _avatarImageError = true;
+        StateHasChanged();
+    }
+
     private string ActiveClass(string href)
-{
-    var current = "/" + Nav.ToBaseRelativePath(Nav.Uri).TrimStart('/');
-    if (current == "/") current = "/home";
+    {
+        try
+        {
+            if (Nav == null || string.IsNullOrWhiteSpace(href))
+                return "";
 
-    // Exact match
-    if (string.Equals(current, href, StringComparison.OrdinalIgnoreCase))
-        return "active";
+            var current = "/" + Nav.ToBaseRelativePath(Nav.Uri).TrimStart('/');
+            if (current == "/") current = "/home";
 
-    // Nested routes (e.g. /evacuees/view/1)
-    if (current.StartsWith(href + "/", StringComparison.OrdinalIgnoreCase))
-        return "active";
+            if (string.Equals(current, href, StringComparison.OrdinalIgnoreCase))
+                return "active";
 
-    return "";
-}
+            if (current.StartsWith(href + "/", StringComparison.OrdinalIgnoreCase))
+                return "active";
 
-    // For inventory submenu and other nested links
+            return "";
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error determining active class for {href}: {ex.Message}");
+            return "";
+        }
+    }
+
     private bool IsActive(string href)
     {
-        var current = "/" + Nav.ToBaseRelativePath(Nav.Uri).TrimStart('/');
-        if (current == "/") current = "/home";
+        try
+        {
+            if (Nav == null || string.IsNullOrWhiteSpace(href))
+                return false;
 
-        return string.Equals(current, href, StringComparison.OrdinalIgnoreCase)
-            || current.StartsWith(href + "/", StringComparison.OrdinalIgnoreCase);
+            var current = "/" + Nav.ToBaseRelativePath(Nav.Uri).TrimStart('/');
+            if (current == "/") current = "/home";
+
+            return string.Equals(current, href, StringComparison.OrdinalIgnoreCase)
+                || current.StartsWith(href + "/", StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error checking if path is active {href}: {ex.Message}");
+            return false;
+        }
     }
 
     private bool IsInventoryActive
     {
         get
         {
-            var path = "/" + Nav.ToBaseRelativePath(Nav.Uri).TrimStart('/');
-            if (path == "/") path = "/home";
+            try
+            {
+                if (Nav == null)
+                    return false;
 
-            return path.StartsWith("/inventory", StringComparison.OrdinalIgnoreCase)
-                || path.StartsWith("/categories", StringComparison.OrdinalIgnoreCase);
+                var path = "/" + Nav.ToBaseRelativePath(Nav.Uri).TrimStart('/');
+                if (path == "/") path = "/home";
+
+                return path.StartsWith("/inventory", StringComparison.OrdinalIgnoreCase)
+                    || path.StartsWith("/categories", StringComparison.OrdinalIgnoreCase);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error checking inventory active state: {ex.Message}");
+                return false;
+            }
         }
     }
 
-    private string CurrentTitle
+    private string GetCurrentTitle()
     {
-        get
+        try
         {
+            if (Nav == null)
+                return "ResQLink";
+
             var path = "/" + Nav.ToBaseRelativePath(Nav.Uri).TrimStart('/');
             if (path == "/") path = "/home";
 
@@ -233,17 +557,104 @@
                 "/evacuees" => "Evacuees",
                 "/shelters" => "Shelters",
                 "/disasters" => "Disasters",
-                "/inventory" => "Inventory",
+                "/inventory" => Auth?.IsFinanceManager() == true ? "Inventory Overview" : "Inventory",
                 var p when p.StartsWith("/inventory/category/") =>
                     "Inventory - " + Uri.UnescapeDataString(p.Split('/').Last()).Replace('-', ' ').ToUpperInvariant(),
                 "/categories" => "Categories",
                 "/stocks" => "Stocks",
                 "/suppliers" => "Suppliers",
-                "/reports" => "Reports",
+                "/reports" => Auth?.IsFinanceManager() == true ? "Inventory Reports" : "Reports",
                 "/audit-logs" => "Audit Logs",
-                "/users" => "Manage Users",
+                "/manage-users" => "Manage Users",
+                "/settings" => "Settings",
                 _ => path.Trim('/').Replace('-', ' ')
             };
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error getting current title: {ex.Message}");
+            return "ResQLink";
+        }
+    }
+
+    private void ShowToast(string title, string message, string type = "info")
+    {
+        try
+        {
+            ToastTitle = title;
+            ToastMessage = message;
+            ToastType = type;
+
+            // Clear existing timer
+            _toastTimer?.Dispose();
+
+            // Auto-dismiss after 5 seconds
+            _toastTimer = new System.Threading.Timer(_ =>
+            {
+                InvokeAsync(() =>
+                {
+                    DismissToast();
+                    StateHasChanged();
+                });
+            }, null, 5000, Timeout.Infinite);
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error showing toast: {ex.Message}");
+        }
+    }
+
+    private void DismissToast()
+    {
+        try
+        {
+            ToastMessage = null;
+            ToastTitle = null;
+            _toastTimer?.Dispose();
+            _toastTimer = null;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error dismissing toast: {ex.Message}");
+        }
+    }
+
+    private string GetToastIcon()
+    {
+        return ToastType switch
+        {
+            "success" => "bi-check-circle-fill",
+            "error" => "bi-x-circle-fill",
+            "warning" => "bi-exclamation-triangle-fill",
+            _ => "bi-info-circle-fill"
+        };
+    }
+
+    private void ReloadPage()
+    {
+        try
+        {
+            Nav.NavigateTo(Nav.Uri, forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error reloading page: {ex.Message}");
+            ShowToast("Reload Error", "Unable to reload the page. Please refresh your browser.", "error");
+        }
+    }
+
+    public void Dispose()
+    {
+        try
+        {
+            Nav.LocationChanged -= HandleLocationChanged;
+            _toastTimer?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error during disposal: {ex.Message}");
         }
     }
 }

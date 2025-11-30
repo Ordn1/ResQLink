@@ -143,21 +143,15 @@
         transition: all 0.15s ease;
     }
 
-        /* Normal Hover (When NOT active) */
         .inventory-dropdown .dropdown-link:hover {
             background-color: rgba(7,86,44,0.09) !important;
             color: var(--primary-color) !important;
         }
 
-        /* ACTIVE STATE - Matching your Main Button colors */
         .inventory-dropdown .dropdown-link.active-link {
-            /* The vibrant green you requested */
             background-color: #c2ffd0 !important;
-            /* Text Color */
             color: var(--primary-color) !important;
-            /* Font Weight */
             font-weight: 800 !important;
-            /* Green bar on the left */
             box-shadow: inset 4px 0 0 0 var(--primary-color) !important;
         }
 
@@ -271,4 +265,246 @@
 
 .page-title-bar {
     padding: 10px 0 32px 0;
+}
+
+/* Add to existing styles */
+
+.user-role-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    background: linear-gradient(90deg, #07562c, #07b35a);
+    color: #fff;
+    border-radius: 999px;
+    text-transform: uppercase;
+    margin-left: 12px;
+}
+
+/* Toast Notification Styles */
+.toast-notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    min-width: 320px;
+    max-width: 500px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    display: flex;
+    align-items: flex-start;
+    padding: 16px;
+    gap: 12px;
+    z-index: 10000;
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(400px);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.toast-notification.info {
+    border-left: 4px solid #3b82f6;
+}
+
+.toast-notification.success {
+    border-left: 4px solid #10b981;
+}
+
+.toast-notification.warning {
+    border-left: 4px solid #f59e0b;
+}
+
+.toast-notification.error {
+    border-left: 4px solid #ef4444;
+}
+
+.toast-icon {
+    font-size: 24px;
+    line-height: 1;
+}
+
+.toast-notification.info .toast-icon {
+    color: #3b82f6;
+}
+
+.toast-notification.success .toast-icon {
+    color: #10b981;
+}
+
+.toast-notification.warning .toast-icon {
+    color: #f59e0b;
+}
+
+.toast-notification.error .toast-icon {
+    color: #ef4444;
+}
+
+.toast-content {
+    flex: 1;
+}
+
+.toast-title {
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 4px;
+    color: #1e293b;
+}
+
+.toast-message {
+    font-size: 13px;
+    color: #64748b;
+    line-height: 1.5;
+}
+
+.toast-close {
+    background: none;
+    border: none;
+    color: #94a3b8;
+    cursor: pointer;
+    padding: 0;
+    font-size: 20px;
+    line-height: 1;
+    transition: color 0.2s;
+}
+
+.toast-close:hover {
+    color: #475569;
+}
+
+/* Error Container Styles */
+.error-container {
+    max-width: 600px;
+    margin: 60px auto;
+    padding: 40px;
+    text-align: center;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.error-icon {
+    font-size: 64px;
+    color: #ef4444;
+    margin-bottom: 24px;
+}
+
+.error-title {
+    font-size: 24px;
+    font-weight: 600;
+    color: #1e293b;
+    margin-bottom: 16px;
+}
+
+.error-message {
+    font-size: 16px;
+    color: #64748b;
+    line-height: 1.6;
+    margin-bottom: 32px;
+}
+
+.error-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.btn-primary, .btn-secondary {
+    padding: 12px 24px;
+    border-radius: 8px;
+    border: none;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+}
+
+.btn-primary {
+    background: #07562c;
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #064220;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(7, 86, 44, 0.3);
+}
+
+.btn-secondary {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.btn-secondary:hover {
+    background: #e2e8f0;
+    transform: translateY(-1px);
+}
+
+.error-details {
+    margin-top: 24px;
+    text-align: left;
+    background: #f8fafc;
+    padding: 16px;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+}
+
+.error-details summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: #475569;
+    font-size: 14px;
+    user-select: none;
+}
+
+.error-details summary:hover {
+    color: #1e293b;
+}
+
+.error-details code {
+    display: block;
+    margin-top: 12px;
+    padding: 12px;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    font-size: 12px;
+    color: #ef4444;
+    word-break: break-word;
+    white-space: pre-wrap;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+    .toast-notification {
+        left: 20px;
+        right: 20px;
+        min-width: unset;
+    }
+
+    .error-container {
+        margin: 20px;
+        padding: 24px;
+    }
+
+    .error-actions {
+        flex-direction: column;
+    }
+
+    .btn-primary, .btn-secondary {
+        width: 100%;
+        justify-content: center;
+    }
 }

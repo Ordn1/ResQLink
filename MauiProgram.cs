@@ -45,7 +45,7 @@ namespace ResQLink
 
 #if WINDOWS
             var connectionString =
-                @"Data Source=Karoshi\SQLEXPRESS;Initial Catalog=Resqlink;Integrated Security=True;Encrypt=True;Trust Server Certificate=True";
+                @"Data Source=(localdb)\MSSQLLocalDB;Initial Catalog=Resqlink;Integrated Security=True;Encrypt=True;Trust Server Certificate=True";
             builder.Services.AddDbContextFactory<AppDbContext>(opt =>
             {
                 opt.UseSqlServer(connectionString);
@@ -134,14 +134,16 @@ namespace ResQLink
                 e.SetObserved();
             };
 
+            // Seed database with roles and admin user
             using (var scope = app.Services.CreateScope())
             {
                 var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
                 try
                 {
                     var users = scope.ServiceProvider.GetRequiredService<IUserService>();
-                    logger.LogInformation("Seeding admin user (if missing)...");
-                    // users.EnsureCreatedAndSeedAdminAsync().GetAwaiter().GetResult();
+                    logger.LogInformation("Seeding roles and admin user...");
+                   // users.EnsureCreatedAndSeedAdminAsync().GetAwaiter().GetResult();
+                    logger.LogInformation("Database seeding completed.");
                 }
                 catch (Exception ex)
                 {

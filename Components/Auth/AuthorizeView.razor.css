@@ -1,0 +1,44 @@
+.unauthorized-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 60vh;
+    padding: 40px 20px;
+}
+
+.unauthorized-card {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    padding: 40px;
+    text-align: center;
+    max-width: 500px;
+}
+
+    .unauthorized-card h2 {
+        margin: 20px 0 10px 0;
+        color: #1f2937;
+        font-size: 1.8rem;
+    }
+
+    .unauthorized-card p {
+        color: #6b7280;
+        margin: 10px 0;
+        font-size: 1rem;
+    }
+
+    .unauthorized-card .btn-primary {
+        margin-top: 20px;
+        background: #38bd60;
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+        .unauthorized-card .btn-primary:hover {
+            background: #2da653;
+        }

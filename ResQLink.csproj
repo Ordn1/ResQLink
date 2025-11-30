@@ -62,4 +62,8 @@
   <ItemGroup>
     <MauiAsset Include="wwwroot\**" LogicalName="wwwroot\%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
+  <ItemGroup>
+    <Content Remove="wwwroot\css\auth-shared.css" />
+    <Content Remove="wwwroot\css\settings.css" />
+  </ItemGroup>
 </Project>

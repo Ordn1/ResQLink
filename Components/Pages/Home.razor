@@ -4,13 +4,45 @@
 @using ResQLink.Data.Entities
 
 <div class="dashboard-root">
+    <!-- Summary Banner -->
+    <div class="summary-banner">
+        <div class="summary-header">
+            <div class="summary-icon">
+                <i class="bi bi-speedometer2"></i>
+            </div>
+            <div class="summary-content">
+                <h2 class="summary-title">ResQLink Dashboard</h2>
+                <p class="summary-subtitle">
+                    Real-time disaster response coordination • Last updated: @DateTime.Now.ToString("MMM dd, yyyy HH:mm")
+                </p>
+            </div>
+        </div>
+        
+        <div class="summary-stats">
+            <div class="stat-group">
+                <span class="stat-label">Active Operations</span>
+                <span class="stat-value">@ActiveDisastersCount disasters</span>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-group">
+                <span class="stat-label">People Assisted</span>
+                <span class="stat-value">@TotalEvacuees evacuees</span>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-group">
+                <span class="stat-label">Resources</span>
+                <span class="stat-value">@(LowStockCount > 0 ? $"{LowStockCount} items need restocking" : "Inventory levels healthy")</span>
+            </div>
+        </div>
+    </div>
+
     <div class="dashboard-grid">
 
         <!-- KPI Section -->
         <section class="kpi-section">
             
             <!-- Active Disasters -->
-            <div class="kpi-card">
+            <div class="kpi-card priority-high">
                 <div class="kpi-header">
                     <div class="kpi-label">Active Disasters</div>
                     <div class="kpi-icon-circle" style="background: #fee2e2; color: #ef4444;">
@@ -20,7 +52,10 @@
                 <div>
                     <div class="kpi-value" style="color: #ef4444;">@ActiveDisastersCount</div>
                     <div class="kpi-footer">
-                        <span class="trend-badge">@ActiveDisasterDeltaText</span>
+                        <span class="trend-badge @GetTrendClass(_activeToday, _activeYesterday)">
+                            @ActiveDisasterDeltaText
+                        </span>
+                        <span class="kpi-detail">vs yesterday</span>
                     </div>
                 </div>
             </div>
@@ -36,7 +71,10 @@
                 <div>
                     <div class="kpi-value">@TotalEvacuees</div>
                     <div class="kpi-footer">
-                        <span class="trend-badge">@EvacueeDeltaText</span>
+                        <span class="trend-badge @GetTrendClass(_evacueesToday, _evacueesYesterday)">
+                            @EvacueeDeltaText
+                        </span>
+                        <span class="kpi-detail">registered today</span>
                     </div>
                 </div>
             </div>
@@ -51,8 +89,13 @@
                 </div>
                 <div>
                     <div class="kpi-value">@ShelterCapacityUsed%</div>
+                    <div class="kpi-footer">
+                        <div class="capacity-detail">
+                            <span>@_totalOccupancy / @_totalCapacity beds</span>
+                        </div>
+                    </div>
                     <div class="progress-container">
-                        <div class="progress-fill" style="width:@ShelterCapacityUsed%"></div>
+                        <div class="progress-fill @GetCapacityClass(ShelterCapacityUsed)" style="width:@ShelterCapacityUsed%"></div>
                     </div>
                 </div>
             </div>
@@ -60,7 +103,7 @@
             <!-- Low Stock -->
             <div class="kpi-card">
                 <div class="kpi-header">
-                    <div class="kpi-label">Low Stock Items</div>
+                    <div class="kpi-label">Low Stock Alert</div>
                     <div class="kpi-icon-circle" style="background: #ffedd5; color: #d97706;">
                         <i class="bi bi-box-seam-fill"></i>
                     </div>
@@ -68,8 +111,10 @@
                 <div>
                     <div class="kpi-value" style="color: #d97706;">@LowStockCount</div>
                     <div class="kpi-footer">
-                         <span class="trend-badge">@LowStockDeltaText</span>
-                         <span style="font-size: 0.75rem; color: #94a3b8; margin-left: 4px;">(≤ @LowStockThreshold)</span>
+                         <span class="trend-badge @GetTrendClass(_lowStockToday, _lowStockYesterday)">
+                             @LowStockDeltaText
+                         </span>
+                         <span class="kpi-detail">items ≤ @LowStockThreshold units</span>
                     </div>
                 </div>
             </div>
@@ -82,7 +127,10 @@
             <!-- Recent Evacuees Table -->
             <div class="modern-card">
                 <div class="card-header">
-                    <h3 class="card-title">Recent Evacuees</h3>
+                    <div class="card-title-group">
+                        <h3 class="card-title">Recent Evacuees</h3>
+                        <span class="card-badge">@FilteredEvacuees.Count() of @AllEvacuees.Count</span>
+                    </div>
                     <div class="header-actions">
                         <input class="search-input" placeholder="Search name..." @bind="evacueeFilter" @bind:event="oninput" />
                         <button class="refresh-btn" @onclick="Refresh" disabled="@_loading" title="Refresh Data">
@@ -126,6 +174,7 @@
                             {
                                 <tr>
                                     <td colspan="5" class="empty-state">
+                                        <i class="bi bi-inbox" style="font-size: 1.5rem; margin-bottom: 8px; display:block;"></i>
                                         No recent evacuees found.
                                     </td>
                                 </tr>
@@ -134,14 +183,17 @@
                     </table>
                 </div>
                 <div class="card-footer">
-                    Showing @FilteredEvacuees.Count() of @AllEvacuees.Count total records
+                    <i class="bi bi-info-circle"></i> Showing most recent registrations
                 </div>
             </div>
 
             <!-- Active Disasters Table -->
             <div class="modern-card">
                 <div class="card-header">
-                    <h3 class="card-title">Active Disasters</h3>
+                    <div class="card-title-group">
+                        <h3 class="card-title">Active Disasters</h3>
+                        <span class="card-badge">@ActiveDisasters.Count() active</span>
+                    </div>
                 </div>
                 <div class="table-responsive">
                     <table class="clean-table">
@@ -174,12 +226,16 @@
                             {
                                 <tr>
                                     <td colspan="5" class="empty-state">
+                                        <i class="bi bi-check-circle-fill" style="font-size: 1.5rem; color: #10b981; margin-bottom: 8px; display:block;"></i>
                                         No active disasters reported.
                                     </td>
                                 </tr>
                             }
                         </tbody>
                     </table>
+                </div>
+                <div class="card-footer">
+                    <i class="bi bi-info-circle"></i> Only showing active and open status disasters
                 </div>
             </div>
 
@@ -190,11 +246,14 @@
             
             <!-- Low Stock Inventory List -->
             <div class="modern-card" style="height: 100%;">
-                <div class="card-header" style="background-color: #fffaf0;">
-                    <h3 class="card-title" style="color: #9a3412;">
-                        <i class="bi bi-exclamation-circle-fill" style="margin-right: 8px;"></i>
-                        Low Stock Alert
-                    </h3>
+                <div class="card-header alert-header">
+                    <div class="card-title-group">
+                        <h3 class="card-title" style="color: #9a3412;">
+                            <i class="bi bi-exclamation-circle-fill" style="margin-right: 8px;"></i>
+                            Low Stock Alert
+                        </h3>
+                        <span class="card-badge alert-badge">@LowStockItems.Count items</span>
+                    </div>
                 </div>
                 
                 <div class="inventory-list">
@@ -210,22 +269,30 @@
                                 <div class="inv-stat">
                                     <div class="inv-qty" style="color: #ef4444;">@item.Quantity</div>
                                     <div class="inv-bar-mini">
-                                        <div class="inv-fill" style="width:@StockPercent(item.Quantity)%"></div>
+                                        <div class="inv-fill" style="width:@StockPercent(item.Quantity)%; background: @GetStockColor(item.Quantity)"></div>
                                     </div>
                                 </div>
+                            </div>
+                        }
+                        
+                        @if (LowStockItems.Count > 8)
+                        {
+                            <div class="inv-footer">
+                                <i class="bi bi-three-dots"></i> +@(LowStockItems.Count - 8) more items need attention
                             </div>
                         }
                     }
                     else
                     {
-                        <div class="empty-state">
-                            <i class="bi bi-check-circle-fill" style="font-size: 2rem; color: #10b981; margin-bottom: 10px; display:block;"></i>
-                            Inventory levels are healthy.
+                        <div class="empty-state" style="padding: 40px 20px;">
+                            <i class="bi bi-check-circle-fill" style="font-size: 2.5rem; color: #10b981; margin-bottom: 10px; display:block;"></i>
+                            <strong>All Clear!</strong>
+                            <p style="margin-top: 8px; color: #64748b;">Inventory levels are healthy.</p>
                         </div>
                     }
                 </div>
                 <div class="card-footer">
-                    Threshold: ≤ @LowStockThreshold items
+                    <i class="bi bi-info-circle"></i> Threshold: ≤ @LowStockThreshold items
                 </div>
             </div>
 
@@ -234,7 +301,6 @@
 </div>
 
 @code {
-    // --- EXACT SAME C# CODE AS BEFORE, NO CHANGES TO LOGIC ---
     // View models
     private record EvacueeRow(string Name, string Disaster, string Shelter, string Status, DateTime Registered);
     private record StockRow(string Name, int Quantity, string Unit);
@@ -255,15 +321,18 @@
     private int ActiveDisastersCount => ActiveDisasters.Count();
     private int TotalEvacuees => AllEvacuees.Count;
     private int LowStockCount => LowStockItems.Count;
+    private int _totalCapacity;
+    private int _totalOccupancy;
+    
     private int ShelterCapacityUsed
     {
         get
         {
             var shelters = _shelterSnapshot;
             if (shelters.Count == 0) return 0;
-            var capacity = shelters.Sum(s => s.Capacity);
-            var occupancy = shelters.Sum(s => s.CurrentOccupancy);
-            return capacity > 0 ? (int)Math.Round(occupancy / (double)capacity * 100) : 0;
+            _totalCapacity = shelters.Sum(s => s.Capacity);
+            _totalOccupancy = shelters.Sum(s => s.CurrentOccupancy);
+            return _totalCapacity > 0 ? (int)Math.Round(_totalOccupancy / (double)_totalCapacity * 100) : 0;
         }
     }
 
@@ -372,12 +441,34 @@
         return Math.Clamp((int)Math.Round(qty / (double)cap * 100), 0, 100);
     }
 
+    private static string GetStockColor(int qty)
+    {
+        if (qty == 0) return "#ef4444";
+        if (qty <= 5) return "#f97316";
+        return "#fb923c";
+    }
+
+    private static string GetCapacityClass(int percent)
+    {
+        if (percent >= 90) return "critical";
+        if (percent >= 75) return "warning";
+        return "normal";
+    }
+
+    private static string GetTrendClass(int today, int yesterday)
+    {
+        var diff = today - yesterday;
+        if (diff > 0) return "trend-up";
+        if (diff < 0) return "trend-down";
+        return "trend-neutral";
+    }
+
     private static string DeltaLabel(int today, int yesterday, string suffix)
     {
         var diff = today - yesterday;
         if (diff == 0) return "No change";
-        var sign = diff > 0 ? "+" : "−";
-        return $"{sign}{Math.Abs(diff)} {suffix}";
+        var sign = diff > 0 ? "+" : "";
+        return $"{sign}{diff} {suffix}";
     }
 
     private string StatusClass(string status) => status.ToLowerInvariant() switch

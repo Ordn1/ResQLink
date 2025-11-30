@@ -2,6 +2,7 @@
 @layout ResQLink.Components.Layout.LoginLayout
 @namespace ResQLink.Components.Pages
 @using ResQLink.Components
+@using ResQLink.Services
 @inject NavigationManager Navigation
 @inject ResQLink.Services.AuthState Auth
 @inject ResQLink.Services.Users.IUserService Users
@@ -15,14 +16,15 @@
 
         <div class="login-field-group">
             <label class="login-label" for="username">Username:</label>
-            <input id="username" @bind="Username" class="login-input" />
+            <input id="username" @bind="Username" class="login-input" @onkeypress="HandleKeyPress" />
 
             <label class="login-label" for="password" style="margin-top:12px;">Password:</label>
-            <input id="password" type="password" @bind="Password" class="login-input" />
+            <input id="password" type="password" @bind="Password" class="login-input" @onkeypress="HandleKeyPress" />
         </div>
 
         <div class="login-actions">
             <button type="button" class="login-btn" @onclick="HandleLogin">LOGIN</button>
+            <a href="/register" class="forgot-link">Register new account</a>
             <a href="#" class="forgot-link" @onclick="PreventDefault">Forgot password?</a>
             @if (!string.IsNullOrEmpty(LoginError))
             {
@@ -63,9 +65,23 @@
             return;
         }
 
-        Auth.SetAuthenticated(true);
+        // Set authenticated with user info and role
+        Auth.SetAuthenticated(true, user);
         await Task.Yield();
-        Navigation.NavigateTo("/home");
+
+        // Redirect based on role
+        var redirectPath = Auth.IsInventoryManager() ? "/inventory" 
+                         : Auth.IsFinanceManager() ? "/inventory" 
+                         : "/home";
+        Navigation.NavigateTo(redirectPath);
+    }
+
+    private async Task HandleKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await HandleLogin();
+        }
     }
 
     private void PreventDefault(MouseEventArgs e) { }

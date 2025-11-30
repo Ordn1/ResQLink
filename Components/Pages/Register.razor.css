@@ -1,0 +1,266 @@
+/* Register.razor.css - Scoped styles */
+/* Note: @import is not allowed in scoped CSS files */
+
+/* Inherit base login styles */
+.login-root {
+    --card-height: 480px; 
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 20px;
+    padding: clamp(24px, 12vh, calc(100vh - var(--card-height) - 40px)) 40px 32px 40px;
+    box-sizing: border-box;
+    overflow: hidden;
+    background: url("images/ResQLinkBackground.jpg") center/cover no-repeat;
+    z-index: 1000;
+}
+
+.login-card {
+    width: 320px;
+    padding: 22px 26px;
+    border-radius: 12px;
+    backdrop-filter: blur(10px);
+    background: #07562c;
+    box-shadow: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    box-sizing: border-box;
+    margin: 0;
+    margin-left: 160px;
+    transform: translateY(44px);
+}
+
+.login-logo {
+    width: 72px;
+    height: 72px;
+    margin-top: 4px;
+    margin-bottom: 14px;
+    background: url("images/ResQLinkLogo.png") center/contain no-repeat; 
+}
+
+.login-title {
+    font-weight: 700;
+    font-size: 18px;
+    margin: 0 0 20px 0;
+    letter-spacing: 0.6px;
+    color: #fff;
+    text-align: center;
+    width: 100%;
+}
+
+.login-field-group {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.login-label {
+    font-size: 0.8rem;
+    color: #fff;
+    margin-left: 2px;
+    margin-bottom: 4px;
+    font-weight: 600;
+}
+
+.login-input {
+    width: 100%;
+    box-sizing: border-box; 
+    padding: 8px 10px; 
+    border: 1px solid #000;
+    border-radius: 4px;
+    background: #fff;
+    outline: none;
+    font-size: 0.80rem; 
+    margin: 0 0 10px 0;
+}
+
+.login-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    width: 100%;
+    padding-top: 6px;
+}
+
+.login-btn {
+    background: #07b35a;
+    color: #fff;
+    border: none;
+    padding: 6px 26px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 0.5px;
+}
+
+.login-btn:active {
+    transform: translateY(1px);
+}
+
+.login-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.forgot-link {
+    font-size: 0.65rem;
+    color: #9d9898;
+    text-decoration: underline;
+    margin-top: 4px;
+}
+
+.login-frame {
+    width: 640px;
+    height: 480px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.5); 
+    backdrop-filter: blur(10px);
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: flex-start;
+    padding: 40px 60px 50px 50px;
+    box-sizing: border-box;
+    margin-top: 44px;
+    position: relative;
+}
+
+.resqlink-header {
+    font-family: 'Poppins', sans-serif;
+    font-size: 100px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    margin: -20px 0 0 -20;
+    line-height: 1.1;
+}
+
+.resq {
+    color: #07562c;
+}
+
+.link {
+    color: #0b3b9f; 
+}
+
+.underline {
+    width: 100%;
+    max-width: 580px;
+    height: 10px;
+    background-color: #000;
+    border-radius: 4px;
+    margin: 3px 0 20px 0;
+}
+
+.login-subtext {
+    font-family: 'Poppins', sans-serif;
+    font-size: 40px;
+    color: #000;
+    font-weight: 600;
+    margin: 1px 0;
+}
+
+.frame-visual {
+    position: absolute;
+    bottom: 20px;          
+    right: 20px;           
+    width: 250px;          
+    height: 250px;         
+    background: url("images/ResQLinkVisuals.png") center/contain no-repeat;
+    opacity: 0.95;
+}
+
+/* Register-specific overrides */
+.register-card {
+    height: auto;
+    min-height: 480px;
+    max-height: 70vh;
+    padding: 18px 24px;
+    overflow-y: auto;
+}
+
+.role-description {
+    display: block;
+    font-size: 0.65rem;
+    color: #d1d5db;
+    margin-top: 4px;
+    margin-left: 4px;
+    font-style: italic;
+}
+
+.password-hint {
+    margin-top: 8px;
+    padding: 0 4px;
+}
+
+.password-hint small {
+    font-size: 0.65rem;
+    color: #9ca3af;
+    line-height: 1.4;
+}
+
+/* Scrollbar for overflow content */
+.register-card::-webkit-scrollbar {
+    width: 6px;
+}
+
+.register-card::-webkit-scrollbar-track {
+    background: rgba(255,255,255,0.1);
+    border-radius: 3px;
+}
+
+.register-card::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.3);
+    border-radius: 3px;
+}
+
+.register-card::-webkit-scrollbar-thumb:hover {
+    background: rgba(255,255,255,0.5);
+}
+
+/* Responsive */
+@media (max-width: 1100px) {
+    .login-root {
+        gap: 16px;
+        padding: 40px 24px 24px 24px;
+    }
+    .login-card {
+        margin-left: 40px;
+    }
+}
+
+@media (max-width: 900px) {
+    .login-root {
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+        padding: 40px 20px 40px 20px;
+        overflow: auto;
+    }
+    .login-card, .login-frame {
+        margin-left: 0;
+        transform: none;
+        width: 100%;
+        max-width: 520px;
+        height: auto;
+    }
+    .login-frame {
+        margin-top: 24px;
+        height: auto;
+    }
+}
+
+@media (max-width: 500px) {
+    .login-card {
+        padding: 20px;
+    }
+    .login-btn {
+        width: 100%;
+    }
+}
