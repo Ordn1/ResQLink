@@ -24,6 +24,10 @@ public partial class AppDbContext : DbContext
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<Supplier> Suppliers => Set<Supplier>();
     public DbSet<CategoryType> CategoryTypes => Set<CategoryType>();
+    public DbSet<BarangayBudget> BarangayBudgets => Set<BarangayBudget>();
+    public DbSet<BarangayBudgetItem> BarangayBudgetItems => Set<BarangayBudgetItem>();
+    public DbSet<ProcurementRequest> ProcurementRequests => Set<ProcurementRequest>();
+    public DbSet<ProcurementRequestItem> ProcurementRequestItems => Set<ProcurementRequestItem>();
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -315,6 +319,71 @@ public partial class AppDbContext : DbContext
             e.Property(s => s.Address).HasMaxLength(500);
             e.Property(s => s.Notes).HasMaxLength(500);
             e.Property(s => s.CreatedAt).HasDefaultValueSql("SYSUTCDATETIME()");
+        });
+
+        // BarangayBudgets
+        modelBuilder.Entity<BarangayBudget>(e =>
+        {
+            e.ToTable("BarangayBudgets");
+            e.HasKey(b => b.BudgetId);
+            e.Property(b => b.BarangayName).HasMaxLength(255).IsRequired();
+            e.Property(b => b.Status).HasMaxLength(30).IsRequired();
+            e.Property(b => b.TotalAmount).HasColumnType("decimal(14,2)");
+            e.Property(b => b.CreatedAt).HasDefaultValueSql("SYSUTCDATETIME()");
+            e.Property(b => b.UpdatedAt).HasDefaultValueSql("SYSUTCDATETIME()");
+            e.HasOne(b => b.CreatedBy)
+                .WithMany()
+                .HasForeignKey(b => b.CreatedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasMany(b => b.Items)
+                .WithOne(i => i.Budget)
+                .HasForeignKey(i => i.BudgetId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // BarangayBudgetItems
+        modelBuilder.Entity<BarangayBudgetItem>(e =>
+        {
+            e.ToTable("BarangayBudgetItems");
+            e.HasKey(i => i.BudgetItemId);
+            e.Property(i => i.Category).HasMaxLength(100).IsRequired();
+            e.Property(i => i.Description).HasMaxLength(255).IsRequired();
+            e.Property(i => i.Amount).HasColumnType("decimal(14,2)");
+            e.Property(i => i.Notes).HasMaxLength(500);
+            e.Property(i => i.CreatedAt).HasDefaultValueSql("SYSUTCDATETIME()");
+        });
+
+        // ProcurementRequests
+        modelBuilder.Entity<ProcurementRequest>(e =>
+        {
+            e.ToTable("ProcurementRequests");
+            e.HasKey(r => r.RequestId);
+            e.Property(r => r.BarangayName).HasMaxLength(255).IsRequired();
+            e.Property(r => r.Status).HasMaxLength(30).IsRequired();
+            e.Property(r => r.TotalAmount).HasColumnType("decimal(14,2)");
+            e.Property(r => r.RequestDate).HasDefaultValueSql("SYSUTCDATETIME()");
+            e.HasOne(r => r.Supplier)
+                .WithMany()
+                .HasForeignKey(r => r.SupplierId)
+                .OnDelete(DeleteBehavior.SetNull);
+            e.HasOne(r => r.RequestedBy)
+                .WithMany()
+                .HasForeignKey(r => r.RequestedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasMany(r => r.Items)
+                .WithOne(i => i.Request)
+                .HasForeignKey(i => i.RequestId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ProcurementRequestItems
+        modelBuilder.Entity<ProcurementRequestItem>(e =>
+        {
+            e.ToTable("ProcurementRequestItems");
+            e.HasKey(i => i.RequestItemId);
+            e.Property(i => i.ItemName).HasMaxLength(255).IsRequired();
+            e.Property(i => i.Unit).HasMaxLength(50).IsRequired();
+            e.Property(i => i.UnitPrice).HasColumnType("decimal(14,2)");
         });
 
         base.OnModelCreating(modelBuilder);

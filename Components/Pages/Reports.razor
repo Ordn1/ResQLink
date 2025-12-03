@@ -1,306 +1,195 @@
-@page "/reports"
-@using System.Linq
+﻿@page "/reports"
+@inject ResQLink.Data.AppDbContext Db
+@inject IJSRuntime JS
+@using Microsoft.EntityFrameworkCore
+@using ResQLink.Data.Entities
+@using System.Text
 
 <div class="reports-root">
-
     <!-- HEADER / FILTER BAR -->
     <section class="panel">
         <header class="panel-head">
             <h2 class="panel-title">Reports Console</h2>
             <div class="panel-actions">
-                <label class="lbl">Range</label>
+                <select class="mini-input" @bind="reportType">
+                    <option value="overview">Overview</option>
+                    <option value="evacuees">Evacuees</option>
+                    <option value="disasters">Disasters</option>
+                    <option value="shelters">Shelters</option>
+                    <option value="inventory">Inventory</option>
+                    <option value="budget">Budget & Finance</option>
+                    <option value="procurement">Procurement</option>
+                </select>
+
                 <select class="mini-input" @bind="rangePreset" @bind:after="ApplyRangePreset">
                     <option value="7d">Last 7d</option>
                     <option value="30d">Last 30d</option>
                     <option value="90d">Last 90d</option>
                     <option value="ytd">YTD</option>
-                    <option value="custom">Custom�</option>
+                    <option value="all">All Time</option>
+                    <option value="custom">Custom…</option>
                 </select>
 
-                <input class="mini-input" type="date" @bind="dateFrom" disabled="@(!IsCustomRange)" />
-                <input class="mini-input" type="date" @bind="dateTo" disabled="@(!IsCustomRange)" />
+                <input class="mini-input" type="date" @bind="dateFrom" />
+                <input class="mini-input" type="date" @bind="dateTo" />
 
-                <select class="mini-input" @bind="primaryGroup">
-                    <option value="day">Group: Day</option>
-                    <option value="week">Group: Week</option>
-                    <option value="month">Group: Month</option>
-                </select>
-
-                <select class="mini-input" @bind="metricFocus">
-                    <option value="evacuees">Evacuees</option>
-                    <option value="inventory">Inventory Usage</option>
-                    <option value="disasters">Disaster Incidents</option>
-                </select>
-
-                <button class="mini-btn" @onclick="Rebuild">Run</button>
-                <button class="mini-btn" @onclick="ResetFilters">Reset</button>
-                <button class="mini-btn" disabled title="Not implemented">Export CSV</button>
-                <button class="mini-btn" disabled title="Not implemented">Export PDF</button>
+                <button class="mini-btn" @onclick="GenerateReportAsync" disabled="@_loading">
+                    @if (_loading)
+                    {
+                        <span class="spinner"></span>
+                    }
+                    <i class="bi bi-play-fill"></i> Generate
+                </button>
+                <button class="mini-btn" @onclick="ResetFilters">
+                    <i class="bi bi-arrow-counterclockwise"></i> Reset
+                </button>
+                <button class="mini-btn" @onclick="ExportToCSV" disabled="@(!_reportGenerated)">
+                    <i class="bi bi-file-earmark-spreadsheet"></i> Export CSV
+                </button>
+                <button class="mini-btn" @onclick="PrintReport" disabled="@(!_reportGenerated)">
+                    <i class="bi bi-printer"></i> Print Report
+                </button>
             </div>
         </header>
 
         <!-- KPI SUMMARY -->
-        <div class="kpi-grid">
-            <div class="kpi-card">
-                <div class="kpi-label">Total Evacuees</div>
-                <div class="kpi-value text-accent">@TotalEvacuees</div>
-                <div class="kpi-trend">@KpiTrend(TotalEvacueesDelta)</div>
-            </div>
-            <div class="kpi-card">
-                <div class="kpi-label">Incidents</div>
-                <div class="kpi-value">@TotalIncidents</div>
-                <div class="kpi-trend">@KpiTrend(IncidentDelta)</div>
-            </div>
-            <div class="kpi-card">
-                <div class="kpi-label">Inventory Usage</div>
-                <div class="kpi-value">@TotalInventoryUsage</div>
-                <div class="kpi-trend">@KpiTrend(InventoryDelta)</div>
-            </div>
-            <div class="kpi-card">
-                <div class="kpi-label">Avg. Shelter Fill</div>
-                <div class="kpi-value">@AverageShelterFill.ToString("P0")</div>
-                <div class="kpi-trend">@KpiTrend(ShelterFillDelta, true)</div>
-            </div>
-            <div class="kpi-card">
-                <div class="kpi-label">Critical Stock Items</div>
-                <div class="kpi-value">@CriticalStockCount</div>
-                <div class="kpi-trend warn">Placeholder</div>
-            </div>
-        </div>
-    </section>
-
-    <!-- GROUPED SERIES TABLE -->
-    <section class="panel">
-        <header class="panel-head">
-            <h2 class="panel-title">Time Series (@primaryGroup.ToUpper()) � @metricFocus.ToUpper()</h2>
-            <div class="panel-actions">
-                <label class="lbl">Show</label>
-                <select class="mini-input" @bind="seriesLimit">
-                    <option>10</option>
-                    <option>25</option>
-                    <option>50</option>
-                </select>
-            </div>
-        </header>
-        <div class="table-wrap">
-            <table class="rep-table">
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>Bucket</th>
-                        <th class="t-right">Evacuees</th>
-                        <th class="t-right">Incidents</th>
-                        <th class="t-right">Inventory Used</th>
-                        <th class="t-right">Avg Shelter Fill %</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @{
-                        var idx = 0;
-                        foreach (var b in LimitedBuckets)
-                        {
-                            idx++;
-                            <tr>
-                                <td class="t-center">@idx</td>
-                                <td>@b.Label</td>
-                                <td class="t-right">@b.Evacuees</td>
-                                <td class="t-right">@b.Incidents</td>
-                                <td class="t-right">@b.InventoryUsed</td>
-                                <td class="t-right">@b.AvgShelterFill.ToString("P0")</td>
-                            </tr>
-                            ;
-                        }
-                    }
-                </tbody>
-            </table>
-        </div>
-        <footer class="panel-foot">
-            Buckets: @LimitedBuckets.Count() of @GroupedBuckets.Count()
-        </footer>
-    </section>
-
-    <div class="two-col">
-        <!-- DISTRIBUTION SUMMARY -->
-        <section class="panel">
-            <header class="panel-head">
-                <h2 class="panel-title">Distributions</h2>
-            </header>
-            <div class="dist-grid">
-                @foreach (var d in DistributionBlocks)
+        @if (_reportGenerated)
+        {
+            <div class="kpi-grid">
+                <div class="kpi-card">
+                    <div class="kpi-label">Total Records</div>
+                    <div class="kpi-value text-accent">@TotalRecords</div>
+                    <div class="kpi-trend @GetTrendClass(TotalRecords, PreviousPeriodRecords)">
+                        @GetTrendText(TotalRecords, PreviousPeriodRecords)
+                    </div>
+                </div>
+                @if (reportType == "budget" || reportType == "procurement")
                 {
-                    <div class="dist-card">
-                        <div class="dist-title">@d.Title</div>
-                        <div class="dist-bar-list">
-                            @foreach (var row in d.Rows)
-                            {
-                                <div class="dist-row">
-                                    <div class="dist-label">@row.Label</div>
-                                    <div class="dist-bar-shell">
-                                        <div class="dist-bar" style="width:@row.Percent%"></div>
-                                    </div>
-                                    <div class="dist-val">@row.Value</div>
-                                </div>
-                            }
+                    <div class="kpi-card">
+                        <div class="kpi-label">Total Amount</div>
+                        <div class="kpi-value">₱@TotalAmount.ToString("N2")</div>
+                        <div class="kpi-trend @GetTrendClass((int)TotalAmount, (int)PreviousPeriodAmount)">
+                            @GetTrendText((int)TotalAmount, (int)PreviousPeriodAmount)
                         </div>
                     </div>
                 }
-            </div>
-        </section>
-
-        <!-- TOP LISTS -->
-        <section class="panel">
-            <header class="panel-head">
-                <h2 class="panel-title">Top Lists</h2>
-            </header>
-            <div class="top-lists">
-                <div class="top-block">
-                    <h3 class="top-title">Top Regions (Incidents)</h3>
-                    <ol class="top-ol">
-                        @foreach (var r in TopRegions)
-                        {
-                            <li>
-                                <span class="label">@r.Region</span>
-                                <span class="metric">@r.Incidents</span>
-                            </li>
-                        }
-                    </ol>
-                </div>
-                <div class="top-block">
-                    <h3 class="top-title">Top Shelters (Evacuees)</h3>
-                    <ol class="top-ol">
-                        @foreach (var s in TopShelters)
-                        {
-                            <li>
-                                <span class="label">@s.Shelter</span>
-                                <span class="metric">@s.Count</span>
-                            </li>
-                        }
-                    </ol>
-                </div>
-                <div class="top-block">
-                    <h3 class="top-title">High Usage Items</h3>
-                    <ol class="top-ol">
-                        @foreach (var i in TopInventory)
-                        {
-                            <li>
-                                <span class="label">@i.Item</span>
-                                <span class="metric">@i.Used</span>
-                            </li>
-                        }
-                    </ol>
+                @if (reportType == "inventory")
+                {
+                    <div class="kpi-card">
+                        <div class="kpi-label">Low Stock Items</div>
+                        <div class="kpi-value">@LowStockCount</div>
+                        <div class="kpi-trend warn">Action needed</div>
+                    </div>
+                }
+                @if (reportType == "shelters")
+                {
+                    <div class="kpi-card">
+                        <div class="kpi-label">Avg. Occupancy</div>
+                        <div class="kpi-value">@AverageOccupancy.ToString("P0")</div>
+                    </div>
+                }
+                <div class="kpi-card">
+                    <div class="kpi-label">Date Range</div>
+                    <div class="kpi-value" style="font-size: 0.9rem;">
+                        @dateFrom.ToString("MMM dd") - @dateTo.ToString("MMM dd, yyyy")
+                    </div>
                 </div>
             </div>
-        </section>
-    </div>
-
-    <!-- CHART PLACEHOLDERS -->
-    <section class="panel chart-panel">
-        <header class="panel-head">
-            <h2 class="panel-title">Chart Placeholders</h2>
-            <div class="panel-actions">
-                <select class="mini-input" @bind="chartMode">
-                    <option value="line">Line Mode</option>
-                    <option value="bars">Bars Mode</option>
-                    <option value="mixed">Mixed Mode</option>
-                </select>
-            </div>
-        </header>
-        <div class="chart-grid">
-            <div class="chart-box" role="img" aria-label="Primary metric trend">
-                <div class="chart-title">Primary Metric Trend</div>
-                <div class="chart-placeholder">[ Trend Chart Placeholder ]</div>
-            </div>
-            <div class="chart-box" role="img" aria-label="Cross metric comparison">
-                <div class="chart-title">Cross Metric Compare</div>
-                <div class="chart-placeholder">[ Multi-Series Placeholder ]</div>
-            </div>
-            <div class="chart-box" role="img" aria-label="Allocation breakdown">
-                <div class="chart-title">Allocation Breakdown</div>
-                <div class="chart-placeholder">[ Donut Placeholder ]</div>
-            </div>
-        </div>
+        }
     </section>
 
+    @if (!_reportGenerated)
+    {
+        <section class="panel">
+            <div style="padding: 60px 20px; text-align: center; color: var(--text-muted);">
+                <i class="bi bi-file-text" style="font-size: 4rem; opacity: 0.3;"></i>
+                <h3 style="margin: 20px 0 10px 0; font-weight: 600;">No Report Generated</h3>
+                <p>Select a report type and date range, then click <strong>Generate</strong> to view data.</p>
+            </div>
+        </section>
+    }
+    else
+    {
+        <!-- REPORT CONTENT -->
+        <div id="printable-report">
+            @switch (reportType)
+            {
+                case "overview":
+                    @RenderOverviewReport()
+                    break;
+                case "evacuees":
+                    @RenderEvacueesReport()
+                    break;
+                case "disasters":
+                    @RenderDisastersReport()
+                    break;
+                case "shelters":
+                    @RenderSheltersReport()
+                    break;
+                case "inventory":
+                    @RenderInventoryReport()
+                    break;
+                case "budget":
+                    @RenderBudgetReport()
+                    break;
+                case "procurement":
+                    @RenderProcurementReport()
+                    break;
+            }
+        </div>
+
+        <!-- SUMMARY FOOTER -->
+        <section class="panel">
+            <div class="panel-foot" style="display: flex; justify-content: space-between;">
+                <div>
+                    <strong>Report Generated:</strong> @DateTime.Now.ToString("MMMM dd, yyyy HH:mm:ss")
+                </div>
+                <div>
+                    <strong>Total Records:</strong> @TotalRecords
+                </div>
+            </div>
+        </section>
+    }
 </div>
 
 @code {
-    // Raw demo event rows (these simulate combined domain events)
-    private class EventRow
-    {
-        public DateTime Timestamp { get; set; }
-        public string Region { get; set; } = "";
-        public string Shelter { get; set; } = "";
-        public int Evacuees { get; set; }
-        public int Incidents { get; set; }
-        public int InventoryUsed { get; set; }
-        public double ShelterFillPercent { get; set; } // 0..1
-        public string ItemUsed { get; set; } = "";
-    }
-
-    private class Bucket
-    {
-        public string Key { get; set; } = "";
-        public string Label { get; set; } = "";
-        public int Evacuees { get; set; }
-        public int Incidents { get; set; }
-        public int InventoryUsed { get; set; }
-        public double AvgShelterFill { get; set; }
-    }
-
-    private class DistBlock
-    {
-        public string Title { get; set; } = "";
-        public List<DistRow> Rows { get; set; } = new();
-    }
-
-    private class DistRow
-    {
-        public string Label { get; set; } = "";
-        public int Value { get; set; }
-        public int Percent { get; set; }
-    }
-
-    private List<EventRow> AllEvents = new();
-
-    // Filters
+    private string reportType = "overview";
     private string rangePreset = "30d";
-    private DateTime dateFrom;
-    private DateTime dateTo;
-    private string primaryGroup = "day";
-    private string metricFocus = "evacuees";
-    private int seriesLimit = 25;
-    private string chartMode = "line";
+    private DateTime dateFrom = DateTime.UtcNow.Date.AddDays(-29);
+    private DateTime dateTo = DateTime.UtcNow.Date;
+    private bool _loading = false;
+    private bool _reportGenerated = false;
 
-    protected override void OnInitialized()
+    // Data collections
+    private List<Evacuee> evacueeData = new();
+    private List<Disaster> disasterData = new();
+    private List<Shelter> shelterData = new();
+    private List<Stock> stockData = new();
+    private List<ReliefGood> reliefGoodsData = new();
+    private List<BarangayBudget> budgetData = new();
+    private List<ProcurementRequest> procurementData = new();
+
+    // KPI metrics
+    private int TotalRecords => reportType switch
     {
-        var now = DateTime.UtcNow.Date;
-        // Seed 120 days of scattered events
-        var rand = new Random(42);
-        var regions = new[] { "North", "East", "South", "West", "Central" };
-        var shelters = new[] { "Shelter A", "Shelter B", "Shelter C", "Shelter D" };
-        var items = new[] { "Water", "Meals", "Blankets", "MedKits", "Masks", "Batteries" };
+        "evacuees" => evacueeData?.Count ?? 0,
+        "disasters" => disasterData?.Count ?? 0,
+        "shelters" => shelterData?.Count ?? 0,
+        "inventory" => stockData?.Count ?? 0,
+        "budget" => budgetData?.Count ?? 0,
+        "procurement" => procurementData?.Count ?? 0,
+        _ => (evacueeData?.Count ?? 0) + (disasterData?.Count ?? 0) + (shelterData?.Count ?? 0)
+    };
 
-        for (int i = 0; i < 400; i++)
-        {
-            var dayOffset = rand.Next(0, 120);
-            var ts = now.AddDays(-dayOffset).AddHours(rand.Next(0, 24));
-            AllEvents.Add(new EventRow
-            {
-                Timestamp = ts,
-                Region = regions[rand.Next(regions.Length)],
-                Shelter = shelters[rand.Next(shelters.Length)],
-                Evacuees = rand.Next(0, 30),
-                Incidents = rand.Next(0, 4) == 0 ? 0 : rand.Next(0, 3),
-                InventoryUsed = rand.Next(5, 180),
-                ShelterFillPercent = rand.NextDouble() * 0.7 + 0.15,
-                ItemUsed = items[rand.Next(items.Length)]
-            });
-        }
-
-        ApplyRangePreset();
-    }
+    private int PreviousPeriodRecords { get; set; }
+    private decimal TotalAmount { get; set; }
+    private decimal PreviousPeriodAmount { get; set; }
+    private int LowStockCount { get; set; }
+    private double AverageOccupancy { get; set; }
 
     private bool IsCustomRange => rangePreset == "custom";
+
+    private string GetSupplierName(Supplier? supplier) => supplier?.SupplierName ?? "—";
 
     private void ApplyRangePreset()
     {
@@ -314,204 +203,774 @@
                 dateFrom = new DateTime(now.Year, 1, 1);
                 dateTo = now;
                 break;
+            case "all":
+                dateFrom = new DateTime(2020, 1, 1);
+                dateTo = now;
+                break;
             case "custom":
-                if (dateFrom == default) { dateFrom = now.AddDays(-14); dateTo = now; }
                 break;
             default:
-                dateFrom = now.AddDays(-29); dateTo = now;
+                dateFrom = now.AddDays(-29);
+                dateTo = now;
                 break;
         }
     }
 
-    private void Rebuild() => StateHasChanged();
+    private async Task GenerateReportAsync()
+    {
+        if (_loading) return;
+
+        _loading = true;
+        _reportGenerated = false;
+        StateHasChanged();
+
+        try
+        {
+            var daysDiff = (dateTo - dateFrom).Days + 1;
+            var prevFrom = dateFrom.AddDays(-daysDiff);
+            var prevTo = dateFrom.AddDays(-1);
+
+            switch (reportType)
+            {
+                case "evacuees":
+                    await LoadEvacueesDataAsync();
+                    PreviousPeriodRecords = await Db.Evacuees
+                        .Where(e => e.RegisteredAt.Date >= prevFrom && e.RegisteredAt.Date <= prevTo)
+                        .CountAsync();
+                    break;
+
+                case "disasters":
+                    await LoadDisastersDataAsync();
+                    PreviousPeriodRecords = await Db.Disasters
+                        .Where(d => d.StartDate.Date >= prevFrom && d.StartDate.Date <= prevTo)
+                        .CountAsync();
+                    break;
+
+                case "shelters":
+                    await LoadSheltersDataAsync();
+                    PreviousPeriodRecords = shelterData?.Count ?? 0;
+                    if (shelterData != null && shelterData.Any())
+                    {
+                        var totalCapacity = shelterData.Sum(s => s.Capacity);
+                        AverageOccupancy = totalCapacity > 0
+                            ? shelterData.Sum(s => s.CurrentOccupancy) / (double)totalCapacity
+                            : 0;
+                    }
+                    break;
+
+                case "inventory":
+                    await LoadInventoryDataAsync();
+                    LowStockCount = stockData?.Count(s => s.Quantity <= 10) ?? 0;
+                    PreviousPeriodRecords = stockData?.Count ?? 0;
+                    break;
+
+                case "budget":
+                    await LoadBudgetDataAsync();
+                    TotalAmount = budgetData?.Sum(b => b.TotalAmount) ?? 0;
+                    PreviousPeriodRecords = await Db.BarangayBudgets
+                        .Where(b => b.Year < dateFrom.Year)
+                        .CountAsync();
+                    PreviousPeriodAmount = await Db.BarangayBudgets
+                        .Where(b => b.Year < dateFrom.Year)
+                        .SumAsync(b => (decimal?)b.TotalAmount) ?? 0;
+                    break;
+
+                case "procurement":
+                    await LoadProcurementDataAsync();
+                    TotalAmount = procurementData?
+                        .Where(p => p.Items != null)
+                        .SelectMany(p => p.Items!)
+                        .Sum(i => i.Quantity * i.UnitPrice) ?? 0;
+                    PreviousPeriodRecords = await Db.ProcurementRequests
+                        .Where(p => p.RequestDate.Date >= prevFrom && p.RequestDate.Date <= prevTo)
+                        .CountAsync();
+                    break;
+
+                case "overview":
+                default:
+                    await LoadOverviewDataAsync();
+                    PreviousPeriodRecords = 0;
+                    break;
+            }
+
+            _reportGenerated = true;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error generating report: {ex.Message}");
+            await JS.InvokeVoidAsync("alert", $"Error generating report: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadEvacueesDataAsync()
+    {
+        evacueeData = await Db.Evacuees
+            .Include(e => e.Disaster)
+            .Include(e => e.Shelter)
+            .Where(e => e.RegisteredAt.Date >= dateFrom && e.RegisteredAt.Date <= dateTo)
+            .AsNoTracking()
+            .OrderByDescending(e => e.RegisteredAt)
+            .ToListAsync();
+    }
+
+    private async Task LoadDisastersDataAsync()
+    {
+        disasterData = await Db.Disasters
+            .Where(d => d.StartDate.Date >= dateFrom && d.StartDate.Date <= dateTo)
+            .AsNoTracking()
+            .OrderByDescending(d => d.StartDate)
+            .ToListAsync();
+    }
+
+    private async Task LoadSheltersDataAsync()
+    {
+        shelterData = await Db.Shelters
+            .Include(s => s.Disaster)
+            .AsNoTracking()
+            .OrderBy(s => s.Name)
+            .ToListAsync();
+    }
+
+    private async Task LoadInventoryDataAsync()
+    {
+        stockData = await Db.Stocks
+            .Include(s => s.ReliefGood)
+            .Include(s => s.Shelter)
+            .AsNoTracking()
+            .OrderBy(s => s.Quantity)
+            .ToListAsync();
+
+        reliefGoodsData = await Db.ReliefGoods
+            .AsNoTracking()
+            .ToListAsync();
+    }
+
+    private async Task LoadBudgetDataAsync()
+    {
+        var fromYear = dateFrom.Year;
+        var toYear = dateTo.Year;
+
+        budgetData = await Db.BarangayBudgets
+            .Include(b => b.Items)
+            .Where(b => b.Year >= fromYear && b.Year <= toYear)
+            .AsNoTracking()
+            .OrderByDescending(b => b.Year)
+            .ToListAsync();
+    }
+
+    private async Task LoadProcurementDataAsync()
+    {
+        procurementData = await Db.ProcurementRequests
+            .Include(p => p.Items)
+            .Include(p => p.Supplier)
+            .Where(p => p.RequestDate.Date >= dateFrom && p.RequestDate.Date <= dateTo)
+            .AsNoTracking()
+            .OrderByDescending(p => p.RequestDate)
+            .ToListAsync();
+    }
+
+    private async Task LoadOverviewDataAsync()
+    {
+        await LoadEvacueesDataAsync();
+        await LoadDisastersDataAsync();
+        await LoadSheltersDataAsync();
+    }
 
     private void ResetFilters()
     {
+        reportType = "overview";
         rangePreset = "30d";
-        primaryGroup = "day";
-        metricFocus = "evacuees";
-        seriesLimit = 25;
         ApplyRangePreset();
+        _reportGenerated = false;
         StateHasChanged();
     }
 
-    // Filtered base events
-    private IEnumerable<EventRow> RangeEvents =>
-        AllEvents.Where(e => e.Timestamp.Date >= dateFrom && e.Timestamp.Date <= dateTo);
-
-    // Grouping
-    private IEnumerable<Bucket> GroupedBuckets =>
-        RangeEvents
-            .GroupBy(BucketKey)
-            .OrderBy(g => g.Key)
-            .Select(g => new Bucket
-            {
-                Key = g.Key,
-                Label = BucketLabel(g.Key),
-                Evacuees = g.Sum(x => x.Evacuees),
-                Incidents = g.Sum(x => x.Incidents),
-                InventoryUsed = g.Sum(x => x.InventoryUsed),
-                AvgShelterFill = g.Average(x => x.ShelterFillPercent)
-            });
-
-    private string BucketKey(EventRow e) => primaryGroup switch
+    private string GetTrendClass(int current, int previous)
     {
-        "week" => $"{ISOWeekOf(e.Timestamp):000}-{e.Timestamp.Year}",
-        "month" => $"{e.Timestamp.Year}-{e.Timestamp.Month:00}",
-        _ => e.Timestamp.ToString("yyyy-MM-dd")
+        if (current == previous) return "neutral";
+        return current > previous ? "up" : "down";
+    }
+
+    private string GetTrendText(int current, int previous)
+    {
+        var diff = current - previous;
+        if (diff == 0) return "No change";
+        var sign = diff > 0 ? "+" : "";
+        var percent = previous > 0 ? $" ({Math.Abs(diff * 100 / previous)}%)" : "";
+        return $"{sign}{diff}{percent}";
+    }
+
+    private RenderFragment RenderOverviewReport() => __builder =>
+    {
+        <section class="panel">
+            <header class="panel-head">
+                <h2 class="panel-title">Overview Report</h2>
+            </header>
+            <div style="padding: 20px;">
+                <div class="two-col">
+                    <div class="panel" style="margin-bottom: 0;">
+                        <header class="panel-head">
+                            <h3 class="panel-title">Evacuees Summary</h3>
+                        </header>
+                        <div style="padding: 16px;">
+                            <p><strong>Total Evacuees:</strong> @(evacueeData?.Count ?? 0)</p>
+                            @if (evacueeData != null && evacueeData.Any())
+                            {
+                                <p><strong>By Status:</strong></p>
+                                <ul>
+                                    @foreach (var group in evacueeData.GroupBy(e => e.Status).OrderByDescending(g => g.Count()))
+                                    {
+                                        <li>@group.Key: @group.Count() (@((group.Count() * 100.0 / evacueeData.Count).ToString("F1"))%)</li>
+                                    }
+                                </ul>
+                            }
+                            else
+                            {
+                                <p><em>No evacuees data for this period.</em></p>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="panel" style="margin-bottom: 0;">
+                        <header class="panel-head">
+                            <h3 class="panel-title">Disasters Summary</h3>
+                        </header>
+                        <div style="padding: 16px;">
+                            <p><strong>Total Disasters:</strong> @(disasterData?.Count ?? 0)</p>
+                            @if (disasterData != null && disasterData.Any())
+                            {
+                                <p><strong>By Severity:</strong></p>
+                                <ul>
+                                    @foreach (var group in disasterData.GroupBy(d => d.Severity).OrderByDescending(g => g.Count()))
+                                    {
+                                        <li>@group.Key: @group.Count()</li>
+                                    }
+                                </ul>
+                            }
+                            else
+                            {
+                                <p><em>No disasters data for this period.</em></p>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel" style="margin-top: 20px;">
+                    <header class="panel-head">
+                        <h3 class="panel-title">Shelters Summary</h3>
+                    </header>
+                    <div style="padding: 16px;">
+                        <p><strong>Total Shelters:</strong> @(shelterData?.Count ?? 0)</p>
+                        @if (shelterData != null && shelterData.Any())
+                        {
+                            <p><strong>Active Shelters:</strong> @shelterData.Count(s => s.IsActive)</p>
+                            <p><strong>Total Capacity:</strong> @shelterData.Sum(s => s.Capacity) beds</p>
+                            <p><strong>Current Occupancy:</strong> @shelterData.Sum(s => s.CurrentOccupancy) (@AverageOccupancy.ToString("P1"))</p>
+                        }
+                        else
+                        {
+                            <p><em>No shelters data available.</em></p>
+                        }
+                    </div>
+                </div>
+            </div>
+        </section>
     };
 
-    private string BucketLabel(string key) => primaryGroup switch
+    private RenderFragment RenderEvacueesReport() => __builder =>
     {
-        "week" => "W" + key,
-        "month" => key,
-        _ => key
+        <section class="panel">
+            <header class="panel-head">
+                <h2 class="panel-title">Evacuees Report (@(evacueeData?.Count ?? 0) records)</h2>
+            </header>
+            <div class="table-wrap">
+                <table class="rep-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Name</th>
+                            <th>Disaster</th>
+                            <th>Shelter</th>
+                            <th>Status</th>
+                            <th>Registered</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (evacueeData != null && evacueeData.Any())
+                        {
+                            int idx = 0;
+                            foreach (var e in evacueeData)
+                            {
+                                idx++;
+                                <tr>
+                                    <td class="t-center">@idx</td>
+                                    <td>@e.FirstName @e.LastName</td>
+                                    <td>@(e.Disaster?.Title ?? "—")</td>
+                                    <td>@(e.Shelter?.Name ?? "—")</td>
+                                    <td><span class="status-chip">@e.Status</span></td>
+                                    <td>@e.RegisteredAt.ToString("MMM dd, yyyy HH:mm")</td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="6" class="t-center" style="padding: 40px; color: var(--text-muted);">
+                                    No evacuees found for the selected period.
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <footer class="panel-foot">
+                Total: @(evacueeData?.Count ?? 0) evacuees
+            </footer>
+        </section>
     };
 
-    // ISO-ish week number helper
-    private static int ISOWeekOf(DateTime dt)
+    private RenderFragment RenderDisastersReport() => __builder =>
     {
-        var day = (int)System.Globalization.CultureInfo.InvariantCulture.Calendar.GetDayOfWeek(dt);
-        if (day == 0) day = 7;
-        return System.Globalization.CultureInfo.InvariantCulture.Calendar.GetWeekOfYear(
-            dt,
-            System.Globalization.CalendarWeekRule.FirstFourDayWeek,
-            DayOfWeek.Monday);
-    }
+        <section class="panel">
+            <header class="panel-head">
+                <h2 class="panel-title">Disasters Report (@(disasterData?.Count ?? 0) records)</h2>
+            </header>
+            <div class="table-wrap">
+                <table class="rep-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Title</th>
+                            <th>Type</th>
+                            <th>Severity</th>
+                            <th>Status</th>
+                            <th>Location</th>
+                            <th>Start Date</th>
+                            <th>End Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (disasterData != null && disasterData.Any())
+                        {
+                            int idx = 0;
+                            foreach (var d in disasterData)
+                            {
+                                idx++;
+                                <tr>
+                                    <td class="t-center">@idx</td>
+                                    <td><strong>@d.Title</strong></td>
+                                    <td>@d.DisasterType</td>
+                                    <td><span class="status-chip">@d.Severity</span></td>
+                                    <td>@d.Status</td>
+                                    <td>@d.Location</td>
+                                    <td>@d.StartDate.ToString("MMM dd, yyyy")</td>
+                                    <td>@(d.EndDate?.ToString("MMM dd, yyyy") ?? "Ongoing")</td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="8" class="t-center" style="padding: 40px; color: var(--text-muted);">
+                                    No disasters found for the selected period.
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <footer class="panel-foot">
+                Total: @(disasterData?.Count ?? 0) disasters
+            </footer>
+        </section>
+    };
 
-    private IEnumerable<Bucket> LimitedBuckets => GroupedBuckets.Take(seriesLimit);
-
-    // KPI data and deltas
-    private DateTime PriorFrom => dateFrom.AddDays(-(dateTo - dateFrom).TotalDays - 1);
-    private DateTime PriorTo => dateFrom.AddDays(-1);
-
-    private IEnumerable<EventRow> PriorRangeEvents =>
-        AllEvents.Where(e => e.Timestamp.Date >= PriorFrom && e.Timestamp.Date <= PriorTo);
-
-    private int TotalEvacuees => RangeEvents.Sum(e => e.Evacuees);
-    private int TotalIncidents => RangeEvents.Sum(e => e.Incidents);
-    private int TotalInventoryUsage => RangeEvents.Sum(e => e.InventoryUsed);
-    private double AverageShelterFill => RangeEvents.Any() ? RangeEvents.Average(e => e.ShelterFillPercent) : 0;
-
-    private int TotalEvacueesPrior => PriorRangeEvents.Sum(e => e.Evacuees);
-    private int TotalIncidentsPrior => PriorRangeEvents.Sum(e => e.Incidents);
-    private int TotalInventoryUsagePrior => PriorRangeEvents.Sum(e => e.InventoryUsed);
-    private double AverageShelterFillPrior => PriorRangeEvents.Any() ? PriorRangeEvents.Average(e => e.ShelterFillPercent) : 0;
-
-    private int TotalEvacueesDelta => Delta(TotalEvacuees, TotalEvacueesPrior);
-    private int IncidentDelta => Delta(TotalIncidents, TotalIncidentsPrior);
-    private int InventoryDelta => Delta(TotalInventoryUsage, TotalInventoryUsagePrior);
-    private double ShelterFillDelta => AverageShelterFillPrior == 0 ? 0 : (AverageShelterFill - AverageShelterFillPrior) / AverageShelterFillPrior;
-
-    private int CriticalStockCount => 7; // placeholder
-
-    private static int Delta(int current, int prior) => prior == 0 ? current : current - prior;
-
-    private MarkupString KpiTrend(int delta, bool percent = false)
+    private RenderFragment RenderSheltersReport() => __builder =>
     {
-        if (delta == 0) return (MarkupString)"<span class='kpi-trend neutral'>0</span>";
-        var cls = delta > 0 ? "up" : "down";
-        return (MarkupString)$"<span class='kpi-trend {cls}'>{(delta > 0 ? "+" : "")}{delta}{(percent ? "%" : "")}</span>";
-    }
+        <section class="panel">
+            <header class="panel-head">
+                <h2 class="panel-title">Shelters Report (@(shelterData?.Count ?? 0) records)</h2>
+            </header>
+            <div class="table-wrap">
+                <table class="rep-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Name</th>
+                            <th>Location</th>
+                            <th>Disaster</th>
+                            <th class="t-right">Capacity</th>
+                            <th class="t-right">Occupancy</th>
+                            <th class="t-right">% Full</th>
+                            <th class="t-center">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (shelterData != null && shelterData.Any())
+                        {
+                            int idx = 0;
+                            foreach (var s in shelterData)
+                            {
+                                idx++;
+                                var pct = s.Capacity > 0 ? (s.CurrentOccupancy * 100.0 / s.Capacity) : 0;
+                                <tr>
+                                    <td class="t-center">@idx</td>
+                                    <td><strong>@s.Name</strong></td>
+                                    <td>@(s.Location ?? "—")</td>
+                                    <td>@(s.Disaster?.Title ?? "—")</td>
+                                    <td class="t-right">@s.Capacity</td>
+                                    <td class="t-right">@s.CurrentOccupancy</td>
+                                    <td class="t-right">@pct.ToString("F1")%</td>
+                                    <td class="t-center">
+                                        <span class="status-chip">@(s.IsActive ? "Active" : "Inactive")</span>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="8" class="t-center" style="padding: 40px; color: var(--text-muted);">
+                                    No shelters found.
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <footer class="panel-foot">
+                Total: @(shelterData?.Count ?? 0) shelters |
+                Total Capacity: @(shelterData?.Sum(s => s.Capacity) ?? 0) |
+                Current Occupancy: @(shelterData?.Sum(s => s.CurrentOccupancy) ?? 0)
+            </footer>
+        </section>
+    };
 
-    private MarkupString KpiTrend(double deltaPercent, bool alreadyPercent = false)
+    private RenderFragment RenderInventoryReport() => __builder =>
     {
-        if (deltaPercent == 0) return (MarkupString)"<span class='kpi-trend neutral'>0%</span>";
-        var cls = deltaPercent > 0 ? "up" : "down";
-        var pct = deltaPercent * 100;
-        return (MarkupString)$"<span class='kpi-trend {cls}'>{(pct > 0 ? "+" : "")}{pct:0}%</span>";
-    }
+        <section class="panel">
+            <header class="panel-head">
+                <h2 class="panel-title">Inventory Report (@(stockData?.Count ?? 0) records)</h2>
+            </header>
+            <div class="table-wrap">
+                <table class="rep-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Item</th>
+                            <th>Shelter</th>
+                            <th>Unit</th>
+                            <th class="t-right">Quantity</th>
+                            <th class="t-right">Max Capacity</th>
+                            <th>Status</th>
+                            <th>Last Updated</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (stockData != null && stockData.Any())
+                        {
+                            int idx = 0;
+                            foreach (var s in stockData)
+                            {
+                                idx++;
+                                var status = s.Quantity <= 10 ? "Low" : s.Quantity <= 50 ? "Medium" : "Healthy";
+                                var statusClass = s.Quantity <= 10 ? "st-critical" : s.Quantity <= 50 ? "st-med" : "st-stable";
+                                <tr>
+                                    <td class="t-center">@idx</td>
+                                    <td><strong>@(s.ReliefGood?.Name ?? "Unknown")</strong></td>
+                                    <td>@(s.Shelter?.Name ?? "Central")</td>
+                                    <td>@(s.ReliefGood?.Unit ?? "—")</td>
+                                    <td class="t-right">@s.Quantity</td>
+                                    <td class="t-right">@s.MaxCapacity</td>
+                                    <td><span class="status-chip @statusClass">@status</span></td>
+                                    <td>@s.LastUpdated.ToString("MMM dd, yyyy")</td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="8" class="t-center" style="padding: 40px; color: var(--text-muted);">
+                                    No inventory data found.
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <footer class="panel-foot">
+                Total Items: @(stockData?.Count ?? 0) | Low Stock: @LowStockCount items
+            </footer>
+        </section>
+    };
 
-    // Distributions
-    private IEnumerable<DistBlock> DistributionBlocks
+    private RenderFragment RenderBudgetReport() => __builder =>
     {
-        get
+        <section class="panel">
+            <header class="panel-head">
+                <h2 class="panel-title">Budget Report (@(budgetData?.Count ?? 0) records)</h2>
+            </header>
+            <div class="table-wrap">
+                <table class="rep-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Year</th>
+                            <th>Barangay</th>
+                            <th class="t-right">Total Amount</th>
+                            <th class="t-right">Allocated</th>
+                            <th class="t-right">Available</th>
+                            <th>Status</th>
+                            <th>Items</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (budgetData != null && budgetData.Any())
+                        {
+                            int idx = 0;
+                            foreach (var b in budgetData)
+                            {
+                                idx++;
+                                var allocated = b.Items?.Sum(i => i.Amount) ?? 0; // FIX: use Amount
+                                var available = b.TotalAmount - allocated;
+                                <tr>
+                                    <td class="t-center">@idx</td>
+                                    <td><strong>@b.Year</strong></td>
+                                    <td>@b.BarangayName</td>
+                                    <td class="t-right">₱@b.TotalAmount.ToString("N2")</td>
+                                    <td class="t-right">₱@allocated.ToString("N2")</td>
+                                    <td class="t-right">₱@available.ToString("N2")</td>
+                                    <td>
+                                        <span class="status-chip @(available > 0 ? "st-stable" : "st-critical")">
+                                            @(available > 0 ? "Available" : "Depleted")
+                                        </span>
+                                    </td>
+                                    <td>@(b.Items?.Count ?? 0) items</td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="8" class="t-center" style="padding: 40px; color: var(--text-muted);">
+                                    No budget data found for the selected period.
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <footer class="panel-foot">
+                Total Budgets: @(budgetData?.Count ?? 0) | Total Amount: ₱@(budgetData?.Sum(b => b.TotalAmount).ToString("N2") ?? "0.00")
+            </footer>
+        </section>
+
+        <!-- Budget Items Detail -->
+        @if (budgetData != null && budgetData.Any() && budgetData.Any(b => b.Items != null && b.Items.Any()))
         {
-            var blocks = new List<DistBlock>();
+            <section class="panel" style="margin-top: 20px;">
+                <header class="panel-head">
+                    <h2 class="panel-title">Budget Items Detail</h2>
+                </header>
+                <div class="table-wrap">
+                    <table class="rep-table">
+                        <thead>
+                            <tr>
+                                <th>Year</th>
+                                <th>Category</th>
+                                <th>Description</th>
+                                <th class="t-right">Amount</th> <!-- FIX: column header -->
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var b in budgetData.Where(b => b.Items != null && b.Items.Any()))
+                            {
+                                foreach (var item in b.Items!)
+                                {
+                                    <tr>
+                                        <td>@b.Year</td>
+                                        <td>@item.Category</td>
+                                        <td>@item.Description</td>
+                                        <td class="t-right">₱@item.Amount.ToString("N2")</td> <!-- FIX: use Amount -->
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        }
+    };
 
-            // Region distribution by incidents
-            var regionGroup = RangeEvents
-                .GroupBy(e => e.Region)
-                .Select(g => new { g.Key, Value = g.Sum(x => x.Incidents) })
-                .OrderByDescending(x => x.Value)
-                .Take(6)
-                .ToList();
-            var maxRegion = regionGroup.Any() ? regionGroup.Max(x => x.Value) : 1;
+    private RenderFragment RenderProcurementReport() => __builder =>
+    {
+        <section class="panel">
+            <header class="panel-head">
+                <h2 class="panel-title">Procurement Report (@(procurementData?.Count ?? 0) records)</h2>
+            </header>
+            <div class="table-wrap">
+                <table class="rep-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Request Date</th>
+                            <th>Supplier</th>
+                            <th>Status</th>
+                            <th>Items</th>
+                            <th class="t-right">Total Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (procurementData != null && procurementData.Any())
+                        {
+                            int idx = 0;
+                            foreach (var p in procurementData)
+                            {
+                                idx++;
+                                var total = p.Items?.Sum(i => i.Quantity * i.UnitPrice) ?? 0;
+                                <tr>
+                                    <td class="t-center">@idx</td>
+                                    <td>@p.RequestDate.ToString("MMM dd, yyyy")</td>
+                                    <td>@GetSupplierName(p.Supplier)</td>
+                                    <td><span class="status-chip">@p.Status</span></td>
+                                    <td>@(p.Items?.Count ?? 0) items</td>
+                                    <td class="t-right">₱@total.ToString("N2")</td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="6" class="t-center" style="padding: 40px; color: var(--text-muted);">
+                                    No procurement data found for the selected period.
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <footer class="panel-foot">
+                Total Requests: @(procurementData?.Count ?? 0) | Total Amount: ₱@(procurementData?.Where(p => p.Items != null).SelectMany(p => p.Items!).Sum(i => i.Quantity * i.UnitPrice).ToString("N2") ?? "0.00")
+            </footer>
+        </section>
+    };
 
-            blocks.Add(new DistBlock
+    // Export functionality - FIX budget lines to use Amount
+    private async Task ExportToCSV()
+    {
+        try
+        {
+            var csv = new StringBuilder();
+            csv.AppendLine($"ResQLink Report - {reportType.ToUpper()}");
+            csv.AppendLine($"Generated: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+            csv.AppendLine($"Period: {dateFrom:yyyy-MM-dd} to {dateTo:yyyy-MM-dd}");
+            csv.AppendLine();
+
+            switch (reportType)
             {
-                Title = "Incidents by Region",
-                Rows = regionGroup
-                    .Select(r => new DistRow
+                case "overview":
+                    csv.AppendLine("Evacuees,Disasters,Shelters");
+                    csv.AppendLine($"{evacueeData.Count},{disasterData.Count},{shelterData.Count}");
+                    break;
+
+                case "evacuees":
+                    csv.AppendLine("ID,Name,Disaster,Shelter,Status,Registered");
+                    if (evacueeData != null)
                     {
-                        Label = r.Key,
-                        Value = r.Value,
-                        Percent = maxRegion == 0 ? 0 : (int)Math.Round(r.Value / (double)maxRegion * 100)
-                    }).ToList()
-            });
+                        foreach (var e in evacueeData)
+                        {
+                            csv.AppendLine($"{e.EvacueeId},\"{e.FirstName} {e.LastName}\",\"{e.Disaster?.Title}\",\"{e.Shelter?.Name}\",\"{e.Status}\",\"{e.RegisteredAt:yyyy-MM-dd HH:mm}\"");
+                        }
+                    }
+                    break;
 
-            // Inventory usage by item
-            var itemGroup = RangeEvents
-                .GroupBy(e => e.ItemUsed)
-                .Select(g => new { g.Key, Value = g.Sum(x => x.InventoryUsed) })
-                .OrderByDescending(x => x.Value)
-                .Take(6)
-                .ToList();
-            var maxItem = itemGroup.Any() ? itemGroup.Max(x => x.Value) : 1;
-
-            blocks.Add(new DistBlock
-            {
-                Title = "Inventory Usage by Item",
-                Rows = itemGroup
-                    .Select(it => new DistRow
+                case "disasters":
+                    csv.AppendLine("ID,Title,Type,Severity,Status,Location,Start Date,End Date");
+                    if (disasterData != null)
                     {
-                        Label = it.Key,
-                        Value = it.Value,
-                        Percent = maxItem == 0 ? 0 : (int)Math.Round(it.Value / (double)maxItem * 100)
-                    }).ToList()
-            });
+                        foreach (var d in disasterData)
+                        {
+                            csv.AppendLine($"{d.DisasterId},\"{d.Title}\",\"{d.DisasterType}\",\"{d.Severity}\",\"{d.Status}\",\"{d.Location}\",\"{d.StartDate:yyyy-MM-dd}\",\"{(d.EndDate != null ? d.EndDate.Value.ToString("yyyy-MM-dd") : "Ongoing")}\"");
+                        }
+                    }
+                    break;
 
-            // Evacuees by shelter
-            var shelterGroup = RangeEvents
-                .GroupBy(e => e.Shelter)
-                .Select(g => new { g.Key, Value = g.Sum(x => x.Evacuees) })
-                .OrderByDescending(x => x.Value)
-                .Take(6)
-                .ToList();
-            var maxShelter = shelterGroup.Any() ? shelterGroup.Max(x => x.Value) : 1;
-
-            blocks.Add(new DistBlock
-            {
-                Title = "Evacuees by Shelter",
-                Rows = shelterGroup
-                    .Select(sh => new DistRow
+                case "shelters":
+                    csv.AppendLine("ID,Name,Location,Disaster,Capacity,Occupancy,Status");
+                    if (shelterData != null)
                     {
-                        Label = sh.Key,
-                        Value = sh.Value,
-                        Percent = maxShelter == 0 ? 0 : (int)Math.Round(sh.Value / (double)maxShelter * 100)
-                    }).ToList()
-            });
+                        foreach (var s in shelterData)
+                        {
+                            csv.AppendLine($"{s.ShelterId},\"{s.Name}\",\"{s.Location}\",\"{s.Disaster?.Title}\",{s.Capacity},{s.CurrentOccupancy},\"{(s.IsActive ? "Active" : "Inactive")}\"");
+                        }
+                    }
+                    break;
 
-            return blocks;
+                case "inventory":
+                    csv.AppendLine("ID,Item,Shelter,Unit,Quantity,Max Capacity,Status,Last Updated");
+                    if (stockData != null)
+                    {
+                        foreach (var s in stockData)
+                        {
+                            csv.AppendLine($"{s.StockId},\"{s.ReliefGood?.Name}\",\"{s.Shelter?.Name}\",\"{s.ReliefGood?.Unit}\",{s.Quantity},{s.MaxCapacity},\"{(s.Quantity <= 10 ? "Low" : s.Quantity <= 50 ? "Medium" : "Healthy")}\",\"{s.LastUpdated:yyyy-MM-dd}\"");
+                        }
+                    }
+                    break;
+
+                case "budget":
+                    csv.AppendLine("ID,Year,Barangay,Total Amount,Allocated,Available");
+                    if (budgetData != null)
+                    {
+                        foreach (var b in budgetData)
+                        {
+                            var allocated = b.Items?.Sum(i => i.Amount) ?? 0; // FIX
+                            var available = b.TotalAmount - allocated;
+                            csv.AppendLine($"{b.BudgetId},{b.Year},\"{b.BarangayName}\",{b.TotalAmount:F2},{allocated:F2},{available:F2}");
+                        }
+                    }
+                    break;
+
+                case "procurement":
+                    csv.AppendLine("ID,Request Date,Supplier,Status,Items,Total Amount");
+                    if (procurementData != null)
+                    {
+                        foreach (var p in procurementData)
+                        {
+                            var total = p.Items?.Sum(i => i.Quantity * i.UnitPrice) ?? 0;
+                            csv.AppendLine($"{p.RequestId},\"{p.RequestDate:yyyy-MM-dd}\",\"{GetSupplierName(p.Supplier)}\",\"{p.Status}\",\"{(p.Items != null ? p.Items.Count.ToString() : "0")}\",{total:F2}");
+                        }
+                    }
+                    break;
+            }
+
+            var fileName = $"ResQLink_{reportType}_Report_{DateTime.Now:yyyyMMdd_HHmmss}.csv";
+            var bytes = Encoding.UTF8.GetBytes(csv.ToString());
+            var base64 = Convert.ToBase64String(bytes);
+
+            await JS.InvokeVoidAsync("eval", $@"
+                const link = document.createElement('a');
+                link.download = '{fileName}';
+                link.href = 'data:text/csv;base64,{base64}';
+                link.click();
+            ");
+
+            await JS.InvokeVoidAsync("alert", "Report exported successfully!");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Export error: {ex.Message}");
+            await JS.InvokeVoidAsync("alert", $"Export failed: {ex.Message}");
         }
     }
 
-    // Top lists
-    private IEnumerable<(string Region, int Incidents)> TopRegions =>
-        RangeEvents.GroupBy(e => e.Region)
-            .Select(g => (g.Key, g.Sum(x => x.Incidents)))
-            .OrderByDescending(x => x.Item2)
-            .Take(5);
-
-    private IEnumerable<(string Shelter, int Count)> TopShelters =>
-        RangeEvents.GroupBy(e => e.Shelter)
-            .Select(g => (g.Key, g.Sum(x => x.Evacuees)))
-            .OrderByDescending(x => x.Item2)
-            .Take(5);
-
-    private IEnumerable<(string Item, int Used)> TopInventory =>
-        RangeEvents.GroupBy(e => e.ItemUsed)
-            .Select(g => (g.Key, g.Sum(x => x.InventoryUsed)))
-            .OrderByDescending(x => x.Item2)
-            .Take(5);
+    private void PrintReport()
+    {
+        // Implement your print logic here, e.g.:
+        // JS.InvokeVoidAsync("window.print");
+    }
 }

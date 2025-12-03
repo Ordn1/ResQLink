@@ -65,5 +65,6 @@
   <ItemGroup>
     <Content Remove="wwwroot\css\auth-shared.css" />
     <Content Remove="wwwroot\css\settings.css" />
+    <Content Remove="wwwroot\js\charts.js" />
   </ItemGroup>
 </Project>

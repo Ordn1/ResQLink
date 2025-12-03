@@ -12,6 +12,7 @@ namespace ResQLink.Services
         public bool IsAuthenticated { get; private set; }
         public User? CurrentUser { get; private set; }
         public string? CurrentRole => CurrentUser?.Role?.RoleName;
+        public int? UserId => CurrentUser?.UserId;
 
         public event Action? AuthenticationStateChanged;
 
@@ -29,18 +30,50 @@ namespace ResQLink.Services
             AuthenticationStateChanged?.Invoke();
         }
 
-        public bool IsInRole(string roleName)
-        {
-            return IsAuthenticated && 
-                   CurrentRole != null && 
-                   CurrentRole.Equals(roleName, StringComparison.OrdinalIgnoreCase);
-        }
+        public bool IsInRole(string roleName) =>
+            IsAuthenticated &&
+            CurrentRole != null &&
+            CurrentRole.Equals(roleName, StringComparison.OrdinalIgnoreCase);
 
-        public bool HasAnyRole(params string[] roles)
+        public bool HasAnyRole(params string[] roles) =>
+            IsAuthenticated &&
+            CurrentRole != null &&
+            roles.Any(r => r.Equals(CurrentRole, StringComparison.OrdinalIgnoreCase));
+
+        // Convenience helpers (added to satisfy existing UI calls)
+        public bool IsFinanceManager() => IsInRole("Finance Manager");
+        public bool IsInventoryManager() => IsInRole("Inventory Manager");
+        public bool IsAdmin() => IsInRole("Admin");
+
+        public bool CanViewInventory() =>
+            HasAnyRole("Admin", "Inventory Manager", "Finance Manager");
+
+        public bool CanAccessReports() =>
+            HasAnyRole("Admin", "Finance Manager");
+
+        public bool CanAccess(string path)
         {
-            return IsAuthenticated && 
-                   CurrentRole != null && 
-                   roles.Any(r => r.Equals(CurrentRole, StringComparison.OrdinalIgnoreCase));
+            if (!IsAuthenticated) return false;
+            path = path.ToLowerInvariant();
+
+            // Normalize dynamic category routes
+            if (path.StartsWith("/inventory/category/"))
+                return CanViewInventory();
+
+            return path switch
+            {
+                "/home" => true,
+                "/inventory" => CanViewInventory(),
+                "/categories" => HasAnyRole("Admin", "Inventory Manager"),
+                "/stocks" => HasAnyRole("Admin", "Inventory Manager"),
+                "/suppliers" => HasAnyRole("Admin", "Inventory Manager"),
+                "/reports" => CanAccessReports(),
+                "/audit-logs" => !IsInventoryManager() && !IsFinanceManager(), // visible to Admin / Volunteer / other general roles
+                "/manage-users" => IsAdmin(),
+                "/settings" => true,
+                "/finance" => IsFinanceManager() || IsAdmin(),
+                _ => true // default allow (extend as needed)
+            };
         }
     }
 }

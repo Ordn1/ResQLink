@@ -1,7 +1,9 @@
 ﻿@page "/home"
 @inject ResQLink.Data.AppDbContext Db
+@inject IJSRuntime JS
 @using Microsoft.EntityFrameworkCore
 @using ResQLink.Data.Entities
+@implements IAsyncDisposable
 
 <div class="dashboard-root">
     <!-- Summary Banner -->
@@ -36,11 +38,104 @@
         </div>
     </div>
 
-    <div class="dashboard-grid">
+    <!-- Analytics Filters -->
+    <section class="panel">
+        <header class="panel-head">
+            <h2 class="panel-title">Analytics Controls</h2>
+            <div class="panel-actions">
+                <select class="mini-input" @bind="selectedPeriod" @bind:after="LoadChartsAsync">
+                    <option value="7">Last 7 days</option>
+                    <option value="30">Last 30 days</option>
+                    <option value="90">Last 90 days</option>
+                </select>
+                <select class="mini-input" @bind="selectedComparison" @bind:after="LoadChartsAsync">
+                    <option value="none">No Comparison</option>
+                    <option value="previous">vs Previous Period</option>
+                    <option value="year">vs Last Year</option>
+                </select>
+                <button class="mini-btn" @onclick="LoadChartsAsync" disabled="@_loading">
+                    <i class="bi bi-arrow-clockwise @(_loading ? "spin" : "")"></i> Refresh
+                </button>
+            </div>
+        </header>
+    </section>
 
+    <!-- Charts Grid -->
+    <div class="charts-grid">
+        <!-- Evacuees Trend Chart -->
+        <div class="chart-card">
+            <div class="chart-header">
+                <h3 class="chart-title">
+                    <i class="bi bi-people-fill"></i>
+                    Evacuees
+                </h3>
+                <span class="chart-badge">Last @selectedPeriod days</span>
+            </div>
+            <div class="chart-container">
+                <canvas id="evacueesTrendChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Disasters by Severity -->
+        <div class="chart-card">
+            <div class="chart-header">
+                <h3 class="chart-title">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    Disasters by Severity
+                </h3>
+                <span class="chart-badge">Current</span>
+            </div>
+            <div class="chart-container">
+                <canvas id="disastersSeverityChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Shelter Occupancy -->
+        <div class="chart-card wide">
+            <div class="chart-header">
+                <h3 class="chart-title">
+                    <i class="bi bi-house-heart-fill"></i>
+                    Shelter Occupancy
+                </h3>
+                <span class="chart-badge">Real-time</span>
+            </div>
+            <div class="chart-container">
+                <canvas id="shelterOccupancyChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Stock Levels -->
+        <div class="chart-card">
+            <div class="chart-header">
+                <h3 class="chart-title">
+                    <i class="bi bi-box-seam-fill"></i>
+                    Stock Status Distribution
+                </h3>
+                <span class="chart-badge">Current</span>
+            </div>
+            <div class="chart-container">
+                <canvas id="stockDistributionChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Budget Utilization -->
+        <div class="chart-card">
+            <div class="chart-header">
+                <h3 class="chart-title">
+                    <i class="bi bi-wallet2"></i>
+                    Budget
+                </h3>
+                <span class="chart-badge">Monthly</span>
+            </div>
+            <div class="chart-container">
+                <canvas id="budgetTrendChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="dashboard-grid">
         <!-- KPI Section -->
         <section class="kpi-section">
-            
             <!-- Active Disasters -->
             <div class="kpi-card priority-high">
                 <div class="kpi-header">
@@ -118,12 +213,10 @@
                     </div>
                 </div>
             </div>
-
         </section>
 
         <!-- Main Content: Left Column -->
         <div class="col-left">
-            
             <!-- Recent Evacuees Table -->
             <div class="modern-card">
                 <div class="card-header">
@@ -238,12 +331,10 @@
                     <i class="bi bi-info-circle"></i> Only showing active and open status disasters
                 </div>
             </div>
-
         </div>
 
         <!-- Side Content: Right Column -->
         <div class="col-right">
-            
             <!-- Low Stock Inventory List -->
             <div class="modern-card" style="height: 100%;">
                 <div class="card-header alert-header">
@@ -295,7 +386,6 @@
                     <i class="bi bi-info-circle"></i> Threshold: ≤ @LowStockThreshold items
                 </div>
             </div>
-
         </div>
     </div>
 </div>
@@ -313,6 +403,8 @@
     // Filters / state
     private string evacueeFilter = string.Empty;
     private bool _loading = false;
+    private int selectedPeriod = 30;
+    private string selectedComparison = "none";
 
     // Thresholds
     private const int LowStockThreshold = 10;
@@ -350,7 +442,20 @@
     private int _lowStockYesterday;
     private List<Shelter> _shelterSnapshot = new();
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Wait a bit to ensure DOM is fully rendered
+            await Task.Delay(500);
+            await LoadChartsAsync();
+        }
+    }
 
     private async Task LoadAsync()
     {
@@ -413,6 +518,261 @@
 
         _loading = false;
         StateHasChanged();
+    }
+
+    private async Task LoadChartsAsync()
+    {
+        if (_loading) return;
+        
+        _loading = true;
+        StateHasChanged();
+
+        try
+        {
+            // Small delay to ensure canvas elements are rendered
+            await Task.Delay(100);
+
+            var endDate = DateTime.UtcNow.Date;
+            var startDate = endDate.AddDays(-selectedPeriod);
+
+            // Check if charts.js is loaded
+            var isLoaded = await JS.InvokeAsync<bool>("eval", "typeof window.resqCharts !== 'undefined'");
+            if (!isLoaded)
+            {
+                Console.WriteLine("resqCharts not loaded yet, waiting...");
+                await Task.Delay(500);
+            }
+
+            // 1. Evacuees Trend
+            await LoadEvacueesTrendChartAsync(startDate, endDate);
+
+            // 2. Disasters by Severity
+            await LoadDisastersSeverityChartAsync();
+
+            // 3. Shelter Occupancy
+            await LoadShelterOccupancyChartAsync();
+
+            // 4. Stock Distribution
+            await LoadStockDistributionChartAsync();
+
+            // 5. Budget Trend
+            await LoadBudgetTrendChartAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading charts: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadEvacueesTrendChartAsync(DateTime startDate, DateTime endDate)
+    {
+        try
+        {
+            var evacuees = await Db.Evacuees
+                .Where(e => e.RegisteredAt >= startDate && e.RegisteredAt <= endDate)
+                .AsNoTracking()
+                .ToListAsync();
+
+            var groupedByDate = evacuees
+                .GroupBy(e => e.RegisteredAt.Date)
+                .OrderBy(g => g.Key)
+                .ToList();
+
+            // Generate all dates in the range
+            var allDates = Enumerable.Range(0, (endDate - startDate).Days + 1)
+                .Select(offset => startDate.AddDays(offset))
+                .ToList();
+
+            // Create cumulative count starting from 1
+            var labels = new List<string>();
+            var cumulativeCounts = new List<int>();
+            int runningTotal = 1; // Start from 1
+
+            foreach (var date in allDates)
+            {
+                labels.Add(date.ToString("MMM dd"));
+                var dailyCount = groupedByDate.FirstOrDefault(g => g.Key == date)?.Count() ?? 0;
+                runningTotal += dailyCount;
+                cumulativeCounts.Add(runningTotal);
+            }
+
+            var datasets = new object[]
+            {
+                new
+                {
+                    label = "Evacuees Registered (Cumulative)",
+                    data = cumulativeCounts.ToArray(),
+                    borderColor = "#38bd60",
+                    backgroundColor = "rgba(56, 189, 96, 0.1)",
+                    tension = 0.4,
+                    fill = true
+                }
+            };
+
+            await JS.InvokeVoidAsync("resqCharts.createLineChart", "evacueesTrendChart", labels.ToArray(), datasets, new { });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading evacuees trend chart: {ex.Message}");
+        }
+    }
+
+    private async Task LoadDisastersSeverityChartAsync()
+    {
+        try
+        {
+            var activeDisasters = await Db.Disasters
+                .Where(d => d.Status == "Active" || d.Status == "Open")
+                .AsNoTracking()
+                .ToListAsync();
+
+            var severityGroups = activeDisasters
+                .GroupBy(d => d.Severity)
+                .Select(g => new { Severity = g.Key, Count = g.Count() })
+                .ToList();
+
+            // Fix: Handle empty data without type mismatch
+            if (!severityGroups.Any())
+            {
+                // Use the same anonymous type structure
+                var labels = new[] { "No Data" };
+                var data = new[] { 1 };
+                var colors = new[] { "#6b7280" };
+
+                await JS.InvokeVoidAsync("resqCharts.createDoughnutChart", "disastersSeverityChart", labels, data, colors, new { });
+                return;
+            }
+
+            var chartLabels = severityGroups.Select(g => g.Severity).ToArray();
+            var chartData = severityGroups.Select(g => g.Count).ToArray();
+            var chartColors = chartLabels.Select(s => s.ToLower() switch
+            {
+                "critical" => "#dc2626",
+                "high" => "#f97316",
+                "moderate" => "#d97706",
+                "low" => "#16a34a",
+                _ => "#6b7280"
+            }).ToArray();
+
+            await JS.InvokeVoidAsync("resqCharts.createDoughnutChart", "disastersSeverityChart", chartLabels, chartData, chartColors, new { });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading disasters severity chart: {ex.Message}");
+        }
+    }
+
+    private async Task LoadShelterOccupancyChartAsync()
+    {
+        try
+        {
+            var shelters = await Db.Shelters
+                .Where(s => s.IsActive)
+                .OrderBy(s => s.Name)
+                .Take(10)
+                .AsNoTracking()
+                .ToListAsync();
+
+            if (!shelters.Any())
+            {
+                return;
+            }
+
+            var labels = shelters.Select(s => s.Name).ToArray();
+            var occupancy = shelters.Select(s => s.CurrentOccupancy).ToArray();
+            var capacity = shelters.Select(s => s.Capacity).ToArray();
+
+            var datasets = new object[]
+            {
+                new
+                {
+                    label = "Current Occupancy",
+                    data = occupancy,
+                    backgroundColor = "#38bd60"
+                },
+                new
+                {
+                    label = "Total Capacity",
+                    data = capacity,
+                    backgroundColor = "#e5e7eb"
+                }
+            };
+
+            await JS.InvokeVoidAsync("resqCharts.createBarChart", "shelterOccupancyChart", labels, datasets, new { });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading shelter occupancy chart: {ex.Message}");
+        }
+    }
+
+    private async Task LoadStockDistributionChartAsync()
+    {
+        try
+        {
+            var stocks = await Db.Stocks.AsNoTracking().ToListAsync();
+
+            var lowStock = stocks.Count(s => s.Quantity <= 10);
+            var mediumStock = stocks.Count(s => s.Quantity > 10 && s.Quantity <= 50);
+            var healthyStock = stocks.Count(s => s.Quantity > 50);
+
+            var labels = new[] { "Low (≤10)", "Medium (11-50)", "Healthy (>50)" };
+            var data = new[] { lowStock, mediumStock, healthyStock };
+            var colors = new[] { "#ef4444", "#f59e0b", "#10b981" };
+
+            await JS.InvokeVoidAsync("resqCharts.createDoughnutChart", "stockDistributionChart", labels, data, colors, new { });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading stock distribution chart: {ex.Message}");
+        }
+    }
+
+    private async Task LoadBudgetTrendChartAsync()
+    {
+        try
+        {
+            var budgets = await Db.BarangayBudgets
+                .Where(b => b.Year >= DateTime.Now.Year - 1)
+                .OrderBy(b => b.Year)
+                .AsNoTracking()
+                .ToListAsync();
+
+            if (!budgets.Any())
+            {
+                return;
+            }
+
+            var groupedByYear = budgets
+                .GroupBy(b => b.Year)
+                .Select(g => new { Year = g.Key, Total = g.Sum(b => b.TotalAmount) })
+                .ToList();
+
+            var labels = groupedByYear.Select(g => g.Year.ToString()).ToArray();
+            var amounts = groupedByYear.Select(g => (double)g.Total).ToArray();
+
+            var datasets = new object[]
+            {
+                new
+                {
+                    label = "Budget Allocation",
+                    data = amounts,
+                    backgroundColor = "#38bd60",
+                    borderRadius = 8
+                }
+            };
+
+            await JS.InvokeVoidAsync("resqCharts.createBarChart", "budgetTrendChart", labels, datasets, new { });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading budget trend chart: {ex.Message}");
+        }
     }
 
     private IEnumerable<EvacueeRow> FilteredEvacuees =>
@@ -485,5 +845,15 @@
     {
         if (_loading) return;
         await LoadAsync();
+        await LoadChartsAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("resqCharts.destroyAllCharts");
+        }
+        catch { }
     }
 }

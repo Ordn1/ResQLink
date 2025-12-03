@@ -1,0 +1,968 @@
+﻿@page "/finance"
+@inject ResQLink.Services.AuthState Auth
+@inject ResQLink.Services.BudgetService BudgetSvc
+@inject ResQLink.Services.ProcurementService ProcSvc
+@inject ResQLink.Services.SupplierService SupplierSvc
+
+@using ResQLink.Data.Entities
+@using Microsoft.AspNetCore.Components
+
+@if (!(Auth.IsInRole("Finance Manager") || Auth.IsInRole("Admin")))
+{
+    <div class="panel access-denied">
+        <h3>Access Denied</h3>
+        <p>You do not have permission to access this page.</p>
+    </div>
+}
+else
+{
+<div class="finance-root">
+
+    <section class="panel kpi-panel">
+        <header class="panel-head">
+            <h2 class="panel-title">Finance — Budgeting & Procurement</h2>
+            <div class="panel-actions">
+                <button class="mini-btn" @onclick="RefreshAll" title="Refresh">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
+        </header>
+
+        <div class="kpi-grid">
+            <div class="kpi-card">
+                <div class="kpi-icon-circle">
+                    <i class="bi bi-wallet2"></i>
+                </div>
+                <div class="kpi-content">
+                    <div class="kpi-label">Total Budgets</div>
+                    <div class="kpi-value text-accent">@Budgets.Count</div>
+                    <div class="kpi-detail">₱@Budgets.Sum(b => b.TotalAmount).ToString("N2")</div>
+                </div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-icon-circle alt">
+                    <i class="bi bi-receipt"></i>
+                </div>
+                <div class="kpi-content">
+                    <div class="kpi-label">Procurement Requests</div>
+                    <div class="kpi-value">@Requests.Count</div>
+                    <div class="kpi-detail">₱@Requests.Sum(r => r.TotalAmount).ToString("N2")</div>
+                </div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-icon-circle ok">
+                    <i class="bi bi-check-circle"></i>
+                </div>
+                <div class="kpi-content">
+                    <div class="kpi-label">Approved Requests</div>
+                    <div class="kpi-value text-success">@Requests.Count(r => r.Status == "Approved")</div>
+                    <div class="kpi-detail">₱@Requests.Where(r => r.Status == "Approved").Sum(r => r.TotalAmount).ToString("N2")</div>
+                </div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-icon-circle warn">
+                    <i class="bi bi-hourglass-split"></i>
+                </div>
+                <div class="kpi-content">
+                    <div class="kpi-label">Pending Requests</div>
+                    <div class="kpi-value text-warning">@Requests.Count(r => r.Status is "Draft" or "Submitted")</div>
+                    <div class="kpi-detail">₱@Requests.Where(r => r.Status is "Draft" or "Submitted").Sum(r => r.TotalAmount).ToString("N2")</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="two-col">
+        <!-- Budgets -->
+        <section class="panel finance-section">
+            <header class="panel-head">
+                <div class="panel-title-group">
+                    <i class="bi bi-wallet2 panel-icon"></i>
+                    <h2 class="panel-title">Barangay Budgets</h2>
+                </div>
+                <div class="panel-actions">
+                    <input class="mini-input" placeholder="Search barangay or year…" @bind="budgetSearch" @bind:event="oninput" />
+                    <select class="mini-input" @bind="budgetStatus">
+                        <option value="">All Status</option>
+                        <option>Draft</option>
+                        <option>Approved</option>
+                        <option>Closed</option>
+                    </select>
+                    <button class="mini-btn btn-primary" @onclick="NewBudget">
+                        <i class="bi bi-plus-circle"></i> New Budget
+                    </button>
+                </div>
+            </header>
+
+            <div class="table-wrap">
+                <table class="dash-table">
+                    <thead>
+                        <tr>
+                            <th style="width:70px">ID</th>
+                            <th>Barangay</th>
+                            <th class="t-center">Year</th>
+                            <th class="t-right">Total Amount</th>
+                            <th class="t-center">Status</th>
+                            <th class="t-center" style="width:200px">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var b in FilteredBudgets)
+                        {
+                            <tr>
+                                <td class="t-center"><span class="id-badge">@b.BudgetId</span></td>
+                                <td><strong>@b.BarangayName</strong></td>
+                                <td class="t-center">@b.Year</td>
+                                <td class="t-right"><span class="amount-text">₱@b.TotalAmount.ToString("N2")</span></td>
+                                <td class="t-center"><span class="status-chip status-@b.Status.ToLower()">@b.Status</span></td>
+                                <td class="action-cell">
+                                    <button class="action-btn edit" @onclick="() => EditBudget(b)" title="Edit">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button class="action-btn view" @onclick="() => ManageBudgetItems(b)" title="Items">
+                                        <i class="bi bi-list-ul"></i>
+                                    </button>
+                                    <button class="action-btn delete" @onclick="() => DeleteBudget(b.BudgetId)" title="Delete">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                        @if (!FilteredBudgets.Any())
+                        {
+                            <tr>
+                                <td colspan="6" class="empty-state">
+                                    <div class="empty-icon"><i class="bi bi-inbox"></i></div>
+                                    <div class="empty-text">No budgets found</div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <footer class="panel-foot">
+                <div class="foot-left">
+                    <i class="bi bi-info-circle"></i>
+                    Showing @FilteredBudgets.Count() of @Budgets.Count budget(s)
+                </div>
+            </footer>
+        </section>
+
+        <!-- Procurement -->
+        <section class="panel finance-section">
+            <header class="panel-head">
+                <div class="panel-title-group">
+                    <i class="bi bi-cart3 panel-icon"></i>
+                    <h2 class="panel-title">Procurement Requests</h2>
+                </div>
+                <div class="panel-actions">
+                    <input class="mini-input" placeholder="Search barangay…" @bind="requestSearch" @bind:event="oninput" />
+                    <select class="mini-input" @bind="requestStatus">
+                        <option value="">All Status</option>
+                        <option>Draft</option>
+                        <option>Submitted</option>
+                        <option>Approved</option>
+                        <option>Rejected</option>
+                        <option>Ordered</option>
+                    </select>
+                    <button class="mini-btn btn-primary" @onclick="NewRequest">
+                        <i class="bi bi-plus-circle"></i> New Request
+                    </button>
+                </div>
+            </header>
+
+            <div class="table-wrap">
+                <table class="dash-table">
+                    <thead>
+                        <tr>
+                            <th style="width:70px">ID</th>
+                            <th>Barangay</th>
+                            <th>Supplier</th>
+                            <th class="t-right">Total Amount</th>
+                            <th class="t-center">Status</th>
+                            <th class="t-center" style="width:250px">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in FilteredRequests)
+                        {
+                            <tr>
+                                <td class="t-center"><span class="id-badge">@r.RequestId</span></td>
+                                <td><strong>@r.BarangayName</strong></td>
+                                <td>
+                                    @if (r.Supplier != null)
+                                    {
+                                        <span class="supplier-badge"><i class="bi bi-building"></i> @r.Supplier.SupplierName</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">—</span>
+                                    }
+                                </td>
+                                <td class="t-right"><span class="amount-text">₱@r.TotalAmount.ToString("N2")</span></td>
+                                <td class="t-center"><span class="status-chip status-@r.Status.ToLower()">@r.Status</span></td>
+                                <td class="action-cell">
+                                    <button class="action-btn edit" @onclick="() => EditRequest(r)" title="Edit">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button class="action-btn view" @onclick="() => ManageRequestItems(r)" title="Items">
+                                        <i class="bi bi-list-ul"></i>
+                                    </button>
+                                    @if (r.Status == "Draft")
+                                    {
+                                        <button class="action-btn submit" @onclick='() => QuickStatus(r.RequestId, "Submitted")' title="Submit">
+                                            <i class="bi bi-send"></i>
+                                        </button>
+                                    }
+                                    <button class="action-btn delete" @onclick="() => DeleteRequest(r.RequestId)" title="Delete">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                        @if (!FilteredRequests.Any())
+                        {
+                            <tr>
+                                <td colspan="6" class="empty-state">
+                                    <div class="empty-icon"><i class="bi bi-inbox"></i></div>
+                                    <div class="empty-text">No procurement requests found</div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <footer class="panel-foot">
+                <div class="foot-left">
+                    <i class="bi bi-info-circle"></i>
+                    Showing @FilteredRequests.Count() of @Requests.Count request(s)
+                </div>
+            </footer>
+        </section>
+    </div>
+
+    @* Budget modal *@
+    @if (showBudgetForm)
+    {
+        <div class="modal-overlay" @onclick="CloseBudgetForm" @onclick:stopPropagation="false">
+            <div class="modal-dialog" @onclick:stopPropagation="true">
+                <div class="modal-header">
+                    <h3>@(budgetModel.BudgetId == 0 ? "New Budget" : $"Edit Budget #{budgetModel.BudgetId}")</h3>
+                    <button class="modal-close" @onclick="CloseBudgetForm">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Barangay *</label>
+                            <input class="form-control" @bind="budgetModel.BarangayName" />
+                        </div>
+                        <div class="form-group">
+                            <label>Year *</label>
+                            <input type="number" class="form-control" @bind="budgetModel.Year" />
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Total Amount *</label>
+                            <input type="number" step="0.01" class="form-control" @bind="budgetModel.TotalAmount" />
+                        </div>
+                        <div class="form-group">
+                            <label>Status *</label>
+                            <select class="form-control" @bind="budgetModel.Status">
+                                <option>Draft</option>
+                                <option>Approved</option>
+                                <option>Closed</option>
+                            </select>
+                        </div>
+                    </div>
+                    @if (!string.IsNullOrEmpty(budgetError))
+                    {
+                        <div class="form-error">@budgetError</div>
+                    }
+                    <div class="modal-actions">
+                        <button class="btn-cancel" @onclick="CloseBudgetForm" disabled="@saving">Cancel</button>
+                        <button class="btn-primary" @onclick="SaveBudget" disabled="@saving">
+                            @(saving ? "Saving…" : "Save")
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* Budget items modal *@
+    @if (showBudgetItems)
+    {
+        <div class="modal-overlay" @onclick="CloseBudgetItems" @onclick:stopPropagation="false">
+            <div class="modal-dialog large" @onclick:stopPropagation="true">
+                <div class="modal-header">
+                    <h3>Budget Items — @activeBudget?.BarangayName (@activeBudget?.Year)</h3>
+                    <button class="modal-close" @onclick="CloseBudgetItems">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Category *</label>
+                            <input class="form-control" @bind="newItem.Category" />
+                        </div>
+                        <div class="form-group">
+                            <label>Description *</label>
+                            <input class="form-control" @bind="newItem.Description" />
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Amount *</label>
+                            <input type="number" step="0.01" class="form-control" @bind="newItem.Amount" />
+                        </div>
+                        <div class="form-group">
+                            <label>Notes</label>
+                            <input class="form-control" @bind="newItem.Notes" />
+                        </div>
+                    </div>
+                    <div class="modal-actions">
+                        <button class="btn-primary" @onclick="AddBudgetItem" disabled="@saving">Add Item</button>
+                    </div>
+
+                    <div class="table-wrap" style="margin-top:10px;">
+                        <table class="dash-table">
+                            <thead>
+                                <tr>
+                                    <th style="width:60px">ID</th>
+                                    <th>Category</th>
+                                    <th>Description</th>
+                                    <th class="t-right">Amount</th>
+                                    <th>Notes</th>
+                                    <th style="width:120px">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var it in budgetItems)
+                                {
+                                    <tr>
+                                        <td class="t-center">@it.BudgetItemId</td>
+                                        <td>@it.Category</td>
+                                        <td>@it.Description</td>
+                                        <td class="t-right">@it.Amount.ToString("N2")</td>
+                                        <td>@(it.Notes ?? "—")</td>
+                                        <td>
+                                            <button class="mini-btn" @onclick="() => EditBudgetItem(it)">Edit</button>
+                                            <button class="mini-btn" @onclick="() => DeleteBudgetItem(it.BudgetItemId)">Delete</button>
+                                        </td>
+                                    </tr>
+                                }
+                                @if (!budgetItems.Any())
+                                {
+                                    <tr><td colspan="6" class="t-center text-muted">No items.</td></tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="panel-foot">
+                        <div>Total of items: <strong>@budgetItems.Sum(i => i.Amount).ToString("N2")</strong></div>
+                    </div>
+
+                    @if (editItem != null)
+                    {
+                        <hr />
+                        <h5>Edit Item #@editItem.BudgetItemId</h5>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Category *</label>
+                                <input class="form-control" @bind="editItem.Category" />
+                            </div>
+                            <div class="form-group">
+                                <label>Description *</label>
+                                <input class="form-control" @bind="editItem.Description" />
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Amount *</label>
+                                <input type="number" step="0.01" class="form-control" @bind="editItem.Amount" />
+                            </div>
+                            <div class="form-group">
+                                <label>Notes</label>
+                                <input class="form-control" @bind="editItem.Notes" />
+                            </div>
+                        </div>
+                        <div class="modal-actions">
+                            <button class="btn-cancel" @onclick="() => editItem = null">Cancel</button>
+                            <button class="btn-primary" @onclick="SaveBudgetItem" disabled="@saving">Update</button>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+
+    @* Request modal *@
+    @if (showRequestForm)
+    {
+        <div class="modal-overlay" @onclick="CloseRequestForm" @onclick:stopPropagation="false">
+            <div class="modal-dialog" @onclick:stopPropagation="true">
+                <div class="modal-header">
+                    <h3>@(requestModel.RequestId == 0 ? "New Request" : $"Edit Request #{requestModel.RequestId}")</h3>
+                    <button class="modal-close" @onclick="CloseRequestForm">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Barangay *</label>
+                            <input class="form-control" @bind="requestModel.BarangayName" />
+                        </div>
+                        <div class="form-group">
+                            <label>Supplier</label>
+                            <select class="form-control" @bind="requestModel.SupplierId">
+                                <option value="">(None)</option>
+                                @foreach (var s in Suppliers)
+                                {
+                                    <option value="@s.SupplierId">@s.SupplierName</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Status *</label>
+                            <select class="form-control" @bind="requestModel.Status">
+                                <option>Draft</option>
+                                <option>Submitted</option>
+                                <option>Approved</option>
+                                <option>Rejected</option>
+                                <option>Ordered</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Total</label>
+                            <input class="form-control" value="@requestModel.TotalAmount.ToString("N2")" disabled />
+                        </div>
+                    </div>
+                    @if (!string.IsNullOrEmpty(requestError))
+                    {
+                        <div class="form-error">@requestError</div>
+                    }
+                    <div class="modal-actions">
+                        <button class="btn-cancel" @onclick="CloseRequestForm" disabled="@saving">Cancel</button>
+                        <button class="btn-primary" @onclick="SaveRequest" disabled="@saving">
+                            @(saving ? "Saving…" : "Save")
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* Request Items modal *@
+    @if (showRequestItems)
+    {
+        <div class="modal-overlay" @onclick="CloseRequestItems" @onclick:stopPropagation="false">
+            <div class="modal-dialog large" @onclick:stopPropagation="true">
+                <div class="modal-header">
+                    <h3>Request Items — @activeRequest?.BarangayName (#@activeRequest?.RequestId)</h3>
+                    <button class="modal-close" @onclick="CloseRequestItems">&times;</button>
+                </div>
+                <div class="modal-body">
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Item *</label>
+                            <input class="form-control" @bind="newReqItem.ItemName" />
+                        </div>
+                        <div class="form-group">
+                            <label>Unit *</label>
+                            <input class="form-control" @bind="newReqItem.Unit" />
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Qty *</label>
+                            <input type="number" class="form-control" @bind="newReqItem.Quantity" />
+                        </div>
+                        <div class="form-group">
+                            <label>Unit Price *</label>
+                            <input type="number" step="0.01" class="form-control" @bind="newReqItem.UnitPrice" />
+                        </div>
+                    </div>
+
+                    <div class="modal-actions">
+                        <button class="btn-primary" @onclick="AddRequestItem" disabled="@saving">Add Item</button>
+                    </div>
+
+                    <div class="table-wrap" style="margin-top:10px;">
+                        <table class="dash-table">
+                            <thead>
+                                <tr>
+                                    <th style="width:60px">ID</th>
+                                    <th>Item</th>
+                                    <th>Unit</th>
+                                    <th class="t-center">Qty</th>
+                                    <th class="t-right">Unit Price</th>
+                                    <th class="t-right">Line Total</th>
+                                    <th style="width:120px">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var it in requestItems)
+                                {
+                                    <tr>
+                                        <td class="t-center">@it.RequestItemId</td>
+                                        <td>@it.ItemName</td>
+                                        <td>@it.Unit</td>
+                                        <td class="t-center">@it.Quantity</td>
+                                        <td class="t-right">@it.UnitPrice.ToString("N2")</td>
+                                        <td class="t-right">@((it.UnitPrice * it.Quantity).ToString("N2"))</td>
+                                        <td>
+                                            <button class="mini-btn" @onclick="() => EditRequestItem(it)">Edit</button>
+                                            <button class="mini-btn" @onclick="() => DeleteRequestItem(it.RequestItemId)">Delete</button>
+                                        </td>
+                                    </tr>
+                                }
+                                @if (!requestItems.Any())
+                                {
+                                    <tr><td colspan="7" class="t-center text-muted">No items.</td></tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="panel-foot">
+                        <div>Total of items: <strong>@requestItems.Sum(i => i.UnitPrice * i.Quantity).ToString("N2")</strong></div>
+                    </div>
+
+                    @if (editReqItem != null)
+                    {
+                        <hr />
+                        <h5>Edit Item #@editReqItem.RequestItemId</h5>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Item *</label>
+                                <input class="form-control" @bind="editReqItem.ItemName" />
+                            </div>
+                            <div class="form-group">
+                                <label>Unit *</label>
+                                <input class="form-control" @bind="editReqItem.Unit" />
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Qty *</label>
+                                <input type="number" class="form-control" @bind="editReqItem.Quantity" />
+                            </div>
+                            <div class="form-group">
+                                <label>Unit Price *</label>
+                                <input type="number" step="0.01" class="form-control" @bind="editReqItem.UnitPrice" />
+                            </div>
+                        </div>
+                        <div class="modal-actions">
+                            <button class="btn-cancel" @onclick="() => editReqItem = null">Cancel</button>
+                            <button class="btn-primary" @onclick="SaveRequestItem" disabled="@saving">Update</button>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+</div>
+}
+
+@code {
+    // Data lists
+    private List<BarangayBudget> Budgets = new();
+    private List<ProcurementRequest> Requests = new();
+    private List<Supplier> Suppliers = new();
+
+    // Filters
+    private string budgetSearch = string.Empty;
+    private string budgetStatus = string.Empty;
+    private string requestSearch = string.Empty;
+    private string requestStatus = string.Empty;
+
+    // UI state
+    private bool saving;
+
+    // Budget form state
+    private bool showBudgetForm;
+    private string budgetError = string.Empty;
+    private BarangayBudget budgetModel = new();
+
+    // Budget items state
+    private bool showBudgetItems;
+    private BarangayBudget? activeBudget;
+    private List<BarangayBudgetItem> budgetItems = new();
+    private BarangayBudgetItem newItem = new();
+    private BarangayBudgetItem? editItem;
+
+    // Request form state
+    private bool showRequestForm;
+    private string requestError = string.Empty;
+    private ProcurementRequest requestModel = new();
+
+    // Request items state
+    private bool showRequestItems;
+    private ProcurementRequest? activeRequest;
+    private List<ProcurementRequestItem> requestItems = new();
+    private ProcurementRequestItem newReqItem = new();
+    private ProcurementRequestItem? editReqItem;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAll();
+    }
+
+    private async Task LoadAll()
+    {
+        Suppliers = await SupplierSvc.GetAllAsync();
+        Budgets = await BudgetSvc.GetAllAsync();
+        Requests = await ProcSvc.GetAllAsync();
+        StateHasChanged();
+    }
+
+    // Filters
+    private IEnumerable<BarangayBudget> FilteredBudgets => Budgets
+        .Where(b =>
+            (string.IsNullOrWhiteSpace(budgetSearch)
+                || b.BarangayName.Contains(budgetSearch, StringComparison.OrdinalIgnoreCase)
+                || b.Year.ToString().Contains(budgetSearch))
+            && (string.IsNullOrWhiteSpace(budgetStatus) || b.Status == budgetStatus))
+        .OrderByDescending(b => b.Year)
+        .ThenBy(b => b.BarangayName);
+
+    private IEnumerable<ProcurementRequest> FilteredRequests => Requests
+        .Where(r =>
+            (string.IsNullOrWhiteSpace(requestSearch)
+                || r.BarangayName.Contains(requestSearch, StringComparison.OrdinalIgnoreCase))
+            && (string.IsNullOrWhiteSpace(requestStatus) || r.Status == requestStatus))
+        .OrderByDescending(r => r.RequestDate);
+
+    // Budget actions
+    private void NewBudget()
+    {
+        showBudgetForm = true;
+        budgetError = string.Empty;
+        budgetModel = new BarangayBudget
+        {
+            Year = DateTime.UtcNow.Year,
+            Status = "Draft",
+            CreatedByUserId = Auth.CurrentUser?.UserId ?? 0
+        };
+    }
+
+    private void EditBudget(BarangayBudget b)
+    {
+        showBudgetForm = true;
+        budgetError = string.Empty;
+        budgetModel = new BarangayBudget
+        {
+            BudgetId = b.BudgetId,
+            BarangayName = b.BarangayName,
+            Year = b.Year,
+            TotalAmount = b.TotalAmount,
+            Status = b.Status,
+            CreatedByUserId = b.CreatedByUserId
+        };
+    }
+
+    private async Task SaveBudget()
+    {
+        if (saving) return;
+        saving = true;
+        budgetError = string.Empty;
+        try
+        {
+            if (string.IsNullOrWhiteSpace(budgetModel.BarangayName) || budgetModel.Year <= 0)
+            {
+                budgetError = "Barangay and Year are required.";
+                return;
+            }
+
+            if (budgetModel.BudgetId == 0)
+            {
+                var (budget, error) = await BudgetSvc.CreateAsync(budgetModel);
+                if (error != null) budgetError = error;
+            }
+            else
+            {
+                var (budget, error) = await BudgetSvc.UpdateAsync(budgetModel);
+                if (error != null) budgetError = error;
+            }
+
+            if (string.IsNullOrEmpty(budgetError))
+            {
+                showBudgetForm = false;
+                await LoadAll();
+            }
+        }
+        finally { saving = false; }
+    }
+
+    private void CloseBudgetForm()
+    {
+        if (saving) return;
+        showBudgetForm = false;
+        budgetError = string.Empty;
+    }
+
+    private async Task DeleteBudget(int id)
+    {
+        if (saving) return;
+        saving = true;
+        try
+        {
+            await BudgetSvc.DeleteAsync(id);
+            await LoadAll();
+        }
+        finally { saving = false; }
+    }
+
+    private async Task ManageBudgetItems(BarangayBudget b)
+    {
+        activeBudget = b;
+        var full = await BudgetSvc.GetAsync(b.BudgetId);
+        budgetItems = full?.Items.OrderBy(i => i.Category).ThenBy(i => i.Description).ToList() ?? new();
+        newItem = new BarangayBudgetItem();
+        editItem = null;
+        showBudgetItems = true;
+    }
+
+    private void CloseBudgetItems()
+    {
+        if (saving) return;
+        showBudgetItems = false;
+        activeBudget = null;
+        budgetItems.Clear();
+        newItem = new();
+        editItem = null;
+    }
+
+    private async Task AddBudgetItem()
+    {
+        if (saving || activeBudget is null) return;
+        if (string.IsNullOrWhiteSpace(newItem.Category) || string.IsNullOrWhiteSpace(newItem.Description) || newItem.Amount <= 0)
+            return;
+
+        saving = true;
+        try
+        {
+            var (it, err) = await BudgetSvc.AddItemAsync(activeBudget.BudgetId, newItem);
+            if (it != null) budgetItems.Add(it);
+            newItem = new();
+        }
+        finally { saving = false; }
+    }
+
+    private void EditBudgetItem(BarangayBudgetItem it) => editItem = new BarangayBudgetItem
+    {
+        BudgetItemId = it.BudgetItemId,
+        BudgetId = it.BudgetId,
+        Category = it.Category,
+        Description = it.Description,
+        Amount = it.Amount,
+        Notes = it.Notes
+    };
+
+    private async Task SaveBudgetItem()
+    {
+        if (saving || editItem is null) return;
+        saving = true;
+        try
+        {
+            var (it, err) = await BudgetSvc.UpdateItemAsync(editItem);
+            if (it != null)
+            {
+                var idx = budgetItems.FindIndex(x => x.BudgetItemId == it.BudgetItemId);
+                if (idx >= 0) budgetItems[idx] = it;
+                editItem = null;
+            }
+        }
+        finally { saving = false; }
+    }
+
+    private async Task DeleteBudgetItem(int id)
+    {
+        if (saving) return;
+        saving = true;
+        try
+        {
+            var (ok, err) = await BudgetSvc.DeleteItemAsync(id);
+            if (ok) budgetItems.RemoveAll(i => i.BudgetItemId == id);
+        }
+        finally { saving = false; }
+    }
+
+    // Request actions
+    private void NewRequest()
+    {
+        showRequestForm = true;
+        requestError = string.Empty;
+        requestModel = new ProcurementRequest
+        {
+            RequestedByUserId = Auth.CurrentUser?.UserId ?? 0,
+            Status = "Draft",
+            BarangayName = ""
+        };
+    }
+
+    private void EditRequest(ProcurementRequest r)
+    {
+        showRequestForm = true;
+        requestError = string.Empty;
+        requestModel = new ProcurementRequest
+        {
+            RequestId = r.RequestId,
+            BarangayName = r.BarangayName,
+            SupplierId = r.SupplierId,
+            RequestedByUserId = r.RequestedByUserId,
+            Status = r.Status,
+            TotalAmount = r.TotalAmount,
+            RequestDate = r.RequestDate
+        };
+    }
+
+    private async Task SaveRequest()
+    {
+        if (saving) return;
+        saving = true;
+        requestError = string.Empty;
+        try
+        {
+            if (string.IsNullOrWhiteSpace(requestModel.BarangayName))
+            {
+                requestError = "Barangay is required.";
+                return;
+            }
+
+            if (requestModel.RequestId == 0)
+            {
+                var (req, err) = await ProcSvc.CreateAsync(requestModel);
+                if (err != null) requestError = err;
+            }
+            else
+            {
+                var (req, err) = await ProcSvc.UpdateAsync(requestModel);
+                if (err != null) requestError = err;
+            }
+
+            if (string.IsNullOrEmpty(requestError))
+            {
+                showRequestForm = false;
+                await LoadAll();
+            }
+        }
+        finally { saving = false; }
+    }
+
+    private void CloseRequestForm()
+    {
+        if (saving) return;
+        showRequestForm = false;
+        requestError = string.Empty;
+    }
+
+    private async Task DeleteRequest(int id)
+    {
+        if (saving) return;
+        saving = true;
+        try
+        {
+            await ProcSvc.DeleteAsync(id);
+            await LoadAll();
+        }
+        finally { saving = false; }
+    }
+
+    private async Task ManageRequestItems(ProcurementRequest r)
+    {
+        activeRequest = r;
+        var full = await ProcSvc.GetAsync(r.RequestId);
+        requestItems = full?.Items.OrderBy(i => i.ItemName).ToList() ?? new();
+        newReqItem = new ProcurementRequestItem { Quantity = 1, Unit = "pcs", UnitPrice = 0m };
+        editReqItem = null;
+        showRequestItems = true;
+    }
+
+    private void CloseRequestItems()
+    {
+        if (saving) return;
+        showRequestItems = false;
+        activeRequest = null;
+        requestItems.Clear();
+        newReqItem = new();
+        editReqItem = null;
+    }
+
+    private async Task AddRequestItem()
+    {
+        if (saving || activeRequest is null) return;
+        if (string.IsNullOrWhiteSpace(newReqItem.ItemName) || string.IsNullOrWhiteSpace(newReqItem.Unit) || newReqItem.Quantity <= 0 || newReqItem.UnitPrice < 0)
+            return;
+
+        saving = true;
+        try
+        {
+            var (it, err) = await ProcSvc.AddItemAsync(activeRequest.RequestId, newReqItem);
+            if (it != null)
+            {
+                requestItems.Add(it);
+                await ProcSvc.RecalculateTotalAsync(activeRequest.RequestId);
+            }
+            newReqItem = new ProcurementRequestItem { Quantity = 1, Unit = "pcs", UnitPrice = 0m };
+        }
+        finally { saving = false; }
+    }
+
+    private void EditRequestItem(ProcurementRequestItem it) => editReqItem = new ProcurementRequestItem
+    {
+        RequestItemId = it.RequestItemId,
+        RequestId = it.RequestId,
+        ItemName = it.ItemName,
+        Unit = it.Unit,
+        Quantity = it.Quantity,
+        UnitPrice = it.UnitPrice
+    };
+
+    private async Task SaveRequestItem()
+    {
+        if (saving || editReqItem is null || activeRequest is null) return;
+        saving = true;
+        try
+        {
+            var (it, err) = await ProcSvc.UpdateItemAsync(editReqItem);
+            if (it != null)
+            {
+                var idx = requestItems.FindIndex(x => x.RequestItemId == it.RequestItemId);
+                if (idx >= 0) requestItems[idx] = it;
+                editReqItem = null;
+                await ProcSvc.RecalculateTotalAsync(activeRequest.RequestId);
+            }
+        }
+        finally { saving = false; }
+    }
+
+    private async Task DeleteRequestItem(int id)
+    {
+        if (saving || activeRequest is null) return;
+        saving = true;
+        try
+        {
+            var (ok, err) = await ProcSvc.DeleteItemAsync(id);
+            if (ok)
+            {
+                requestItems.RemoveAll(i => i.RequestItemId == id);
+                await ProcSvc.RecalculateTotalAsync(activeRequest.RequestId);
+            }
+        }
+        finally { saving = false; }
+    }
+
+    private async Task QuickStatus(int reqId, string status)
+    {
+        await ProcSvc.SetStatusAsync(reqId, status);
+        await LoadAll();
+    }
+
+    private Task RefreshAll() => LoadAll();
+}

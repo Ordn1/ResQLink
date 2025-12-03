@@ -74,6 +74,8 @@ namespace ResQLink
             builder.Services.AddScoped<InventoryService>();
             builder.Services.AddScoped<StockService>();
             builder.Services.AddScoped<ResourceAllocationService>();
+            builder.Services.AddScoped<BudgetService>();
+            builder.Services.AddScoped<ProcurementService>();
 
             // Register Global Validation & Error Handling Services
             builder.Services.AddScoped<IValidationService, ValidationService>();
