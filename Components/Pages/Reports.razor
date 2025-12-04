@@ -18,7 +18,6 @@
                     <option value="shelters">Shelters</option>
                     <option value="inventory">Inventory</option>
                     <option value="budget">Budget & Finance</option>
-                    <option value="procurement">Procurement</option>
                 </select>
 
                 <select class="mini-input" @bind="rangePreset" @bind:after="ApplyRangePreset">
@@ -63,7 +62,7 @@
                         @GetTrendText(TotalRecords, PreviousPeriodRecords)
                     </div>
                 </div>
-                @if (reportType == "budget" || reportType == "procurement")
+                @if (reportType == "budget")
                 {
                     <div class="kpi-card">
                         <div class="kpi-label">Total Amount</div>
@@ -132,9 +131,6 @@
                 case "budget":
                     @RenderBudgetReport()
                     break;
-                case "procurement":
-                    @RenderProcurementReport()
-                    break;
             }
         </div>
 
@@ -167,7 +163,6 @@
     private List<Stock> stockData = new();
     private List<ReliefGood> reliefGoodsData = new();
     private List<BarangayBudget> budgetData = new();
-    private List<ProcurementRequest> procurementData = new();
 
     // KPI metrics
     private int TotalRecords => reportType switch
@@ -177,7 +172,6 @@
         "shelters" => shelterData?.Count ?? 0,
         "inventory" => stockData?.Count ?? 0,
         "budget" => budgetData?.Count ?? 0,
-        "procurement" => procurementData?.Count ?? 0,
         _ => (evacueeData?.Count ?? 0) + (disasterData?.Count ?? 0) + (shelterData?.Count ?? 0)
     };
 
@@ -188,8 +182,6 @@
     private double AverageOccupancy { get; set; }
 
     private bool IsCustomRange => rangePreset == "custom";
-
-    private string GetSupplierName(Supplier? supplier) => supplier?.SupplierName ?? "—";
 
     private void ApplyRangePreset()
     {
@@ -275,17 +267,6 @@
                         .SumAsync(b => (decimal?)b.TotalAmount) ?? 0;
                     break;
 
-                case "procurement":
-                    await LoadProcurementDataAsync();
-                    TotalAmount = procurementData?
-                        .Where(p => p.Items != null)
-                        .SelectMany(p => p.Items!)
-                        .Sum(i => i.Quantity * i.UnitPrice) ?? 0;
-                    PreviousPeriodRecords = await Db.ProcurementRequests
-                        .Where(p => p.RequestDate.Date >= prevFrom && p.RequestDate.Date <= prevTo)
-                        .CountAsync();
-                    break;
-
                 case "overview":
                 default:
                     await LoadOverviewDataAsync();
@@ -360,17 +341,6 @@
             .Where(b => b.Year >= fromYear && b.Year <= toYear)
             .AsNoTracking()
             .OrderByDescending(b => b.Year)
-            .ToListAsync();
-    }
-
-    private async Task LoadProcurementDataAsync()
-    {
-        procurementData = await Db.ProcurementRequests
-            .Include(p => p.Items)
-            .Include(p => p.Supplier)
-            .Where(p => p.RequestDate.Date >= dateFrom && p.RequestDate.Date <= dateTo)
-            .AsNoTracking()
-            .OrderByDescending(p => p.RequestDate)
             .ToListAsync();
     }
 
@@ -594,7 +564,9 @@
     {
         <section class="panel">
             <header class="panel-head">
-                <h2 class="panel-title">Shelters Report (@(shelterData?.Count ?? 0) records)</h2>
+                <h2 class="panel-title">
+                    Shelters Report (@(shelterData?.Count ?? 0) records)
+                </h2>
             </header>
             <div class="table-wrap">
                 <table class="rep-table">
@@ -736,7 +708,7 @@
                             foreach (var b in budgetData)
                             {
                                 idx++;
-                                var allocated = b.Items?.Sum(i => i.Amount) ?? 0; // FIX: use Amount
+                                var allocated = b.Items?.Sum(i => i.Amount) ?? 0;
                                 var available = b.TotalAmount - allocated;
                                 <tr>
                                     <td class="t-center">@idx</td>
@@ -784,7 +756,7 @@
                                 <th>Year</th>
                                 <th>Category</th>
                                 <th>Description</th>
-                                <th class="t-right">Amount</th> <!-- FIX: column header -->
+                                <th class="t-right">Amount</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -796,7 +768,7 @@
                                         <td>@b.Year</td>
                                         <td>@item.Category</td>
                                         <td>@item.Description</td>
-                                        <td class="t-right">₱@item.Amount.ToString("N2")</td> <!-- FIX: use Amount -->
+                                        <td class="t-right">₱@item.Amount.ToString("N2")</td>
                                     </tr>
                                 }
                             }
@@ -807,60 +779,7 @@
         }
     };
 
-    private RenderFragment RenderProcurementReport() => __builder =>
-    {
-        <section class="panel">
-            <header class="panel-head">
-                <h2 class="panel-title">Procurement Report (@(procurementData?.Count ?? 0) records)</h2>
-            </header>
-            <div class="table-wrap">
-                <table class="rep-table">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>Request Date</th>
-                            <th>Supplier</th>
-                            <th>Status</th>
-                            <th>Items</th>
-                            <th class="t-right">Total Amount</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @if (procurementData != null && procurementData.Any())
-                        {
-                            int idx = 0;
-                            foreach (var p in procurementData)
-                            {
-                                idx++;
-                                var total = p.Items?.Sum(i => i.Quantity * i.UnitPrice) ?? 0;
-                                <tr>
-                                    <td class="t-center">@idx</td>
-                                    <td>@p.RequestDate.ToString("MMM dd, yyyy")</td>
-                                    <td>@GetSupplierName(p.Supplier)</td>
-                                    <td><span class="status-chip">@p.Status</span></td>
-                                    <td>@(p.Items?.Count ?? 0) items</td>
-                                    <td class="t-right">₱@total.ToString("N2")</td>
-                                </tr>
-                            }
-                        }
-                        else
-                        {
-                            <tr>
-                                <td colspan="6" class="t-center" style="padding: 40px; color: var(--text-muted);">
-                                    No procurement data found for the selected period.
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-            <footer class="panel-foot">
-                Total Requests: @(procurementData?.Count ?? 0) | Total Amount: ₱@(procurementData?.Where(p => p.Items != null).SelectMany(p => p.Items!).Sum(i => i.Quantity * i.UnitPrice).ToString("N2") ?? "0.00")
-            </footer>
-        </section>
-    };
-
-    // Export functionality - FIX budget lines to use Amount
+    // Export functionality
     private async Task ExportToCSV()
     {
         try
@@ -928,21 +847,9 @@
                     {
                         foreach (var b in budgetData)
                         {
-                            var allocated = b.Items?.Sum(i => i.Amount) ?? 0; // FIX
+                            var allocated = b.Items?.Sum(i => i.Amount) ?? 0;
                             var available = b.TotalAmount - allocated;
                             csv.AppendLine($"{b.BudgetId},{b.Year},\"{b.BarangayName}\",{b.TotalAmount:F2},{allocated:F2},{available:F2}");
-                        }
-                    }
-                    break;
-
-                case "procurement":
-                    csv.AppendLine("ID,Request Date,Supplier,Status,Items,Total Amount");
-                    if (procurementData != null)
-                    {
-                        foreach (var p in procurementData)
-                        {
-                            var total = p.Items?.Sum(i => i.Quantity * i.UnitPrice) ?? 0;
-                            csv.AppendLine($"{p.RequestId},\"{p.RequestDate:yyyy-MM-dd}\",\"{GetSupplierName(p.Supplier)}\",\"{p.Status}\",\"{(p.Items != null ? p.Items.Count.ToString() : "0")}\",{total:F2}");
                         }
                     }
                     break;

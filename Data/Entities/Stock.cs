@@ -27,6 +27,10 @@ public class Stock
   [MaxLength(255)]
   public string? Location { get; set; }
 
+  // New: Unit cost captured at stocking time
+  [Column(TypeName = "decimal(14,2)")]
+  public decimal UnitCost { get; set; } = 0m;
+
   public bool IsActive { get; set; } = true;
 
   public DateTime LastUpdated { get; set; } = DateTime.UtcNow;

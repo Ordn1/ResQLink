@@ -747,14 +747,21 @@
         catch (Exception ex)
         {
             _modalError = $"Error: {ex.Message}";
+
         }
         finally
         {
             _saving = false;
         }
     }
-    private Task ClearFilters(MouseEventArgs args)
+    private async Task ClearFilters(MouseEventArgs args)
     {
-        throw new NotImplementedException();
+        _search = string.Empty;
+        _statusFilter = string.Empty;
+        _showInactive = false;
+        _error = string.Empty;
+
+        await LoadAsync();
+        StateHasChanged();
     }
 }

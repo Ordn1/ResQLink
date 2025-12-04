@@ -26,8 +26,6 @@ public partial class AppDbContext : DbContext
     public DbSet<CategoryType> CategoryTypes => Set<CategoryType>();
     public DbSet<BarangayBudget> BarangayBudgets => Set<BarangayBudget>();
     public DbSet<BarangayBudgetItem> BarangayBudgetItems => Set<BarangayBudgetItem>();
-    public DbSet<ProcurementRequest> ProcurementRequests => Set<ProcurementRequest>();
-    public DbSet<ProcurementRequestItem> ProcurementRequestItems => Set<ProcurementRequestItem>();
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -189,6 +187,7 @@ public partial class AppDbContext : DbContext
             e.HasKey(s => s.StockId);
             e.Property(s => s.Location).HasMaxLength(255);
             e.Property(s => s.LastUpdated).HasDefaultValueSql("SYSUTCDATETIME()");
+            e.Property(s => s.UnitCost).HasColumnType("decimal(14,2)").HasDefaultValue(0m);
             e.HasOne(s => s.ReliefGood)
              .WithMany(r => r.Stocks)
              .HasForeignKey(s => s.RgId)
@@ -354,37 +353,9 @@ public partial class AppDbContext : DbContext
         });
 
         // ProcurementRequests
-        modelBuilder.Entity<ProcurementRequest>(e =>
-        {
-            e.ToTable("ProcurementRequests");
-            e.HasKey(r => r.RequestId);
-            e.Property(r => r.BarangayName).HasMaxLength(255).IsRequired();
-            e.Property(r => r.Status).HasMaxLength(30).IsRequired();
-            e.Property(r => r.TotalAmount).HasColumnType("decimal(14,2)");
-            e.Property(r => r.RequestDate).HasDefaultValueSql("SYSUTCDATETIME()");
-            e.HasOne(r => r.Supplier)
-                .WithMany()
-                .HasForeignKey(r => r.SupplierId)
-                .OnDelete(DeleteBehavior.SetNull);
-            e.HasOne(r => r.RequestedBy)
-                .WithMany()
-                .HasForeignKey(r => r.RequestedByUserId)
-                .OnDelete(DeleteBehavior.Restrict);
-            e.HasMany(r => r.Items)
-                .WithOne(i => i.Request)
-                .HasForeignKey(i => i.RequestId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
+       
 
-        // ProcurementRequestItems
-        modelBuilder.Entity<ProcurementRequestItem>(e =>
-        {
-            e.ToTable("ProcurementRequestItems");
-            e.HasKey(i => i.RequestItemId);
-            e.Property(i => i.ItemName).HasMaxLength(255).IsRequired();
-            e.Property(i => i.Unit).HasMaxLength(50).IsRequired();
-            e.Property(i => i.UnitPrice).HasColumnType("decimal(14,2)");
-        });
+        
 
         base.OnModelCreating(modelBuilder);
     }
