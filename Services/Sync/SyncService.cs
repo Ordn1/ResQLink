@@ -17,6 +17,123 @@ public class SyncService : ISyncService
     private readonly SyncSettings _settings;
     private Timer? _timer;
 
+    // Allow-list of tables we toggle IDENTITY_INSERT for (prevents CA2100 and injection concerns)
+    private static readonly HashSet<string> AllowedIdentityInsertTables = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Category_Types",
+        "Categories",
+        "UserRoles",
+        "Users",
+        "Disasters",
+        "Donors",
+        "Shelters",
+        "Relief_Goods",
+        "Relief_Goods_Categories",
+        "Stocks",
+        "Evacuees",
+        "Donations",
+        "ResourceAllocations",
+        "ResourceAllocation",
+        "ResourceDistributions",
+        "ReportDisasterSummary",
+        "ReportResourceDistribution",
+        "AuditLogs",
+        "Suppliers",
+        "BarangayBudgets",
+        "BarangayBudgetItems"
+    };
+
+    private static string GetSafeIdentityInsertTable(string tableName)
+    {
+        if (!AllowedIdentityInsertTables.Contains(tableName))
+            throw new ArgumentException($"Identity insert not allowed for table: {tableName}", nameof(tableName));
+        return tableName;
+    }
+
+    // Returns [schema].[table] or [table]
+    private static string GetMappedTableIdentifier<TEntity>(DbContext context)
+        where TEntity : class
+    {
+        var et = context.Model.FindEntityType(typeof(TEntity))
+                 ?? throw new InvalidOperationException($"Entity type not found: {typeof(TEntity).Name}");
+        var tableName = et.GetTableName()
+                        ?? throw new InvalidOperationException($"No table mapping for: {typeof(TEntity).Name}");
+        var schema = et.GetSchema();
+
+        var safeBase = GetSafeIdentityInsertTable(tableName);
+        return schema is not null ? $"[{schema}].[{safeBase}]" : $"[{safeBase}]";
+    }
+
+    // Split bracketed identifier and check existence on the remote DB
+    private static (string? schema, string table) ParseIdentifier(string ident)
+    {
+        var parts = ident.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                         .Select(p => p.Trim('[', ']')).ToArray();
+        if (parts.Length == 2) return (parts[0], parts[1]);
+        return (null, parts[0]);
+    }
+
+    private static async Task<bool> TableExistsAsync(DbContext ctx, string ident, CancellationToken ct)
+    {
+        var (schema, table) = ParseIdentifier(ident);
+
+        var sql = schema is null
+            ? "SELECT CAST(CASE WHEN EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = {0}) THEN 1 ELSE 0 END AS INT) AS [Value]"
+            : "SELECT CAST(CASE WHEN EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = {0} AND TABLE_NAME = {1}) THEN 1 ELSE 0 END AS INT) AS [Value]";
+
+        if (schema is null)
+        {
+            var exists = await ctx.Database.SqlQueryRaw<int>(sql, table).SingleAsync(ct);
+            return exists == 1;
+        }
+        else
+        {
+            var exists = await ctx.Database.SqlQueryRaw<int>(sql, schema, table).SingleAsync(ct);
+            return exists == 1;
+        }
+    }
+
+    private static async Task<bool> HasIdentityColumnAsync(DbContext ctx, string ident, CancellationToken ct)
+    {
+        var (schema, table) = ParseIdentifier(ident);
+        schema ??= "dbo";
+
+        const string sql = @"
+SELECT COUNT(*) 
+FROM sys.columns c
+JOIN sys.objects o ON c.object_id = o.object_id
+LEFT JOIN sys.schemas s ON o.schema_id = s.schema_id
+WHERE o.type = 'U'
+  AND o.name = {0}
+  AND (s.name = {1} OR {1} IS NULL)
+  AND c.is_identity = 1";
+
+        var count = await ctx.Database.SqlQueryRaw<int>(sql, table, schema).SingleAsync(ct);
+        return count > 0;
+    }
+
+    /// <summary>
+    /// Safely executes SET IDENTITY_INSERT command using validated table identifier.
+    /// The table identifier is validated against an allow-list to prevent SQL injection.
+    /// </summary>
+    private static async Task SetIdentityInsertAsync(
+        DbContext context,
+        string validatedTableIdent,
+        bool enabled,
+        CancellationToken ct)
+    {
+        var onOff = enabled ? "ON" : "OFF";
+        
+        // Safe: validatedTableIdent comes from GetMappedTableIdentifier which validates against allow-list
+        // Table names cannot be parameterized in SQL Server, so we build the command string
+        // after validation. The suppression is justified because we validate the table name.
+        var sql = $"SET IDENTITY_INSERT {validatedTableIdent} {onOff}";
+        
+#pragma warning disable CA2100 // Review SQL queries for security vulnerabilities
+        await context.Database.ExecuteSqlRawAsync(sql, ct);
+#pragma warning restore CA2100
+    }
+
     public SyncService(IDbContextFactory<AppDbContext> localFactory,
                        ILogger<SyncService> logger,
                        SyncSettings settings)
@@ -74,56 +191,153 @@ public class SyncService : ISyncService
             using var remote = CreateRemoteContext();
             await using var local = await _localFactory.CreateDbContextAsync(ct);
 
-            // Open connection and start a transaction
-            await local.Database.OpenConnectionAsync(ct);
-            using var tx = await local.Database.BeginTransactionAsync(ct);
-
-            var remoteDisasters = await remote.Disasters.AsNoTracking().ToListAsync(ct);
-            var toInsert = new List<Disaster>();
-
-            foreach (var r in remoteDisasters)
+            async Task PullEntitiesAsync<TEntity>(
+                IQueryable<TEntity> remoteQuery,
+                DbSet<TEntity> localSet,
+                Func<TEntity, object> keySelector)
+                where TEntity : class
             {
-                var localEntity = await local.Disasters.FirstOrDefaultAsync(x => x.DisasterId == r.DisasterId, ct);
-                if (localEntity == null)
+                var remoteRows = await remoteQuery.AsNoTracking().ToListAsync(ct);
+                if (remoteRows.Count == 0) return;
+
+                var toInsert = new List<TEntity>();
+                var toUpdate = new List<(TEntity localEntity, TEntity remoteEntity)>();
+
+                foreach (var r in remoteRows)
                 {
-                    toInsert.Add(r);
+                    var key = keySelector(r);
+                    var localEntity = await localSet.FindAsync(new object[] { key }, ct);
+                    if (localEntity is null)
+                    {
+                        toInsert.Add(r);
+                    }
+                    else
+                    {
+                        if (!AreEntitiesEqual(local, localEntity, r))
+                        {
+                            toUpdate.Add((localEntity, r));
+                        }
+                    }
                 }
-                else
+
+                foreach (var (localEntity, remoteEntity) in toUpdate)
                 {
-                    local.Entry(localEntity).CurrentValues.SetValues(r);
+                    local.Entry(localEntity).CurrentValues.SetValues(remoteEntity);
+                }
+                if (local.ChangeTracker.HasChanges())
+                {
+                    await local.SaveChangesAsync(ct);
+                }
+
+                if (toInsert.Count > 0)
+                {
+                    var tableIdent = GetMappedTableIdentifier<TEntity>(local);
+                    var isIdentityEntity = EntityHasIdentityKey<TEntity>(local);
+
+                    static TEntity CreateScalarOnlyCopy<TEntity>(DbContext ctx, TEntity source) where TEntity : class
+                    {
+                        var et = ctx.Model.FindEntityType(typeof(TEntity))!;
+                        var dest = Activator.CreateInstance<TEntity>()!;
+                        var props = et.GetProperties();
+
+                        foreach (var p in props)
+                        {
+                            var clrProp = p.PropertyInfo;
+                            if (clrProp is null) continue;
+                            var value = clrProp.GetValue(source);
+                            clrProp.SetValue(dest, value);
+                        }
+
+                        return dest;
+                    }
+
+                    var scalarOnlyRows = new List<TEntity>();
+                    foreach (var r in toInsert)
+                    {
+                        var copy = CreateScalarOnlyCopy(local, r);
+                        scalarOnlyRows.Add(copy);
+                    }
+
+                    void AttachForInsertWithoutCascade(TEntity entity, DbContext ctx)
+                    {
+                        ctx.Attach(entity);
+                        ctx.Entry(entity).State = EntityState.Added;
+                        foreach (var nav in ctx.Entry(entity).Navigations)
+                        {
+                            if (nav.IsLoaded && nav.CurrentValue != null)
+                            {
+                                if (nav.Metadata.IsCollection)
+                                {
+                                    foreach (var child in (IEnumerable<object>)nav.CurrentValue)
+                                    {
+                                        ctx.Attach(child);
+                                        ctx.Entry(child).State = EntityState.Unchanged;
+                                    }
+                                }
+                                else
+                                {
+                                    ctx.Attach(nav.CurrentValue);
+                                    ctx.Entry(nav.CurrentValue).State = EntityState.Unchanged;
+                                }
+                            }
+                        }
+                    }
+
+                    await local.Database.OpenConnectionAsync(ct);
+
+                    if (!isIdentityEntity)
+                    {
+                        foreach (var r in scalarOnlyRows)
+                        {
+                            AttachForInsertWithoutCascade(r, local);
+                        }
+                        await local.SaveChangesAsync(ct);
+                    }
+                    else
+                    {
+                        await SetIdentityInsertAsync(local, tableIdent, true, ct);
+                        try
+                        {
+                            foreach (var r in scalarOnlyRows)
+                            {
+                                AttachForInsertWithoutCascade(r, local);
+                            }
+                            await local.SaveChangesAsync(ct);
+                        }
+                        finally
+                        {
+                            await SetIdentityInsertAsync(local, tableIdent, false, ct);
+                        }
+                    }
                 }
             }
 
-            // Save updates first
-            if (local.ChangeTracker.HasChanges())
-            {
-                await local.SaveChangesAsync(ct);
-            }
+            await PullEntitiesAsync(remote.CategoryTypes, local.CategoryTypes, x => x.CategoryTypeId);
+            await PullEntitiesAsync(remote.Categories, local.Categories, x => x.CategoryId);
+            await PullEntitiesAsync(remote.UserRoles, local.UserRoles, x => x.RoleId);
+            await PullEntitiesAsync(remote.Users, local.Users, x => x.UserId);
+            await PullEntitiesAsync(remote.Disasters, local.Disasters, x => x.DisasterId);
+            await PullEntitiesAsync(remote.Donors, local.Donors, x => x.DonorId);
+            await PullEntitiesAsync(remote.Shelters, local.Shelters, x => x.ShelterId);
+            await PullEntitiesAsync(remote.ReliefGoods, local.ReliefGoods, x => x.RgId);
+            await PullEntitiesAsync(remote.Stocks, local.Stocks, x => x.StockId);
+            await PullEntitiesAsync(remote.Evacuees, local.Evacuees, x => x.EvacueeId);
+            await PullEntitiesAsync(remote.Donations, local.Donations, x => x.DonationId);
+            await PullEntitiesAsync(remote.ResourceAllocations, local.ResourceAllocations, x => x.AllocationId);
+            await PullEntitiesAsync(remote.ResourceDistributions, local.ResourceDistributions, x => x.DistributionId);
+            await PullEntitiesAsync(remote.ReportDisasterSummaries, local.ReportDisasterSummaries, x => x.ReportId);
+            await PullEntitiesAsync(remote.ReportResourceDistributions, local.ReportResourceDistributions, x => x.ReportId);
+            await PullEntitiesAsync(remote.AuditLogs, local.AuditLogs, x => x.AuditLogId);
 
-            // Insert new records with IDENTITY_INSERT enabled
-            if (toInsert.Count > 0)
-            {
-                await local.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [Disasters] ON", ct);
-                foreach (var disaster in toInsert)
-                {
-                    local.Disasters.Attach(disaster);
-                    local.Entry(disaster).State = EntityState.Added;
-                }
-                await local.SaveChangesAsync(ct);
-                await local.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [Disasters] OFF", ct);
-            }
-
-            await tx.CommitAsync(ct);
             return (true, null);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Pull failed");
-            return (false, ex.Message);
+            return (false, ex.InnerException?.Message ?? ex.Message);
         }
     }
 
-    // Helper method to compare if two entities have identical values
     private bool AreEntitiesEqual<TEntity>(AppDbContext context, TEntity local, TEntity remote) 
         where TEntity : class
     {
@@ -135,20 +349,17 @@ public class SyncService : ISyncService
             
             proposedValues.SetValues(local);
             
-            // Compare all properties
             foreach (var property in currentValues.Properties)
             {
                 var currentValue = currentValues[property];
                 var proposedValue = proposedValues[property];
                 
-                // Handle null comparisons
                 if (currentValue == null && proposedValue == null)
                     continue;
                     
                 if (currentValue == null || proposedValue == null)
                     return false;
                 
-                // Compare values
                 if (!currentValue.Equals(proposedValue))
                     return false;
             }
@@ -162,7 +373,6 @@ public class SyncService : ISyncService
         }
     }
 
-    // Push: sync tables from local -> remote. Parents first to satisfy FKs.
     public async Task<(bool ok, string? error)> PushAsync(CancellationToken ct = default)
     {
         try
@@ -170,18 +380,17 @@ public class SyncService : ISyncService
             using var remote = CreateRemoteContext();
             await using var local = await _localFactory.CreateDbContextAsync(ct);
 
-            // Open connection and start a transaction covering the sequence
             await remote.Database.OpenConnectionAsync(ct);
             using var tx = await remote.Database.BeginTransactionAsync(ct);
 
             try
             {
-                // Helper local functions
-                async Task SyncEntitiesAsync<TEntity>(IEnumerable<TEntity> localRows, Func<TEntity, object> keySelector, string tableName)
+                async Task SyncEntitiesAsync<TEntity>(IEnumerable<TEntity> localRows, Func<TEntity, object> keySelector)
                     where TEntity : class
                 {
                     var toInsert = new List<TEntity>();
                     var toUpdate = new List<TEntity>();
+                    var tableIdent = GetMappedTableIdentifier<TEntity>(remote);
                     
                     foreach (var row in localRows)
                     {
@@ -194,49 +403,80 @@ public class SyncService : ISyncService
                         }
                         else
                         {
-                            // Check if data is actually different
                             if (!AreEntitiesEqual(remote, row, exists))
                             {
                                 remote.Entry(exists).CurrentValues.SetValues(row);
                                 toUpdate.Add(exists);
                             }
-                            // If equal, skip this record (no update needed)
                         }
                     }
 
-                    // Save updates first (without IDENTITY_INSERT) only if there are changes
                     if (toUpdate.Count > 0 && remote.ChangeTracker.HasChanges())
                     {
-                        _logger.LogDebug("Updating {Count} {Entity} records", toUpdate.Count, tableName);
+                        _logger.LogDebug("Updating {Count} {Entity} records", toUpdate.Count, tableIdent);
                         await remote.SaveChangesAsync(ct);
                     }
 
                     if (toInsert.Count > 0)
                     {
-                        _logger.LogDebug("Inserting {Count} {Entity} records", toInsert.Count, tableName);
-                        
-                        // Enable identity insert for this table to preserve keys
-                        await remote.Database.ExecuteSqlRawAsync($"SET IDENTITY_INSERT [{tableName}] ON", ct);
-                        
-                        try
+                        static bool HasExplicitIdentity(object keyObj)
                         {
-                            foreach (var r in toInsert)
+                            return keyObj switch
+                            {
+                                int i => i > 0,
+                                long l => l > 0,
+                                short s => s > 0,
+                                _ => keyObj is not null
+                            };
+                        }
+
+                        var withExplicitKey = new List<TEntity>();
+                        var withoutKey = new List<TEntity>();
+
+                        foreach (var r in toInsert)
+                        {
+                            var key = keySelector(r);
+                            if (HasExplicitIdentity(key))
+                                withExplicitKey.Add(r);
+                            else
+                                withoutKey.Add(r);
+                        }
+
+                        if (withoutKey.Count > 0)
+                        {
+                            _logger.LogDebug("Inserting {Count} {Entity} rows with generated identity", withoutKey.Count, tableIdent);
+                            foreach (var r in withoutKey)
                             {
                                 remote.Attach(r);
                                 remote.Entry(r).State = EntityState.Added;
                             }
                             await remote.SaveChangesAsync(ct);
                         }
-                        finally
+
+                        if (withExplicitKey.Count > 0)
                         {
-                            await remote.Database.ExecuteSqlRawAsync($"SET IDENTITY_INSERT [{tableName}] OFF", ct);
+                            _logger.LogDebug("Inserting {Count} {Entity} rows with explicit identity", withExplicitKey.Count, tableIdent);
+                            await SetIdentityInsertAsync(remote, tableIdent, true, ct);
+                            try
+                            {
+                                foreach (var r in withExplicitKey)
+                                {
+                                    remote.Attach(r);
+                                    remote.Entry(r).State = EntityState.Added;
+                                }
+                                await remote.SaveChangesAsync(ct);
+                            }
+                            finally
+                            {
+                                await SetIdentityInsertAsync(remote, tableIdent, false, ct);
+                            }
                         }
                     }
                 }
 
-                // Special sync for UserRoles with unique constraint on RoleName
                 async Task SyncUserRolesAsync()
                 {
+                    var tableIdent = GetMappedTableIdentifier<UserRole>(remote);
                     var localRoles = await local.UserRoles.AsNoTracking().ToListAsync(ct);
                     var updatedCount = 0;
                     var insertedCount = 0;
@@ -244,15 +484,12 @@ public class SyncService : ISyncService
                     
                     foreach (var localRole in localRoles)
                     {
-                        // Check by RoleName (unique constraint) instead of just RoleId
                         var remoteRole = await remote.UserRoles
                             .FirstOrDefaultAsync(r => r.RoleName == localRole.RoleName, ct);
                         
                         if (remoteRole == null)
                         {
-                            // Role doesn't exist remotely - insert with identity insert
-                            await remote.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [UserRoles] ON", ct);
-                            
+                            await SetIdentityInsertAsync(remote, tableIdent, true, ct);
                             try
                             {
                                 remote.UserRoles.Attach(localRole);
@@ -262,15 +499,14 @@ public class SyncService : ISyncService
                             }
                             finally
                             {
-                                await remote.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [UserRoles] OFF", ct);
+                                await SetIdentityInsertAsync(remote, tableIdent, false, ct);
                             }
                         }
                         else if (remoteRole.RoleId != localRole.RoleId)
                         {
-                            // Role exists but with different ID - check if data is different
                             var needsUpdate = remoteRole.Description != localRole.Description || 
-                                            remoteRole.CreatedAt != localRole.CreatedAt;
-                            
+                                              remoteRole.CreatedAt != localRole.CreatedAt;
+							
                             if (needsUpdate)
                             {
                                 remoteRole.Description = localRole.Description;
@@ -286,7 +522,6 @@ public class SyncService : ISyncService
                         }
                         else
                         {
-                            // Role exists with same ID - check if update needed
                             if (!AreEntitiesEqual(remote, localRole, remoteRole))
                             {
                                 remote.Entry(remoteRole).CurrentValues.SetValues(localRole);
@@ -302,37 +537,28 @@ public class SyncService : ISyncService
                             }
                         }
                     }
-                    
+					
                     _logger.LogDebug("UserRoles sync: {Inserted} inserted, {Updated} updated, {Skipped} skipped", 
                         insertedCount, updatedCount, skippedCount);
                 }
 
-                // Special sync for Users with unique constraints on Username and Email
                 async Task SyncUsersAsync()
                 {
+                    var tableIdent = GetMappedTableIdentifier<User>(remote);
                     var localUsers = await local.Users.AsNoTracking().ToListAsync(ct);
                     var updatedCount = 0;
                     var insertedCount = 0;
                     var skippedCount = 0;
-                    
+					
                     foreach (var localUser in localUsers)
                     {
-                        // Check by Username (unique constraint) first
                         var remoteUser = await remote.Users
-                            .FirstOrDefaultAsync(u => u.Username == localUser.Username, ct);
-                        
+                            .FirstOrDefaultAsync(u => u.Username == localUser.Username, ct)
+                            ?? await remote.Users.FirstOrDefaultAsync(u => u.Email == localUser.Email, ct);
+						
                         if (remoteUser == null)
                         {
-                            // Check by Email (also unique constraint) as a fallback
-                            remoteUser = await remote.Users
-                                .FirstOrDefaultAsync(u => u.Email == localUser.Email, ct);
-                        }
-                        
-                        if (remoteUser == null)
-                        {
-                            // User doesn't exist remotely - insert with identity insert
-                            await remote.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [Users] ON", ct);
-                            
+                            await SetIdentityInsertAsync(remote, tableIdent, true, ct);
                             try
                             {
                                 remote.Users.Attach(localUser);
@@ -342,20 +568,19 @@ public class SyncService : ISyncService
                             }
                             finally
                             {
-                                await remote.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [Users] OFF", ct);
+                                await SetIdentityInsertAsync(remote, tableIdent, false, ct);
                             }
                         }
                         else if (remoteUser.UserId != localUser.UserId)
                         {
-                            // User exists but with different ID - update by username/email, don't change ID
                             var needsUpdate = remoteUser.PasswordHash != localUser.PasswordHash ||
-                                            remoteUser.Email != localUser.Email ||
-                                            remoteUser.Username != localUser.Username ||
-                                            remoteUser.RoleId != localUser.RoleId ||
-                                            remoteUser.IsActive != localUser.IsActive ||
-                                            remoteUser.CreatedAt != localUser.CreatedAt ||
-                                            remoteUser.UpdatedAt != localUser.UpdatedAt;
-                            
+                                              remoteUser.Email != localUser.Email ||
+                                              remoteUser.Username != localUser.Username ||
+                                              remoteUser.RoleId != localUser.RoleId ||
+                                              remoteUser.IsActive != localUser.IsActive ||
+                                              remoteUser.CreatedAt != localUser.CreatedAt ||
+                                              remoteUser.UpdatedAt != localUser.UpdatedAt;
+							
                             if (needsUpdate)
                             {
                                 remoteUser.PasswordHash = localUser.PasswordHash;
@@ -376,7 +601,6 @@ public class SyncService : ISyncService
                         }
                         else
                         {
-                            // User exists with same ID - check if update needed
                             if (!AreEntitiesEqual(remote, localUser, remoteUser))
                             {
                                 remote.Entry(remoteUser).CurrentValues.SetValues(localUser);
@@ -392,43 +616,72 @@ public class SyncService : ISyncService
                             }
                         }
                     }
-                    
+					
                     _logger.LogDebug("Users sync: {Inserted} inserted, {Updated} updated, {Skipped} skipped", 
                         insertedCount, updatedCount, skippedCount);
                 }
 
-                // Sync order (parents -> children)
-                // 1. Category_Types
+                async Task SyncStocksAsync()
+                {
+                    var tableIdent = GetMappedTableIdentifier<Stock>(remote);
+                    var localStocks = await local.Stocks.AsNoTracking().ToListAsync(ct);
+                    var inserted = 0;
+                    var updated = 0;
+
+                    foreach (var ls in localStocks)
+                    {
+                        var exists = await remote.Stocks.AnyAsync(s => s.StockId == ls.StockId, ct);
+
+                        if (!exists)
+                        {
+                            await SetIdentityInsertAsync(remote, tableIdent, true, ct);
+                            try
+                            {
+                                remote.Stocks.Attach(ls);
+                                remote.Entry(ls).State = EntityState.Added;
+                                await remote.SaveChangesAsync(ct);
+                                inserted++;
+                            }
+                            finally
+                            {
+                                await SetIdentityInsertAsync(remote, tableIdent, false, ct);
+                            }
+                        }
+                        else
+                        {
+                            var stub = new Stock { StockId = ls.StockId };
+                            remote.Stocks.Attach(stub);
+                            remote.Entry(stub).CurrentValues.SetValues(ls);
+                            remote.Entry(stub).State = EntityState.Modified;
+                            await remote.SaveChangesAsync(ct);
+                            updated++;
+                        }
+                    }
+
+                    _logger.LogDebug("Stocks sync: {Inserted} inserted, {Updated} updated", inserted, updated);
+                }
+
                 var localCategoryTypes = await local.CategoryTypes.AsNoTracking().ToListAsync(ct);
-                await SyncEntitiesAsync(localCategoryTypes, (x) => x.CategoryTypeId, "Category_Types");
+                await SyncEntitiesAsync(localCategoryTypes, x => x.CategoryTypeId);
 
-                // 2. Categories
                 var localCategories = await local.Categories.AsNoTracking().ToListAsync(ct);
-                await SyncEntitiesAsync(localCategories, (x) => x.CategoryId, "Categories");
+                await SyncEntitiesAsync(localCategories, x => x.CategoryId);
 
-                // 3. UserRoles - Use special sync method
                 await SyncUserRolesAsync();
-
-                // 4. Users - Use special sync method
                 await SyncUsersAsync();
 
-                // 5. Disasters
                 var localDisasters = await local.Disasters.AsNoTracking().ToListAsync(ct);
-                await SyncEntitiesAsync(localDisasters, (x) => x.DisasterId, "Disasters");
+                await SyncEntitiesAsync(localDisasters, x => x.DisasterId);
 
-                // 6. Donors
                 var localDonors = await local.Donors.AsNoTracking().ToListAsync(ct);
-                await SyncEntitiesAsync(localDonors, (x) => x.DonorId, "Donors");
+                await SyncEntitiesAsync(localDonors, x => x.DonorId);
 
-                // 7. Shelters
                 var localShelters = await local.Shelters.AsNoTracking().ToListAsync(ct);
-                await SyncEntitiesAsync(localShelters, (x) => x.ShelterId, "Shelters");
+                await SyncEntitiesAsync(localShelters, x => x.ShelterId);
 
-                // 8. Relief_Goods
                 var localGoods = await local.ReliefGoods.AsNoTracking().ToListAsync(ct);
-                await SyncEntitiesAsync(localGoods, (x) => x.RgId, "Relief_Goods");
+                await SyncEntitiesAsync(localGoods, x => x.RgId);
 
-                // 9. Relief_Goods_Categories (pivot) - no IDENTITY_INSERT needed
                 var localPivots = await local.ReliefGoodCategories.AsNoTracking().ToListAsync(ct);
                 var pivotUpdates = 0;
                 var pivotInserts = 0;
@@ -444,7 +697,6 @@ public class SyncService : ISyncService
                     }
                     else
                     {
-                        // Check if data is different (pivot tables usually don't have extra fields, but check anyway)
                         if (!AreEntitiesEqual(remote, p, exists))
                         {
                             remote.Entry(exists).CurrentValues.SetValues(p);
@@ -465,45 +717,49 @@ public class SyncService : ISyncService
                 _logger.LogDebug("Relief_Goods_Categories sync: {Inserted} inserted, {Updated} updated, {Skipped} skipped", 
                     pivotInserts, pivotUpdates, pivotSkips);
 
-                // 10. Stocks
-                var localStocks = await local.Stocks.AsNoTracking().ToListAsync(ct);
-                await SyncEntitiesAsync(localStocks, (x) => x.StockId, "Stocks");
+                await SyncStocksAsync();
 
-                // 11. Evacuees
                 var localEvac = await local.Evacuees.AsNoTracking().ToListAsync(ct);
-                await SyncEntitiesAsync(localEvac, (x) => x.EvacueeId, "Evacuees");
+                await SyncEntitiesAsync(localEvac, x => x.EvacueeId);
 
-                // 12. Donations
                 var localDonations = await local.Donations.AsNoTracking().ToListAsync(ct);
-                await SyncEntitiesAsync(localDonations, (x) => x.DonationId, "Donations");
+                await SyncEntitiesAsync(localDonations, x => x.DonationId);
 
-                // 13. ResourceAllocations
-                var localAlloc = await local.ResourceAllocations.AsNoTracking().ToListAsync(ct);
-                await SyncEntitiesAsync(localAlloc, (x) => x.AllocationId, "ResourceAllocations");
+                var raIdent = GetMappedTableIdentifier<ResourceAllocation>(remote);
+                if (await TableExistsAsync(remote, raIdent, ct))
+                {
+                    var localAlloc = await local.ResourceAllocations.AsNoTracking().ToListAsync(ct);
+                    await SyncEntitiesAsync(localAlloc, x => x.AllocationId);
+                }
+                else
+                {
+                    _logger.LogWarning("Skipping ResourceAllocations sync: remote table {Table} does not exist.", raIdent);
+                }
 
-                // 14. ResourceDistributions
-                var localDist = await local.ResourceDistributions.AsNoTracking().ToListAsync(ct);
-                await SyncEntitiesAsync(localDist, (x) => x.DistributionId, "ResourceDistributions");
+                var rdIdent = GetMappedTableIdentifier<ResourceDistribution>(remote);
+                if (await TableExistsAsync(remote, rdIdent, ct))
+                {
+                    var localDist = await local.ResourceDistributions.AsNoTracking().ToListAsync(ct);
+                    await SyncEntitiesAsync(localDist, x => x.DistributionId);
+                }
+                else
+                {
+                    _logger.LogWarning("Skipping ResourceDistributions sync: remote table {Table} does not exist.", rdIdent);
+                }
 
-                // NOTE: Shelters goods/transactions tables are not mapped in the current AppDbContext
-                // If you add DbSet<ShelterGoodTransaction> and DbSet<ShelterGood> later, restore syncing here.
-
-                // 16. Report tables
                 var localR1 = await local.ReportDisasterSummaries.AsNoTracking().ToListAsync(ct);
-                await SyncEntitiesAsync(localR1, (x) => x.ReportId, "ReportDisasterSummary");
+                await SyncEntitiesAsync(localR1, x => x.ReportId);
                 var localR2 = await local.ReportResourceDistributions.AsNoTracking().ToListAsync(ct);
-                await SyncEntitiesAsync(localR2, (x) => x.ReportId, "ReportResourceDistribution");
+                await SyncEntitiesAsync(localR2, x => x.ReportId);
 
-                // 18. AuditLogs (append-only) - only insert new logs, never update
-                var lastRemoteLogId = await remote.AuditLogs.MaxAsync(a => (int?)a.LogId, ct) ?? 0;
-                var newLogs = await local.AuditLogs.AsNoTracking().Where(a => a.LogId > lastRemoteLogId).ToListAsync(ct);
-                
+                var lastRemoteLogId = await remote.AuditLogs.MaxAsync(a => (int?)a.AuditLogId, ct) ?? 0;
+                var newLogs = await local.AuditLogs.AsNoTracking().Where(a => a.AuditLogId > lastRemoteLogId).ToListAsync(ct);
+
                 if (newLogs.Count > 0)
                 {
+                    var auditTableIdent = GetMappedTableIdentifier<AuditLog>(remote);
                     _logger.LogDebug("Inserting {Count} new audit logs", newLogs.Count);
-                    
-                    await remote.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [AuditLogs] ON", ct);
-                    
+                    await SetIdentityInsertAsync(remote, auditTableIdent, true, ct);
                     try
                     {
                         foreach (var log in newLogs)
@@ -515,7 +771,7 @@ public class SyncService : ISyncService
                     }
                     finally
                     {
-                        await remote.Database.ExecuteSqlRawAsync("SET IDENTITY_INSERT [AuditLogs] OFF", ct);
+                        await SetIdentityInsertAsync(remote, auditTableIdent, false, ct);
                     }
                 }
 
@@ -532,7 +788,6 @@ public class SyncService : ISyncService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Push failed");
-            // Return inner exception message if available for better diagnostics
             var errorMessage = ex.InnerException?.Message ?? ex.Message;
             return (false, errorMessage);
         }
@@ -554,5 +809,13 @@ public class SyncService : ISyncService
         CurrentInterval = null;
         _timer?.Dispose();
         _timer = null;
+    }
+
+    private static bool EntityHasIdentityKey<TEntity>(DbContext ctx) where TEntity : class
+    {
+        var et = ctx.Model.FindEntityType(typeof(TEntity))
+                 ?? throw new InvalidOperationException($"Entity type not found: {typeof(TEntity).Name}");
+        var pk = et.FindPrimaryKey() ?? throw new InvalidOperationException($"Primary key not found for: {typeof(TEntity).Name}");
+        return pk.Properties.Any(p => p.ValueGenerated == Microsoft.EntityFrameworkCore.Metadata.ValueGenerated.OnAdd);
     }
 }

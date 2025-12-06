@@ -26,6 +26,9 @@ public partial class AppDbContext : DbContext
     public DbSet<CategoryType> CategoryTypes => Set<CategoryType>();
     public DbSet<BarangayBudget> BarangayBudgets => Set<BarangayBudget>();
     public DbSet<BarangayBudgetItem> BarangayBudgetItems => Set<BarangayBudgetItem>();
+    public DbSet<Volunteer> Volunteers => Set<Volunteer>();
+    public DbSet<ProcurementRequest> ProcurementRequests => Set<ProcurementRequest>();
+    public DbSet<ProcurementRequestItem> ProcurementRequestItems => Set<ProcurementRequestItem>();
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -296,14 +299,26 @@ public partial class AppDbContext : DbContext
         modelBuilder.Entity<AuditLog>(e =>
         {
             e.ToTable("AuditLogs");
-            e.HasKey(a => a.LogId);
-            e.Property(a => a.Action).IsRequired();
-            e.Property(a => a.Entity).IsRequired();
-            e.Property(a => a.OccurredAt).HasDefaultValueSql("SYSUTCDATETIME()");
-            e.HasOne(a => a.User)
-             .WithMany()
-             .HasForeignKey(a => a.UserId)
-             .OnDelete(DeleteBehavior.NoAction);
+            e.HasKey(a => a.AuditLogId);
+            e.Property(a => a.Timestamp).HasDefaultValueSql("SYSUTCDATETIME()").IsRequired();
+            e.Property(a => a.Action).HasMaxLength(50).IsRequired();
+            e.Property(a => a.EntityType).HasMaxLength(100).IsRequired();
+            e.Property(a => a.UserType).HasMaxLength(50);
+            e.Property(a => a.UserName).HasMaxLength(200);
+            e.Property(a => a.IpAddress).HasMaxLength(45);
+            e.Property(a => a.UserAgent).HasMaxLength(500);
+            e.Property(a => a.Description).HasMaxLength(1000);
+            e.Property(a => a.Severity).HasMaxLength(50).IsRequired().HasDefaultValue("Info");
+            e.Property(a => a.IsSuccessful).HasDefaultValue(true);
+            e.Property(a => a.ErrorMessage).HasMaxLength(1000);
+            e.Property(a => a.SessionId).HasMaxLength(100);
+            
+            e.HasIndex(a => a.Timestamp);
+            e.HasIndex(a => a.UserId);
+            e.HasIndex(a => a.Action);
+            e.HasIndex(a => a.EntityType);
+            e.HasIndex(a => a.Severity);
+            e.HasIndex(a => new { a.EntityType, a.EntityId });
         });
 
         // Suppliers
@@ -352,10 +367,74 @@ public partial class AppDbContext : DbContext
             e.Property(i => i.CreatedAt).HasDefaultValueSql("SYSUTCDATETIME()");
         });
 
-        // ProcurementRequests
-       
+        // Volunteers
+        modelBuilder.Entity<Volunteer>(e =>
+        {
+            e.ToTable("Volunteers");
+            e.HasKey(v => v.VolunteerId);
+            e.Property(v => v.FirstName).IsRequired().HasMaxLength(100);
+            e.Property(v => v.LastName).IsRequired().HasMaxLength(100);
+            e.Property(v => v.Email).IsRequired().HasMaxLength(255);
+            e.Property(v => v.ContactNumber).HasMaxLength(30);
+            e.Property(v => v.Address).HasMaxLength(255);
+            e.Property(v => v.Status).IsRequired().HasMaxLength(50);
+            e.Property(v => v.Skills).HasMaxLength(255);
+            e.Property(v => v.Availability).HasMaxLength(50);
+            e.Property(v => v.Notes).HasMaxLength(500);
+            e.Property(v => v.RegisteredAt).HasDefaultValueSql("GETUTCDATE()");
 
-        
+            // Foreign key relationships
+            e.HasOne(v => v.AssignedShelter)
+              .WithMany()
+              .HasForeignKey(v => v.AssignedShelterId)
+              .OnDelete(DeleteBehavior.SetNull);
+
+            e.HasOne(v => v.AssignedDisaster)
+              .WithMany()
+              .HasForeignKey(v => v.AssignedDisasterId)
+              .OnDelete(DeleteBehavior.SetNull);
+
+            // Check constraint for Status
+            e.HasCheckConstraint("CK_Volunteers_Status", 
+                "[Status] IN ('Active', 'Inactive', 'On Leave')");
+
+            // Index for common queries
+            e.HasIndex(v => v.Email);
+            e.HasIndex(v => v.Status);
+            e.HasIndex(v => v.RegisteredAt);
+        });
+
+        modelBuilder.Entity<ProcurementRequest>(e =>
+        {
+            e.ToTable("ProcurementRequests");
+            e.HasKey(r => r.RequestId);
+            e.Property(r => r.BarangayName).HasMaxLength(255).IsRequired();
+            e.Property(r => r.Status).HasMaxLength(30).IsRequired();
+            e.Property(r => r.TotalAmount).HasColumnType("decimal(14,2)");
+            e.Property(r => r.RequestDate).HasDefaultValueSql("SYSUTCDATETIME()");
+            e.HasOne(r => r.Supplier)
+                .WithMany()
+                .HasForeignKey(r => r.SupplierId)
+                .OnDelete(DeleteBehavior.SetNull);
+            e.HasOne(r => r.RequestedBy)
+                .WithMany()
+                .HasForeignKey(r => r.RequestedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasMany(r => r.Items)
+                .WithOne(i => i.Request)
+                .HasForeignKey(i => i.RequestId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ProcurementRequestItems
+        modelBuilder.Entity<ProcurementRequestItem>(e =>
+        {
+            e.ToTable("ProcurementRequestItems");
+            e.HasKey(i => i.RequestItemId);
+            e.Property(i => i.ItemName).HasMaxLength(255).IsRequired();
+            e.Property(i => i.Unit).HasMaxLength(50).IsRequired();
+            e.Property(i => i.UnitPrice).HasColumnType("decimal(14,2)");
+        });
 
         base.OnModelCreating(modelBuilder);
     }

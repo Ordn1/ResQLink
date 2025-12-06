@@ -1,0 +1,717 @@
+﻿@page "/volunteers"
+@inject ResQLink.Data.AppDbContext Db
+@inject IJSRuntime JS
+@using Microsoft.EntityFrameworkCore
+@using ResQLink.Data.Entities
+@using System.Security.Cryptography
+@using System.Text
+
+<div class="volunteers-root">
+    @* KPI / Overview panel *@
+    <section class="panel kpi-panel">
+        <header class="panel-head">
+            <h2 class="panel-title">Volunteers Overview</h2>
+            <div class="panel-actions">
+                <button class="mini-btn btn-primary" @onclick="BeginCreate" disabled="@showForm">
+                    <i class="bi bi-person-plus"></i> Register Volunteer
+                </button>
+                <button class="mini-btn" @onclick="Refresh" title="Refresh list">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
+        </header>
+        <div class="kpi-grid">
+            <div class="kpi-card">
+                <div class="kpi-label">Total Volunteers</div>
+                <div class="kpi-value">@AllVolunteers.Count</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Active</div>
+                <div class="kpi-value text-accent">@ActiveCount</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Available</div>
+                <div class="kpi-value">@AvailableCount</div>
+            </div>
+        </div>
+    </section>
+
+    <section class="panel">
+        <header class="panel-head">
+            <h2 class="panel-title">Volunteer Management</h2>
+            <div class="panel-actions">
+                <input class="mini-input" placeholder="Search name, email or skills…" @bind="search" @bind:event="oninput" />
+                <select class="mini-input" @bind="statusFilter">
+                    <option value="">All Status</option>
+                    @foreach (var s in DistinctStatuses)
+                    {
+                        <option>@s</option>
+                    }
+                </select>
+                <select class="mini-input" @bind="sortBy">
+                    <option value="registered_desc">Registered: Newest</option>
+                    <option value="name_asc">Name: A → Z</option>
+                </select>
+                <button class="mini-btn" @onclick="ClearFilters">Clear</button>
+            </div>
+        </header>
+
+        <div class="table-wrap">
+            <table class="dash-table">
+                <thead>
+                    <tr>
+                        <th style="width:60px">ID</th>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Contact</th>
+                        <th>Skills</th>
+                        <th>Availability</th>
+                        <th>Status</th>
+                        <th>Registered</th>
+                        <th style="width:120px">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var v in PagedVolunteers)
+                    {
+                        <tr>
+                            <td class="t-center">#@v.Id</td>
+                            <td>@v.Name</td>
+                            <td>@v.Email</td>
+                            <td>@v.ContactNumber</td>
+                            <td>@(string.IsNullOrEmpty(v.Skills) ? "—" : v.Skills)</td>
+                            <td>@(string.IsNullOrEmpty(v.Availability) ? "—" : v.Availability)</td>
+                            <td>
+                                <span class="status-chip @StatusClass(v.Status)">@v.Status</span>
+                            </td>
+                            <td>@v.RegisteredAt.ToString("MMM dd, yyyy")</td>
+                            <td class="action-cell">
+                                <button class="action-btn edit"
+                                        @onclick="() => BeginEdit(v.Id)"
+                                        disabled="@showForm"
+                                        title="Edit volunteer">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button class="action-btn delete"
+                                        @onclick="() => ShowDeleteConfirmation(v.Id, v.Name)"
+                                        title="Delete volunteer">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                    @if (!PagedVolunteers.Any())
+                    {
+                        <tr>
+                            <td colspan="9" class="t-center text-muted">No results.</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <footer class="panel-foot">
+            <div class="foot-left">
+                Showing @StartIndex–@EndIndex of @TotalFiltered volunteers
+            </div>
+            <div class="foot-right">
+                <label class="foot-label">Rows</label>
+                <select class="mini-input" @bind="pageSize">
+                    <option>10</option>
+                    <option>20</option>
+                    <option>50</option>
+                </select>
+                <button class="mini-btn" @onclick="PrevPage" disabled="@(_pageIndex == 0)">Prev</button>
+                <span class="page-indicator">Page @(_pageIndex + 1) / @TotalPages</span>
+                <button class="mini-btn" @onclick="NextPage" disabled="@(_pageIndex >= TotalPages - 1)">Next</button>
+            </div>
+        </footer>
+    </section>
+</div>
+
+@* Create/Edit Modal with PASSWORD FIELDS *@
+@if (showForm)
+{
+    <div class="modal-overlay" @onclick="HandleOverlayClick">
+        <div class="modal-dialog" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3>@(editModel.VolunteerId == 0 ? "Register Volunteer" : $"Edit Volunteer #{editModel.VolunteerId}")</h3>
+                <button class="modal-close" @onclick="CancelForm">&times;</button>
+            </div>
+            <div class="modal-body" @onclick:stopPropagation="true">
+                @if (loadingForm)
+                {
+                    <div class="loading-text">Loading…</div>
+                }
+
+                <div class="form-row" @onclick:stopPropagation="true">
+                    <div class="form-group">
+                        <label for="firstName">First Name *</label>
+                        <input id="firstName" class="form-control" @bind="editModel.FirstName" @bind:event="oninput" maxlength="100" @onclick:stopPropagation="true" />
+                    </div>
+                    <div class="form-group">
+                        <label for="lastName">Last Name *</label>
+                        <input id="lastName" class="form-control" @bind="editModel.LastName" @bind:event="oninput" maxlength="100" @onclick:stopPropagation="true" />
+                    </div>
+                </div>
+
+                <div class="form-row" @onclick:stopPropagation="true">
+                    <div class="form-group">
+                        <label for="email">Email *</label>
+                        <input id="email" type="email" class="form-control" @bind="editModel.Email" @bind:event="oninput" maxlength="255" @onclick:stopPropagation="true" />
+                    </div>
+                    <div class="form-group">
+                        <label for="contact">Contact Number</label>
+                        <input id="contact" class="form-control" @bind="editModel.ContactNumber" @bind:event="oninput" maxlength="30" @onclick:stopPropagation="true" />
+                    </div>
+                </div>
+
+                @* ✅ PASSWORD FIELDS ADDED HERE *@
+                <div class="form-row" @onclick:stopPropagation="true">
+                    <div class="form-group">
+                        <label for="password">Password @(editModel.VolunteerId == 0 ? "*" : "(Leave blank to keep current)")</label>
+                        <div class="password-input-wrapper">
+                            <input id="password" 
+                                   type="@(showPasswordInForm ? "text" : "password")" 
+                                   class="form-control" 
+                                   @bind="editModel.Password" 
+                                   @bind:event="oninput" 
+                                   maxlength="255" 
+                                   placeholder="Enter password"
+                                   @onclick:stopPropagation="true" />
+                            <button type="button" 
+                                    class="toggle-password-btn" 
+                                    @onclick="() => showPasswordInForm = !showPasswordInForm"
+                                    @onclick:stopPropagation="true"
+                                    title="@(showPasswordInForm ? "Hide password" : "Show password")">
+                                <i class="bi @(showPasswordInForm ? "bi-eye-slash" : "bi-eye")"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="confirmPassword">Confirm Password @(editModel.VolunteerId == 0 ? "*" : "")</label>
+                        <div class="password-input-wrapper">
+                            <input id="confirmPassword" 
+                                   type="@(showConfirmPasswordInForm ? "text" : "password")" 
+                                   class="form-control" 
+                                   @bind="editModel.ConfirmPassword" 
+                                   @bind:event="oninput" 
+                                   maxlength="255" 
+                                   placeholder="Confirm password"
+                                   @onclick:stopPropagation="true" />
+                            <button type="button" 
+                                    class="toggle-password-btn" 
+                                    @onclick="() => showConfirmPasswordInForm = !showConfirmPasswordInForm"
+                                    @onclick:stopPropagation="true"
+                                    title="@(showConfirmPasswordInForm ? "Hide password" : "Show password")">
+                                <i class="bi @(showConfirmPasswordInForm ? "bi-eye-slash" : "bi-eye")"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-row" @onclick:stopPropagation="true">
+                    <div class="form-group">
+                        <label for="address">Address</label>
+                        <input id="address" class="form-control" @bind="editModel.Address" @bind:event="oninput" maxlength="255" @onclick:stopPropagation="true" />
+                    </div>
+                </div>
+
+                <div class="form-row" @onclick:stopPropagation="true">
+                    <div class="form-group">
+                        <label for="skills">Skills / Expertise</label>
+                        <input id="skills" class="form-control" @bind="editModel.Skills" @bind:event="oninput" maxlength="255" placeholder="e.g., Medical, Logistics, Communication" @onclick:stopPropagation="true" />
+                    </div>
+                    <div class="form-group">
+                        <label for="availability">Availability</label>
+                        <input id="availability" class="form-control" @bind="editModel.Availability" @bind:event="oninput" maxlength="50" placeholder="e.g., Weekends, Full-time" @onclick:stopPropagation="true" />
+                    </div>
+                </div>
+
+                <div class="form-row" @onclick:stopPropagation="true">
+                    <div class="form-group">
+                        <label for="shelter">Assigned Shelter</label>
+                        <select id="shelter" class="form-control" @bind="editModel.AssignedShelterId" @onclick:stopPropagation="true">
+                            <option value="">None</option>
+                            @foreach (var s in shelters)
+                            {
+                                <option value="@s.ShelterId">@s.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="disaster">Assigned Disaster</label>
+                        <select id="disaster" class="form-control" @bind="editModel.AssignedDisasterId" @onclick:stopPropagation="true">
+                            <option value="">None</option>
+                            @foreach (var d in disasters)
+                            {
+                                <option value="@d.DisasterId">@d.Title</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row" @onclick:stopPropagation="true">
+                    <div class="form-group">
+                        <label for="status">Status *</label>
+                        <select id="status" class="form-control" @bind="editModel.Status" @onclick:stopPropagation="true">
+                            <option value="Active">Active</option>
+                            <option value="Inactive">Inactive</option>
+                            <option value="On Leave">On Leave</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row" @onclick:stopPropagation="true">
+                    <div class="form-group">
+                        <label for="notes">Notes</label>
+                        <textarea id="notes" class="form-control" rows="3" @bind="editModel.Notes" @bind:event="oninput" maxlength="500" @onclick:stopPropagation="true"></textarea>
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrEmpty(formError))
+                {
+                    <div class="form-error">@formError</div>
+                }
+
+                <div class="modal-actions" @onclick:stopPropagation="true">
+                    <button type="button"
+                            class="btn-cancel"
+                            @onclick="CancelForm"
+                            @onclick:stopPropagation="true"
+                            disabled="@saving">
+                        Cancel
+                    </button>
+                    <button type="button"
+                            class="btn-primary"
+                            @onclick="SaveAsync"
+                            @onclick:stopPropagation="true"
+                            disabled="@saving">
+                        @if (saving)
+                        {
+                            <span class="spinner"></span>
+                        }
+                        @(editModel.VolunteerId == 0 ? "Register" : "Update")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* Delete Confirmation Modal *@
+@if (showDeleteModal)
+{
+    <div class="modal-overlay" @onclick="HandleDeleteOverlayClick">
+        <div class="modal-dialog small" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3>Confirm Delete</h3>
+                <button class="modal-close" @onclick="CloseDeleteModal" @onclick:stopPropagation="true">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete volunteer <strong>"@volunteerToDeleteName"</strong>?</p>
+                <p class="warning-text">This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" @onclick="CloseDeleteModal" @onclick:stopPropagation="true">Cancel</button>
+                <button class="btn-danger" @onclick="ConfirmDeleteAsync" disabled="@isDeleting" @onclick:stopPropagation="true">
+                    @if (isDeleting)
+                    {
+                        <span class="spinner"></span>
+                    }
+                    Delete
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private record VolunteerRow(int Id, string Name, string Email, string ContactNumber, string Skills, string Availability, string Status, DateTime RegisteredAt);
+
+    private class VolunteerEditModel
+    {
+        public int VolunteerId { get; set; }
+        public string FirstName { get; set; } = "";
+        public string LastName { get; set; } = "";
+        public string Email { get; set; } = "";
+        public string Password { get; set; } = "";
+        public string ConfirmPassword { get; set; } = "";
+        public string ContactNumber { get; set; } = "";
+        public string Address { get; set; } = "";
+        public string Status { get; set; } = "Active";
+        public string Skills { get; set; } = "";
+        public string Availability { get; set; } = "";
+        public int? AssignedShelterId { get; set; }
+        public int? AssignedDisasterId { get; set; }
+        public string Notes { get; set; } = "";
+    }
+
+    private List<VolunteerRow> AllVolunteers = new();
+    private List<Disaster> disasters = new();
+    private List<Shelter> shelters = new();
+    private VolunteerEditModel editModel = new();
+    private bool showForm = false;
+    private bool showDeleteModal = false;
+    private bool saving = false;
+    private bool loadingForm = false;
+    private bool isDeleting = false;
+    private bool showPasswordInForm = false;
+    private bool showConfirmPasswordInForm = false;
+    private string formError = string.Empty;
+    private int volunteerToDeleteId = 0;
+    private string volunteerToDeleteName = string.Empty;
+
+    private string search = string.Empty;
+    private string statusFilter = string.Empty;
+    private string sortBy = "registered_desc";
+    private int _pageIndex = 0;
+    private int pageSize = 10;
+
+    private int ActiveCount => AllVolunteers.Count(v => v.Status.Equals("Active", StringComparison.OrdinalIgnoreCase));
+    private int AvailableCount => AllVolunteers.Count(v => !string.IsNullOrEmpty(v.Availability));
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        disasters = await Db.Disasters.AsNoTracking().OrderBy(d => d.Title).ToListAsync();
+        shelters = await Db.Shelters.AsNoTracking().OrderBy(s => s.Name).ToListAsync();
+
+        var volunteers = await Db.Volunteers
+            .AsNoTracking()
+            .OrderByDescending(v => v.RegisteredAt)
+            .ToListAsync();
+
+        AllVolunteers = volunteers.Select(v => new VolunteerRow(
+            v.VolunteerId,
+            v.FirstName + " " + v.LastName,
+            v.Email,
+            v.ContactNumber ?? "—",
+            v.Skills ?? "",
+            v.Availability ?? "",
+            v.Status,
+            v.RegisteredAt
+        )).ToList();
+    }
+
+    private string HashPassword(string password)
+    {
+        using var sha256 = SHA256.Create();
+        var hashedBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(password));
+        return Convert.ToBase64String(hashedBytes);
+    }
+
+    private IEnumerable<string> DistinctStatuses =>
+        AllVolunteers.Select(v => v.Status).Distinct().OrderBy(s => s);
+
+    private IEnumerable<VolunteerRow> Query
+    {
+        get
+        {
+            var q = AllVolunteers.AsEnumerable();
+            if (!string.IsNullOrWhiteSpace(search))
+                q = q.Where(v =>
+                    v.Name.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                    v.Email.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                    v.Skills.Contains(search, StringComparison.OrdinalIgnoreCase));
+            if (!string.IsNullOrEmpty(statusFilter))
+                q = q.Where(v => v.Status.Equals(statusFilter, StringComparison.OrdinalIgnoreCase));
+            return Sort(q);
+        }
+    }
+
+    private IEnumerable<VolunteerRow> Sort(IEnumerable<VolunteerRow> source) =>
+        sortBy switch
+        {
+            "name_asc" => source.OrderBy(v => v.Name),
+            _ => source.OrderByDescending(v => v.RegisteredAt)
+        };
+
+    private int TotalFiltered => Query.Count();
+    private int TotalPages => Math.Max((int)Math.Ceiling(TotalFiltered / (double)pageSize), 1);
+    private int StartIndex => TotalFiltered == 0 ? 0 : (_pageIndex * pageSize) + 1;
+    private int EndIndex => Math.Min((_pageIndex + 1) * pageSize, TotalFiltered);
+    private IEnumerable<VolunteerRow> PagedVolunteers => Query.Skip(_pageIndex * pageSize).Take(pageSize);
+
+    private void ClearFilters()
+    {
+        search = string.Empty;
+        statusFilter = string.Empty;
+        sortBy = "registered_desc";
+        _pageIndex = 0;
+    }
+
+    private async Task Refresh()
+    {
+        await LoadAsync();
+        _pageIndex = 0;
+    }
+
+    private void PrevPage() { if (_pageIndex > 0) _pageIndex--; }
+    private void NextPage() { if (_pageIndex < TotalPages - 1) _pageIndex++; }
+
+    private string StatusClass(string status) => status.ToLowerInvariant() switch
+    {
+        "active" => "st-stable",
+        "inactive" => "st-contained",
+        "on leave" => "st-med",
+        _ => "st-stable"
+    };
+
+    private void BeginCreate()
+    {
+        editModel = new VolunteerEditModel();
+        formError = string.Empty;
+        showPasswordInForm = false;
+        showConfirmPasswordInForm = false;
+        showForm = true;
+    }
+
+    private async Task BeginEdit(int id)
+    {
+        if (loadingForm || saving) return;
+
+        loadingForm = true;
+        formError = string.Empty;
+        showPasswordInForm = false;
+        showConfirmPasswordInForm = false;
+        showForm = true;
+        StateHasChanged();
+
+        try
+        {
+            var entity = await Db.Volunteers.AsNoTracking().FirstOrDefaultAsync(v => v.VolunteerId == id);
+            if (entity == null)
+            {
+                formError = "Volunteer not found.";
+                showForm = false;
+                return;
+            }
+
+            editModel = new VolunteerEditModel
+            {
+                VolunteerId = entity.VolunteerId,
+                FirstName = entity.FirstName,
+                LastName = entity.LastName,
+                Email = entity.Email,
+                ContactNumber = entity.ContactNumber ?? "",
+                Address = entity.Address ?? "",
+                Status = entity.Status,
+                Skills = entity.Skills ?? "",
+                Availability = entity.Availability ?? "",
+                AssignedShelterId = entity.AssignedShelterId,
+                AssignedDisasterId = entity.AssignedDisasterId,
+                Notes = entity.Notes ?? "",
+                Password = "",
+                ConfirmPassword = ""
+            };
+        }
+        catch (Exception ex)
+        {
+            formError = ex.Message;
+        }
+        finally
+        {
+            loadingForm = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (saving) return;
+        saving = true;
+        formError = string.Empty;
+
+        try
+        {
+            if (string.IsNullOrWhiteSpace(editModel.FirstName) || string.IsNullOrWhiteSpace(editModel.LastName))
+            {
+                formError = "First and last name are required.";
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(editModel.Email))
+            {
+                formError = "Email is required.";
+                return;
+            }
+
+            // Password validation
+            if (editModel.VolunteerId == 0)
+            {
+                // New volunteer - password is required
+                if (string.IsNullOrWhiteSpace(editModel.Password))
+                {
+                    formError = "Password is required for new volunteers.";
+                    return;
+                }
+
+                if (editModel.Password.Length < 6)
+                {
+                    formError = "Password must be at least 6 characters long.";
+                    return;
+                }
+
+                if (editModel.Password != editModel.ConfirmPassword)
+                {
+                    formError = "Passwords do not match.";
+                    return;
+                }
+            }
+            else
+            {
+                // Editing - password is optional
+                if (!string.IsNullOrWhiteSpace(editModel.Password))
+                {
+                    if (editModel.Password.Length < 6)
+                    {
+                        formError = "Password must be at least 6 characters long.";
+                        return;
+                    }
+
+                    if (editModel.Password != editModel.ConfirmPassword)
+                    {
+                        formError = "Passwords do not match.";
+                        return;
+                    }
+                }
+            }
+
+            if (editModel.VolunteerId == 0)
+            {
+                var entity = new Volunteer
+                {
+                    FirstName = editModel.FirstName.Trim(),
+                    LastName = editModel.LastName.Trim(),
+                    Email = editModel.Email.Trim(),
+                    PasswordHash = HashPassword(editModel.Password),
+                    ContactNumber = editModel.ContactNumber?.Trim(),
+                    Address = editModel.Address?.Trim(),
+                    Status = editModel.Status,
+                    Skills = editModel.Skills?.Trim(),
+                    Availability = editModel.Availability?.Trim(),
+                    AssignedShelterId = editModel.AssignedShelterId,
+                    AssignedDisasterId = editModel.AssignedDisasterId,
+                    Notes = editModel.Notes?.Trim(),
+                    RegisteredAt = DateTime.UtcNow
+                };
+                Db.Volunteers.Add(entity);
+            }
+            else
+            {
+                var entity = await Db.Volunteers.FirstOrDefaultAsync(v => v.VolunteerId == editModel.VolunteerId);
+                if (entity == null)
+                {
+                    formError = "Volunteer not found.";
+                    return;
+                }
+                entity.FirstName = editModel.FirstName.Trim();
+                entity.LastName = editModel.LastName.Trim();
+                entity.Email = editModel.Email.Trim();
+                
+                // Only update password if a new one was provided
+                if (!string.IsNullOrWhiteSpace(editModel.Password))
+                {
+                    entity.PasswordHash = HashPassword(editModel.Password);
+                }
+
+                entity.ContactNumber = editModel.ContactNumber?.Trim();
+                entity.Address = editModel.Address?.Trim();
+                entity.Status = editModel.Status;
+                entity.Skills = editModel.Skills?.Trim();
+                entity.Availability = editModel.Availability?.Trim();
+                entity.AssignedShelterId = editModel.AssignedShelterId;
+                entity.AssignedDisasterId = editModel.AssignedDisasterId;
+                entity.Notes = editModel.Notes?.Trim();
+                Db.Volunteers.Update(entity);
+            }
+
+            await Db.SaveChangesAsync();
+            await JS.InvokeVoidAsync("alert", "Volunteer saved successfully!");
+            showForm = false;
+            await LoadAsync();
+        }
+        catch (DbUpdateException ex)
+        {
+            formError = "Database error: " + (ex.InnerException?.Message ?? ex.Message);
+        }
+        catch (Exception ex)
+        {
+            formError = ex.Message;
+        }
+        finally
+        {
+            saving = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void ShowDeleteConfirmation(int id, string name)
+    {
+        volunteerToDeleteId = id;
+        volunteerToDeleteName = name;
+        showDeleteModal = true;
+    }
+
+    private async Task ConfirmDeleteAsync()
+    {
+        if (isDeleting || volunteerToDeleteId == 0) return;
+
+        isDeleting = true;
+        try
+        {
+            var entity = await Db.Volunteers.FirstOrDefaultAsync(v => v.VolunteerId == volunteerToDeleteId);
+            if (entity != null)
+            {
+                Db.Volunteers.Remove(entity);
+                await Db.SaveChangesAsync();
+                await JS.InvokeVoidAsync("alert", "Volunteer deleted successfully!");
+                CloseDeleteModal();
+                await LoadAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            formError = "Delete failed: " + ex.Message;
+            await JS.InvokeVoidAsync("alert", formError);
+        }
+        finally
+        {
+            isDeleting = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void CloseDeleteModal()
+    {
+        showDeleteModal = false;
+        volunteerToDeleteId = 0;
+        volunteerToDeleteName = string.Empty;
+    }
+
+    private void CancelForm()
+    {
+        if (saving) return;
+        showForm = false;
+        formError = string.Empty;
+        showPasswordInForm = false;
+        showConfirmPasswordInForm = false;
+    }
+
+    private void HandleOverlayClick()
+    {
+        CancelForm();
+    }
+
+    private void HandleDeleteOverlayClick()
+    {
+        CloseDeleteModal();
+    }
+
+    private void PreventClose() { }
+}

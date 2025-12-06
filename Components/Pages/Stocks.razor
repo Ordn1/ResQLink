@@ -143,6 +143,7 @@
                                     <td class="action-cell col-actions">
                                         <button class="action-btn edit"
                                                 @onclick="() => OpenEditModal(stock)"
+                                                disabled="@_showModal"
                                                 title="Edit stock">
                                             <i class="bi bi-pencil"></i>
                                         </button>
@@ -177,75 +178,169 @@
         </div>
     </section>
 
-    @* Add / Edit Stock Modal *@
+    @* Enhanced Add / Edit Stock Modal with Validation *@
     @if (_showModal)
     {
         <div class="modal-overlay" @onclick="CloseModal" @onclick:stopPropagation="false">
-            <div class="modal-dialog" @onclick:stopPropagation="true">
+            <div class="modal-dialog" @onclick:stopPropagation="true" style="max-width: 600px;">
                 <div class="modal-header">
-                    <h3>@(_editMode ? "Edit Stock" : "Add Stock")</h3>
-                    <button class="modal-close" @onclick="CloseModal">&times;</button>
+                    <h3>@(_editMode ? $"Edit Stock #{_editStockId}" : "Add New Stock")</h3>
+                    <button class="modal-close" @onclick="CloseModal" disabled="@_saving">&times;</button>
                 </div>
                 <div class="modal-body">
-                    @if (!_editMode)
+                    @if (_loadingModal)
                     {
+                        <div class="loading-spinner">
+                            <span class="spinner"></span>
+                            <p>Loading stock details...</p>
+                        </div>
+                    }
+                    else
+                    {
+                        @if (!_editMode)
+                        {
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="rgSelect">Relief Good *</label>
+                                    <select id="rgSelect" 
+                                            class="form-control @(_fieldErrors.ContainsKey("ReliefGood") ? "is-invalid" : "")" 
+                                            @bind="_selectedRgId"
+                                            @bind:after="ValidateReliefGood">
+                                        <option value="0">-- Select Relief Good --</option>
+                                        @foreach (var rg in _reliefGoods)
+                                        {
+                                            <option value="@rg.RgId">@rg.Name (@rg.Unit)</option>
+                                        }
+                                    </select>
+                                    @if (_fieldErrors.ContainsKey("ReliefGood"))
+                                    {
+                                        <div class="invalid-feedback">@_fieldErrors["ReliefGood"]</div>
+                                    }
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Relief Good</label>
+                                    <div class="form-control-plaintext">
+                                        <strong>@_selectedReliefGoodName</strong>
+                                    </div>
+                                    <small class="hint">Relief good cannot be changed after creation</small>
+                                </div>
+                            </div>
+                        }
+
                         <div class="form-row">
                             <div class="form-group">
-                                <label for="rgSelect">Relief Good *</label>
-                                <select id="rgSelect" class="form-control" @bind="_selectedRgId">
-                                    <option value="0">-- Select Relief Good --</option>
-                                    @foreach (var rg in _reliefGoods)
-                                    {
-                                        <option value="@rg.RgId">@rg.Name (@rg.Unit)</option>
-                                    }
-                                </select>
+                                <label for="qty">Quantity *</label>
+                                <input id="qty" 
+                                       type="number" 
+                                       min="0" 
+                                       class="form-control @(_fieldErrors.ContainsKey("Quantity") ? "is-invalid" : "")" 
+                                       @bind="_editQuantity"
+                                       @bind:event="oninput"
+                                       @onblur="ValidateQuantity" />
+                                @if (_fieldErrors.ContainsKey("Quantity"))
+                                {
+                                    <div class="invalid-feedback">@_fieldErrors["Quantity"]</div>
+                                }
+                                <small class="hint">Current available quantity</small>
+                            </div>
+                            <div class="form-group">
+                                <label for="maxCap">Max Capacity *</label>
+                                <input id="maxCap" 
+                                       type="number" 
+                                       min="1" 
+                                       class="form-control @(_fieldErrors.ContainsKey("MaxCapacity") ? "is-invalid" : "")" 
+                                       @bind="_editMaxCapacity"
+                                       @bind:event="oninput"
+                                       @onblur="ValidateMaxCapacity" />
+                                @if (_fieldErrors.ContainsKey("MaxCapacity"))
+                                {
+                                    <div class="invalid-feedback">@_fieldErrors["MaxCapacity"]</div>
+                                }
+                                <small class="hint">Maximum storage capacity</small>
                             </div>
                         </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="location">Location</label>
+                                <input id="location" 
+                                       class="form-control @(_fieldErrors.ContainsKey("Location") ? "is-invalid" : "")" 
+                                       @bind="_editLocation"
+                                       @bind:event="oninput"
+                                       @onblur="ValidateLocation"
+                                       maxlength="255"
+                                       placeholder="e.g., Warehouse A, Shelf 3" />
+                                @if (_fieldErrors.ContainsKey("Location"))
+                                {
+                                    <div class="invalid-feedback">@_fieldErrors["Location"]</div>
+                                }
+                                <small class="hint">Optional: Physical storage location</small>
+                            </div>
+                        </div>
+
+                        @if (_editQuantity > 0 && _editMaxCapacity > 0)
+                        {
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Stock Status Preview</label>
+                                    <div class="status-preview">
+                                        @{
+                                            var percent = Math.Round((_editQuantity / (decimal)_editMaxCapacity) * 100, 1);
+                                            var status = percent == 0 ? "Empty" : percent <= 25 ? "Low" : percent < 75 ? "Medium" : "High";
+                                            var statusClass = status.ToLower();
+                                        }
+                                        <div class="progress-shell">
+                                            <div class="progress-bar" style="width:@percent%"></div>
+                                        </div>
+                                        <div style="margin-top: 8px;">
+                                            <span class="status-chip st-@statusClass">@status</span>
+                                            <span style="margin-left: 8px; color: #6b7280; font-size: 0.85rem;">
+                                                @_editQuantity / @_editMaxCapacity (@percent%)
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+
+                        @if (!string.IsNullOrEmpty(_modalError))
+                        {
+                            <div class="alert alert-danger" role="alert">
+                                <i class="bi bi-exclamation-triangle-fill"></i> @_modalError
+                            </div>
+                        }
+
+                        <div class="modal-actions">
+                            <button type="button"
+                                    class="btn-cancel"
+                                    @onclick="CloseModal"
+                                    disabled="@_saving"
+                                    @onclick:stopPropagation="true">
+                                Cancel
+                            </button>
+                            <button type="button"
+                                    class="btn-primary"
+                                    @onclick="SaveStock"
+                                    disabled="@(_saving || HasValidationErrors())"
+                                    @onclick:stopPropagation="true">
+                                @if (_saving)
+                                {
+                                    <span class="spinner"></span>
+                                    <span>Saving...</span>
+                                }
+                                else
+                                {
+                                    <i class="bi @(_editMode ? "bi-check-circle" : "bi-plus-circle")"></i>
+                                    <span>@(_editMode ? "Update Stock" : "Create Stock")</span>
+                                }
+                            </button>
+                        </div>
                     }
-
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="qty">Quantity *</label>
-                            <input id="qty" type="number" min="0" class="form-control" @bind="_editQuantity" />
-                        </div>
-                        <div class="form-group">
-                            <label for="maxCap">Max Capacity *</label>
-                            <input id="maxCap" type="number" min="1" class="form-control" @bind="_editMaxCapacity" />
-                        </div>
-                    </div>
-
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="location">Location</label>
-                            <input id="location" class="form-control" @bind="_editLocation" />
-                        </div>
-                    </div>
-
-                    @if (!string.IsNullOrEmpty(_modalError))
-                    {
-                        <div class="form-error">@_modalError</div>
-                    }
-
-                    <div class="modal-actions">
-                        <button type="button"
-                                class="btn-cancel"
-                                @onclick="CloseModal"
-                                disabled="@_saving"
-                                @onclick:stopPropagation="true">
-                            Cancel
-                        </button>
-                        <button type="button"
-                                class="btn-primary"
-                                @onclick="SaveStock"
-                                disabled="@_saving"
-                                @onclick:stopPropagation="true">
-                            @if (_saving)
-                            {
-                                <span class="spinner"></span>
-                            }
-                            Save
-                        </button>
-                    </div>
                 </div>
             </div>
         </div>
@@ -408,11 +503,83 @@
     }
 </div>
 
+<style>
+    .status-preview {
+        padding: 12px;
+        background: #f9fafb;
+        border-radius: 8px;
+        border: 1px solid #e5e7eb;
+    }
+
+    .progress-shell {
+        height: 24px;
+        background: #e5e7eb;
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    .progress-bar {
+        height: 100%;
+        background: linear-gradient(90deg, #10b981, #34d399);
+        transition: width 0.3s ease;
+    }
+
+    .invalid-feedback {
+        display: block;
+        color: #dc2626;
+        font-size: 0.75rem;
+        margin-top: 4px;
+    }
+
+    .is-invalid {
+        border-color: #dc2626 !important;
+    }
+
+    .form-control-plaintext {
+        padding: 8px 0;
+        font-size: 0.95rem;
+    }
+
+    .hint {
+        display: block;
+        font-size: 0.7rem;
+        color: #6b7280;
+        margin-top: 4px;
+        font-style: italic;
+    }
+
+    .alert {
+        padding: 12px;
+        border-radius: 8px;
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .alert-danger {
+        background: #fef2f2;
+        border: 1px solid #fecaca;
+        color: #991b1b;
+    }
+
+    .loading-spinner {
+        text-align: center;
+        padding: 40px 20px;
+    }
+
+    .loading-spinner .spinner {
+        display: inline-block;
+        margin-bottom: 12px;
+    }
+</style>
+
 @code {
     private List<Stock> _stocks = new();
     private List<ReliefGood> _reliefGoods = new();
     private List<Shelter> _shelters = new();
     private bool _loading = true;
+    private bool _loadingModal = false;
     private bool _showModal;
     private bool _showAdjustModal;
     private bool _showAllocateModal;
@@ -424,10 +591,12 @@
     private string _error = string.Empty;
     private string _modalError = string.Empty;
     private string _allocateSuccess = string.Empty;
+    private Dictionary<string, string> _fieldErrors = new();
 
     // Edit fields
     private int _editStockId;
     private int _selectedRgId;
+    private string _selectedReliefGoodName = string.Empty;
     private int _editQuantity;
     private int _editMaxCapacity = 1000;
     private string _editLocation = string.Empty;
@@ -475,8 +644,9 @@
 
     private decimal GetPercent(Stock stock)
     {
-        if (stock.CapacityPercent > 0 || stock.Quantity == 0)
-            return stock.CapacityPercent;
+        var cp = stock.CapacityPercent ?? 0m;
+        if (cp > 0m || stock.Quantity == 0)
+            return cp;
 
         return StockExtensions.ComputePercent(stock.Quantity, stock.MaxCapacity);
     }
@@ -522,29 +692,156 @@
         _editMode = false;
         _showModal = true;
         _modalError = string.Empty;
+        _fieldErrors.Clear();
         _selectedRgId = 0;
         _editStockId = 0;
         _editQuantity = 0;
         _editMaxCapacity = 1000;
         _editLocation = string.Empty;
+        _selectedReliefGoodName = string.Empty;
     }
 
-    private void OpenEditModal(Stock stock)
+    private async void OpenEditModal(Stock stock)
     {
         _editMode = true;
         _showModal = true;
+        _loadingModal = true;
         _modalError = string.Empty;
-        _editStockId = stock.StockId;
-        _selectedRgId = stock.RgId;
-        _editQuantity = stock.Quantity;
-        _editMaxCapacity = stock.MaxCapacity;
-        _editLocation = stock.Location ?? string.Empty;
+        _fieldErrors.Clear();
+        
+        StateHasChanged();
+
+        try
+        {
+            // Reload stock with full details to ensure we have latest data
+            var fullStock = await StockSvc.GetAsync(stock.StockId);
+            
+            if (fullStock == null)
+            {
+                _modalError = "Stock record not found. It may have been deleted.";
+                _loadingModal = false;
+                return;
+            }
+
+            _editStockId = fullStock.StockId;
+            _selectedRgId = fullStock.RgId;
+            _editQuantity = fullStock.Quantity;
+            _editMaxCapacity = fullStock.MaxCapacity;
+            _editLocation = fullStock.Location ?? string.Empty;
+            _selectedReliefGoodName = $"{fullStock.ReliefGood?.Name} ({fullStock.ReliefGood?.Unit})";
+        }
+        catch (Exception ex)
+        {
+            _modalError = $"Error loading stock details: {ex.Message}";
+        }
+        finally
+        {
+            _loadingModal = false;
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private void CloseModal()
     {
         if (_saving) return;
         _showModal = false;
+        _fieldErrors.Clear();
+    }
+
+    // Validation methods
+    private void ValidateReliefGood()
+    {
+        _fieldErrors.Remove("ReliefGood");
+        if (_selectedRgId == 0)
+        {
+            _fieldErrors["ReliefGood"] = "Please select a relief good";
+        }
+    }
+
+    private void ValidateQuantity()
+    {
+        _fieldErrors.Remove("Quantity");
+        if (_editQuantity < 0)
+        {
+            _fieldErrors["Quantity"] = "Quantity cannot be negative";
+        }
+        else if (_editQuantity > _editMaxCapacity)
+        {
+            _fieldErrors["Quantity"] = $"Quantity cannot exceed max capacity ({_editMaxCapacity})";
+        }
+    }
+
+    private void ValidateMaxCapacity()
+    {
+        _fieldErrors.Remove("MaxCapacity");
+        if (_editMaxCapacity <= 0)
+        {
+            _fieldErrors["MaxCapacity"] = "Max capacity must be greater than 0";
+        }
+        else if (_editMaxCapacity > 1000000)
+        {
+            _fieldErrors["MaxCapacity"] = "Max capacity seems unrealistically high";
+        }
+        
+        // Re-validate quantity if it exists
+        if (_editQuantity > _editMaxCapacity)
+        {
+            _fieldErrors["Quantity"] = $"Quantity cannot exceed max capacity ({_editMaxCapacity})";
+        }
+        else
+        {
+            _fieldErrors.Remove("Quantity");
+        }
+    }
+
+    private void ValidateLocation()
+    {
+        _fieldErrors.Remove("Location");
+        if (!string.IsNullOrWhiteSpace(_editLocation) && _editLocation.Length > 255)
+        {
+            _fieldErrors["Location"] = "Location must not exceed 255 characters";
+        }
+    }
+
+    private bool HasValidationErrors()
+    {
+        return _fieldErrors.Any();
+    }
+
+    private bool ValidateAll()
+    {
+        _fieldErrors.Clear();
+
+        if (!_editMode && _selectedRgId == 0)
+        {
+            _fieldErrors["ReliefGood"] = "Please select a relief good";
+        }
+
+        if (_editQuantity < 0)
+        {
+            _fieldErrors["Quantity"] = "Quantity cannot be negative";
+        }
+
+        if (_editMaxCapacity <= 0)
+        {
+            _fieldErrors["MaxCapacity"] = "Max capacity must be greater than 0";
+        }
+        else if (_editMaxCapacity > 1000000)
+        {
+            _fieldErrors["MaxCapacity"] = "Max capacity seems unrealistically high";
+        }
+
+        if (_editQuantity > _editMaxCapacity)
+        {
+            _fieldErrors["Quantity"] = $"Quantity cannot exceed max capacity ({_editMaxCapacity})";
+        }
+
+        if (!string.IsNullOrWhiteSpace(_editLocation) && _editLocation.Length > 255)
+        {
+            _fieldErrors["Location"] = "Location must not exceed 255 characters";
+        }
+
+        return !_fieldErrors.Any();
     }
 
     private async Task SaveStock()
@@ -552,15 +849,10 @@
         if (_saving) return;
         _modalError = string.Empty;
 
-        if (!_editMode && _selectedRgId == 0)
+        // Validate all fields
+        if (!ValidateAll())
         {
-            _modalError = "Please select a Relief Good.";
-            return;
-        }
-
-        if (_editQuantity < 0 || _editMaxCapacity <= 0)
-        {
-            _modalError = "Quantity must be ≥ 0 and capacity must be ≥ 1.";
+            _modalError = "Please correct the highlighted errors before saving.";
             return;
         }
 
@@ -571,10 +863,30 @@
 
             if (_editMode)
             {
+                // Additional check for edit mode
+                var existingStock = await StockSvc.GetAsync(_editStockId);
+                if (existingStock == null)
+                {
+                    _modalError = "Stock record not found. It may have been deleted by another user.";
+                    _saving = false;
+                    await LoadAsync(); // Refresh the list
+                    return;
+                }
+
                 result = await StockSvc.UpdateAsync(_editStockId, _editQuantity, _editMaxCapacity, _editLocation, null, null);
             }
             else
             {
+                // Verify relief good still exists
+                var reliefGood = await InventorySvc.GetByIdAsync(_selectedRgId);
+                if (reliefGood == null)
+                {
+                    _modalError = "Selected relief good not found. It may have been deleted.";
+                    _saving = false;
+                    await LoadAsync(); // Refresh the lists
+                    return;
+                }
+
                 result = await StockSvc.CreateAsync(_selectedRgId, _editQuantity, _editMaxCapacity, _editLocation);
             }
 
@@ -584,8 +896,17 @@
                 return;
             }
 
+            // Success!
             _showModal = false;
             await LoadAsync();
+            
+            // Show success message
+            await JSRuntime.InvokeVoidAsync("alert", 
+                _editMode ? "Stock updated successfully!" : "Stock created successfully!");
+        }
+        catch (DbUpdateException ex)
+        {
+            _modalError = $"Database error: {ex.InnerException?.Message ?? ex.Message}";
         }
         catch (Exception ex)
         {
@@ -594,6 +915,7 @@
         finally
         {
             _saving = false;
+            await InvokeAsync(StateHasChanged);
         }
     }
 
@@ -653,13 +975,15 @@
 
         try
         {
-            var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "Delete this stock record?");
+            var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "Delete this stock record? This action cannot be undone.");
             if (!confirmed) return;
 
             _saving = true;
             var (ok, err) = await StockSvc.DeleteAsync(stockId);
             if (!ok && err != null)
                 _error = err;
+            else
+                await JSRuntime.InvokeVoidAsync("alert", "Stock deleted successfully!");
 
             await LoadAsync();
         }
@@ -719,10 +1043,17 @@
             return;
         }
 
+        // Validate user is authenticated
+        if (!AuthState.IsAuthenticated || !AuthState.UserId.HasValue)
+        {
+            _modalError = "You must be logged in to perform this action.";
+            return;
+        }
+
         _saving = true;
         try
         {
-            var userId = 1; // TODO: use AuthState when available
+            var userId = AuthState.UserId.Value;
 
             var (allocation, err) = await AllocationSvc.AllocateToShelterAsync(
                 _allocateStock.StockId,
@@ -747,13 +1078,13 @@
         catch (Exception ex)
         {
             _modalError = $"Error: {ex.Message}";
-
         }
         finally
         {
             _saving = false;
         }
     }
+
     private async Task ClearFilters(MouseEventArgs args)
     {
         _search = string.Empty;

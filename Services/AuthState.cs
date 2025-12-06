@@ -40,21 +40,37 @@ namespace ResQLink.Services
             CurrentRole != null &&
             roles.Any(r => r.Equals(CurrentRole, StringComparison.OrdinalIgnoreCase));
 
-        // Convenience helpers (added to satisfy existing UI calls)
+        // Convenience helpers
         public bool IsFinanceManager() => IsInRole("Finance Manager");
         public bool IsInventoryManager() => IsInRole("Inventory Manager");
         public bool IsAdmin() => IsInRole("Admin");
+        public bool IsHR() => IsInRole("HR");
+        public bool IsVolunteer() => IsInRole("Volunteer");
 
         public bool CanViewInventory() =>
             HasAnyRole("Admin", "Inventory Manager", "Finance Manager");
 
         public bool CanAccessReports() =>
-            HasAnyRole("Admin", "Finance Manager");
+            HasAnyRole("Admin", "Finance Manager", "HR");
+
+        public bool CanManageBudget() => 
+            IsInRole("Admin") || IsInRole("Finance Manager");
+
+        // HR and Admin can access disaster response pages (NOT Volunteers)
+        public bool CanAccessDisasterResponse() =>
+            HasAnyRole("Admin", "HR") || 
+            (!IsInventoryManager() && !IsFinanceManager() && !IsVolunteer());
 
         public bool CanAccess(string path)
         {
             if (!IsAuthenticated) return false;
             path = path.ToLowerInvariant();
+
+            // Volunteers can ONLY access their dashboard
+            if (IsVolunteer())
+            {
+                return path == "/volunteer-dashboard" || path == "/";
+            }
 
             // Normalize dynamic category routes
             if (path.StartsWith("/inventory/category/"))
@@ -62,17 +78,36 @@ namespace ResQLink.Services
 
             return path switch
             {
-                "/home" => true,
+                "/home" => !IsVolunteer(),
+                "/volunteer-dashboard" => IsVolunteer(),
+                
+                // Disaster response pages - accessible to HR and Admin (NOT Volunteers)
+                "/disasters" => CanAccessDisasterResponse(),
+                "/evacuees" => CanAccessDisasterResponse(),
+                "/shelters" => CanAccessDisasterResponse(),
+                "/volunteers" => CanAccessDisasterResponse(),
+                
+                // Inventory management - restricted
                 "/inventory" => CanViewInventory(),
                 "/categories" => HasAnyRole("Admin", "Inventory Manager"),
                 "/stocks" => HasAnyRole("Admin", "Inventory Manager"),
                 "/suppliers" => HasAnyRole("Admin", "Inventory Manager"),
-                "/reports" => CanAccessReports(),
-                "/audit-logs" => !IsInventoryManager() && !IsFinanceManager(), // visible to Admin / Volunteer / other general roles
-                "/manage-users" => IsAdmin(),
-                "/settings" => true,
+                
+                // Finance
                 "/finance" => IsFinanceManager() || IsAdmin(),
-                _ => true // default allow (extend as needed)
+                
+                // Reports - accessible to Admin, Finance Manager, and HR
+                "/reports" => CanAccessReports(),
+                
+                // Admin section
+                "/audit-logs" => IsAdmin(),
+                "/admin/audit-logs" => IsAdmin(),
+                "/manage-users" => IsAdmin(),
+                
+                // Settings - ADMIN ONLY
+                "/settings" => IsAdmin(),
+                
+                _ => !IsVolunteer() // default deny for volunteers
             };
         }
     }

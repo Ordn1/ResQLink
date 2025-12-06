@@ -176,13 +176,22 @@
                     <div class="form-row">
                         <div class="form-group">
                             <label for="startDate">Start Date *</label>
-                            <InputDate id="startDate" @bind-Value="currentDisaster.StartDate" class="form-control" />
+                            <InputDate id="startDate" 
+                                       @bind-Value="currentDisaster.StartDate" 
+                                       class="form-control"
+                                       max="@DateTime.Now.AddYears(1).ToString("yyyy-MM-dd")" />
                             <ValidationMessage For="@(() => currentDisaster.StartDate)" />
+                            <small class="form-text text-muted">Cannot be more than 1 year in the future</small>
                         </div>
                         <div class="form-group">
                             <label for="endDate">End Date</label>
-                            <InputDate id="endDate" @bind-Value="currentDisaster.EndDate" class="form-control" />
+                            <InputDate id="endDate" 
+                                       @bind-Value="currentDisaster.EndDate" 
+                                       class="form-control"
+                                       min="@currentDisaster.StartDate.ToString("yyyy-MM-dd")"
+                                       max="@DateTime.Now.AddYears(1).ToString("yyyy-MM-dd")" />
                             <ValidationMessage For="@(() => currentDisaster.EndDate)" />
+                            <small class="form-text text-muted">Must be after start date (optional for ongoing disasters)</small>
                         </div>
                     </div>
 

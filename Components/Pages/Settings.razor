@@ -3,6 +3,21 @@
 @inject ResQLink.Services.Sync.ISyncSettingsStorage Storage
 @inject ResQLink.Services.Sync.ISyncService Sync
 @inject IJSRuntime JS
+@inject ResQLink.Services.AuthState Auth
+@inject NavigationManager Navigation
+
+@if (!Auth.IsAdmin())
+{
+    <div class="access-denied">
+        <i class="bi bi-shield-x" style="font-size: 4rem; color: #dc3545;"></i>
+        <h2>Access Denied</h2>
+        <p>You must be an administrator to access settings.</p>
+        <button class="btn-primary" @onclick="NavigateToDashboard">
+            <i class="bi bi-house-fill"></i> Go to Dashboard
+        </button>
+    </div>
+    return;
+}
 
 <div class="settings-root">
     <div class="settings-section-header">
@@ -153,7 +168,7 @@
                     <div class="progress-bar">
                         <div class="progress-fill" style="width: 100%"></div>
                     </div>
-                    <span style="font-size: .75rem; color: var(--text-dim); white-space: nowrap;">@operationStatus</span>
+                    <span class="operation-status-text">@operationStatus</span>
                 </div>
             }
 
@@ -188,11 +203,23 @@
     private string message = string.Empty;
     private string operationStatus = string.Empty;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
+        // Check admin access
+        if (!Auth.IsAdmin())
+        {
+            await JS.InvokeVoidAsync("alert", "Access denied. Admin privileges required.");
+            return;
+        }
+
         Storage.LoadInto(SyncConfig);
         remoteEnabled = SyncConfig.RemoteEnabled;
         interval = SyncConfig.IntervalMinutes;
+    }
+
+    private void NavigateToDashboard()
+    {
+        Navigation.NavigateTo("/home");
     }
 
     private async Task SaveAsync()

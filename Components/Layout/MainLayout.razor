@@ -4,6 +4,15 @@
 @using ResQLink.Services
 @using Microsoft.AspNetCore.Components.Web
 
+@* Volunteers get a minimal layout - no sidebar *@
+@if (Auth.IsVolunteer())
+{
+    <div class="volunteer-layout">
+        @Body
+    </div>
+}
+else
+{
 <div class="app-shell" @onclick="CloseTransientMenus">
     <aside class="shell-sidebar">
         <div class="sidebar-brand">
@@ -23,9 +32,14 @@
                 <span class="nav-text">Dashboard</span>
             </button>
 
-            @* Only show Evacuees, Shelters, Disasters if NOT Inventory Manager or Finance Manager *@
-            @if (!Auth.IsInventoryManager() && !Auth.IsFinanceManager())
+            @* Show Disasters, Evacuees, Shelters, Volunteers for HR only (NOT Admin) *@
+            @if (Auth.CanAccessDisasterResponse() && !Auth.IsAdmin())
             {
+                <button class='nav-btn @ActiveClass("/disasters")' @onclick='() => Go("/disasters")'>
+                    <i class="bi bi-exclamation-triangle-fill nav-icon"></i>
+                    <span class="nav-text">Disasters</span>
+                </button>
+
                 <button class='nav-btn @ActiveClass("/evacuees")' @onclick='() => Go("/evacuees")'>
                     <i class="bi bi-people-fill nav-icon"></i>
                     <span class="nav-text">Evacuees</span>
@@ -36,14 +50,14 @@
                     <span class="nav-text">Shelters</span>
                 </button>
 
-                <button class='nav-btn @ActiveClass("/disasters")' @onclick='() => Go("/disasters")'>
-                    <i class="bi bi-exclamation-triangle-fill nav-icon"></i>
-                    <span class="nav-text">Disasters</span>
+                <button class='nav-btn @ActiveClass("/volunteers")' @onclick='() => Go("/volunteers")'>
+                    <i class="bi bi-person-badge nav-icon"></i>
+                    <span class="nav-text">Volunteers</span>
                 </button>
             }
 
-            @* Show Inventory section for Admin, Inventory Manager, and Finance Manager *@
-            @if (Auth.CanViewInventory())
+            @* Show Inventory section for Inventory Manager and Finance Manager only (NOT Admin) *@
+            @if (Auth.CanViewInventory() && !Auth.IsAdmin())
             {
                 @if (Auth.IsFinanceManager())
                 {
@@ -57,9 +71,9 @@
                         <span class="nav-text">Finance</span>
                     </button>
                 }
-                else
+                else if (Auth.IsInventoryManager())
                 {
-                    @* Admin and Inventory Manager: Full inventory menu with dropdown *@
+                    @* Inventory Manager: Full inventory menu with dropdown *@
                     <div class="nav-item-with-menu">
 
                         <!-- Parent button -->
@@ -114,13 +128,12 @@
                 }
             }
 
-            @* Show Reports for Finance Manager and Admin *@
+            @* Show Reports for Finance Manager, Admin, and HR *@
             @if (Auth.CanAccessReports())
             {
-                @if (!Auth.IsFinanceManager())
+                @if (Auth.IsAdmin())
                 {
-                    <!-- ADMIN LABEL (only for non-Finance Manager) -->
-                    <div class="nav-header-label">Admin</div>
+                    
                 }
 
                 <button class='nav-btn @ActiveClass("/reports")' @onclick='() => Go("/reports")'>
@@ -129,33 +142,24 @@
                 </button>
             }
 
-            @* Only show Admin section if NOT Inventory Manager or Finance Manager *@
-            @if (!Auth.IsInventoryManager() && !Auth.IsFinanceManager())
+            @* Admin-only section *@
+            @if (Auth.IsAdmin())
             {
-                @if (!Auth.CanAccessReports())
-                {
-                    <!-- ADMIN LABEL (if not already shown) -->
-                    <div class="nav-header-label">Admin</div>
-                }
-
-                <button class='nav-btn @ActiveClass("/audit-logs")' @onclick='() => Go("/audit-logs")'>
+                <button class='nav-btn @ActiveClass("/admin/audit-logs")' @onclick='() => Go("/admin/audit-logs")'>
                     <i class="bi bi-clock-history nav-icon"></i>
                     <span class="nav-text">Audit Logs</span>
                 </button>
 
-                @if (Auth.IsInRole("Admin"))
-                {
-                    <button class='nav-btn @ActiveClass("/manage-users")' @onclick='() => Go("/manage-users")'>
-                        <i class="bi bi-person-badge-fill nav-icon"></i>
-                        <span class="nav-text">Manage Users</span>
-                    </button>
-                }
-            }
+                <button class='nav-btn @ActiveClass("/manage-users")' @onclick='() => Go("/manage-users")'>
+                    <i class="bi bi-person-badge-fill nav-icon"></i>
+                    <span class="nav-text">Manage Users</span>
+                </button>
 
-            <button class='nav-btn @ActiveClass("/settings")' @onclick='() => Go("/settings")'>
-                <i class="bi bi-gear-fill nav-icon"></i>
-                <span class="nav-text">Settings</span>
-            </button>
+                <button class='nav-btn @ActiveClass("/settings")' @onclick='() => Go("/settings")'>
+                    <i class="bi bi-gear-fill nav-icon"></i>
+                    <span class="nav-text">Settings</span>
+                </button>
+            }
         </nav>
     </aside>
 
@@ -254,6 +258,7 @@
         </main>
     </section>
 </div>
+}
 
 @code {
     private bool InventoryOpen;
@@ -561,6 +566,7 @@
                 "/evacuees" => "Evacuees",
                 "/shelters" => "Shelters",
                 "/disasters" => "Disasters",
+                "/volunteers" => "Volunteers",  
                 "/inventory" => Auth?.IsFinanceManager() == true ? "Inventory Overview" : "Inventory",
                 var p when p.StartsWith("/inventory/category/") =>
                     "Inventory - " + Uri.UnescapeDataString(p.Split('/').Last()).Replace('-', ' ').ToUpperInvariant(),
@@ -569,6 +575,7 @@
                 "/suppliers" => "Suppliers",
                 "/reports" => Auth?.IsFinanceManager() == true ? "Inventory Reports" : "Reports",
                 "/audit-logs" => "Audit Logs",
+                "/admin/audit-logs" => "Audit Logs",
                 "/manage-users" => "Manage Users",
                 "/settings" => "Settings",
                 _ => path.Trim('/').Replace('-', ' ')

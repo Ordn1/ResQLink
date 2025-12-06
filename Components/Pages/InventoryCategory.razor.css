@@ -1,4 +1,4 @@
-:root {
+﻿:root {
     --accent: #00ea03;
     --accent-rgb: 0,234,3;
     --accent-soft: #e6ffe7;
@@ -101,6 +101,15 @@
 .kpi-value {
     font-size: 1.35rem;
     font-weight: 800;
+}
+
+.kpi-sublabel {
+    font-size: 0.65rem;
+    color: #6b7280;
+    margin-top: 4px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
 }
 
 .text-accent {
@@ -291,21 +300,23 @@ select.mini-input {
 
 /* Progress */
 .progress-shell {
-    height: 8px;
-    background: #f3f4f6;
-    border-radius: 20px;
+    width: 100%;
+    height: 20px;
+    background: #e5e7eb;
+    border-radius: 10px;
     overflow: hidden;
     position: relative;
 }
 
     .progress-shell.thin {
-        height: 6px;
+        height: 8px;
+        border-radius: 4px;
     }
 
 .progress-bar {
     height: 100%;
-    background: linear-gradient(90deg,var(--accent),#39ff3c);
-    box-shadow: 0 0 4px rgba(var(--accent-rgb),0.6);
+    background: linear-gradient(90deg, #10b981, #34d399);
+    transition: width 0.3s ease, background 0.3s ease;
 }
 
 /* Cards view */
@@ -412,7 +423,7 @@ select.mini-input {
     box-shadow: 0 0 0 2px #dcfce7 inset;
 }
 
-/* Modal overlay & dialog � same as Shelter/Evacuees */
+/* Modal overlay & dialog – same as Shelter/Evacuees */
 .modal-overlay {
     position: fixed;
     inset: 0;
@@ -505,27 +516,38 @@ select.mini-input {
     }
 
 .form-control {
-    padding: 8px 11px;
-    border: 1px solid #d0d5dd;
-    border-radius: 8px;
-    font-size: .76rem;
+    padding: 8px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    background: white;
+    color: #111827;
     outline: none;
-    transition: border-color .15s,box-shadow .15s;
+    transition: border-color 0.15s, box-shadow 0.15s;
 }
 
     .form-control:focus {
-        border-color: var(--accent);
-        box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.18);
+        border-color: #38bd60;
+        box-shadow: 0 0 0 3px rgba(56, 189, 96, 0.1);
     }
 
 /* Validation / error */
 .form-error {
-    background: var(--danger-soft);
+    background: #fef2f2;
     border: 1px solid #fecaca;
+    color: #991b1b;
+    padding: 12px;
     border-radius: 8px;
-    padding: 8px 10px;
-    color: var(--danger);
-    font-size: .75rem;
+    margin-bottom: 16px;
+    font-size: 0.875rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.form-error::before {
+    content: "⚠";
+    font-size: 1.2rem;
 }
 
 /* Expiration highlight */
@@ -607,4 +629,96 @@ select.mini-input {
     .form-row {
         grid-template-columns: 1fr !important;
     }
+}
+
+/* Add these styles for the action buttons */
+.action-cell {
+    display: flex;
+    gap: 4px;
+    justify-content: center;
+    align-items: center;
+}
+
+.action-btn {
+    background: #fff;
+    border: 1px solid #d0d5dd;
+    color: #6b7280;
+    padding: 4px 6px;
+    border-radius: 999px;
+    cursor: pointer;
+    font-size: .65rem;
+    transition: all .15s;
+    min-width: 28px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.action-btn i {
+    font-size: .75rem;
+}
+
+.action-btn:hover {
+    box-shadow: 0 2px 6px rgba(15,23,42,0.16);
+    transform: translateY(-1px);
+}
+
+.action-btn.edit {
+    color: #0ea5e9;
+    border-color: #0ea5e933;
+}
+
+.action-btn.edit:hover {
+    background: #0ea5e9;
+    color: #fff;
+}
+
+.btn-danger {
+    background: linear-gradient(90deg,#dc2626,#ef4444);
+    color: #fff;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 999px;
+    cursor: pointer;
+    font-size: .75rem;
+    font-weight: 600;
+    transition: all .15s;
+    box-shadow: 0 8px 18px rgba(220,38,38,0.35);
+}
+
+.btn-danger:hover {
+    background: linear-gradient(90deg,#b91c1c,#dc2626);
+    transform: translateY(-1px);
+}
+
+/* Add to your existing CSS */
+.form-group .hint {
+    font-size: 0.7rem;
+    color: #6b7280;
+    font-style: italic;
+    margin-top: 4px;
+    display: block;
+}
+
+.form-group .hint i {
+    margin-right: 4px;
+}
+
+.form-error {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #991b1b;
+    padding: 12px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    font-size: 0.875rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.form-error::before {
+    content: "⚠";
+    font-size: 1.2rem;
 }

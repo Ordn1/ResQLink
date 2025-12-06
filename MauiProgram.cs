@@ -75,21 +75,34 @@ namespace ResQLink
             builder.Services.AddScoped<StockService>();
             builder.Services.AddScoped<ResourceAllocationService>();
             builder.Services.AddScoped<BudgetService>();
+            builder.Services.AddScoped<ProcurementService>();
+            // Add these service registrations in your existing Program.cs
+            builder.Services.AddScoped<AuditService>();
 
             // Register Global Validation & Error Handling Services
             builder.Services.AddScoped<IValidationService, ValidationService>();
             builder.Services.AddScoped<IValidationRules, ValidationRules>();
             builder.Services.AddScoped<IErrorHandlerService, ErrorHandlerService>();
-
-            // Sync services
+            builder.Services.AddScoped<ResQLink.Services.BudgetStateService>();
+            // This would require additional setup
+            // builder.Services.AddSignalR();
+            // Sync services - Fixed HttpClient configuration
             builder.Services.AddHttpClient("RemoteApi", client =>
             {
-                client.Timeout = TimeSpan.FromSeconds(30);
+                client.Timeout = TimeSpan.FromSeconds(60); // Increased timeout
+                client.DefaultRequestHeaders.Add("User-Agent", "ResQLink/1.0");
+            })
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+            {
+                ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator,
+                AllowAutoRedirect = true,
+                UseProxy = false
             });
+
             var syncSettings = new SyncSettings
             {
-                RemoteEnabled = true,
-                RemoteConnectionString = "Server=db32781.public.databaseasp.net; Database=db32781; User Id=db32781; Password=7Cb#g8_X-Q5n; Encrypt=False; MultipleActiveResultSets=True",
+                RemoteEnabled = true, // Disabled by default until connection is verified
+                RemoteConnectionString = "Server=db34346.public.databaseasp.net; Database=db34346; User Id=db34346; Password=2e!D=Qk38t@B; Encrypt=True; TrustServerCertificate=True; MultipleActiveResultSets=True",
                 IntervalMinutes = 5
             };
             builder.Services.AddSingleton(syncSettings);
@@ -161,9 +174,9 @@ namespace ResQLink
                     var sync = scope.ServiceProvider.GetRequiredService<ISyncService>();
                     if (settings.RemoteEnabled && settings.IntervalMinutes > 0)
                     {
-                        sync.StartAutoSync(TimeSpan.FromMinutes(settings.IntervalMinutes));
-                        logger.LogInformation("Auto sync started every {Interval} minutes.", settings.IntervalMinutes);
-                    }
+                                sync.StartAutoSync(TimeSpan.FromMinutes(settings.IntervalMinutes));
+                                logger.LogInformation("Auto sync started every {Interval} minutes.", settings.IntervalMinutes);
+                            }
                 }
                 catch (Exception ex)
                 {

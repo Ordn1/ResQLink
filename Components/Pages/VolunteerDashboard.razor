@@ -1,0 +1,461 @@
+@page "/volunteer-dashboard"
+@inject ResQLink.Data.AppDbContext Db
+@inject ResQLink.Services.AuthState Auth
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@using Microsoft.EntityFrameworkCore
+@using ResQLink.Data.Entities
+
+<div class="volunteer-dashboard-root">
+    @if (currentVolunteer == null)
+    {
+        <div class="loading-state">
+            <div class="spinner"></div>
+            <p>Loading your dashboard...</p>
+        </div>
+    }
+    else
+    {
+        <!-- Welcome Banner -->
+        <div class="welcome-banner">
+            <div class="welcome-content">
+                <h1 class="welcome-title">Welcome back, @currentVolunteer.FirstName!</h1>
+                <p class="welcome-subtitle">Your volunteer dashboard • Last login: @DateTime.Now.ToString("MMMM dd, yyyy HH:mm")</p>
+            </div>
+            <div class="welcome-actions">
+                <button class="btn-logout" @onclick="Logout">
+                    <i class="bi bi-box-arrow-right"></i> Logout
+                </button>
+            </div>
+        </div>
+
+        <!-- KPI Cards -->
+        <section class="kpi-section">
+            <div class="kpi-card">
+                <div class="kpi-header">
+                    <div class="kpi-label">Your Status</div>
+                    <div class="kpi-icon-circle" style="background: @GetStatusColor(currentVolunteer.Status); color: #fff;">
+                        <i class="bi bi-person-check-fill"></i>
+                    </div>
+                </div>
+                <div>
+                    <div class="kpi-value">@currentVolunteer.Status</div>
+                    <div class="kpi-footer">
+                        <span class="kpi-detail">Current availability</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="kpi-card">
+                <div class="kpi-header">
+                    <div class="kpi-label">Assigned Shelter</div>
+                    <div class="kpi-icon-circle">
+                        <i class="bi bi-house-heart-fill"></i>
+                    </div>
+                </div>
+                <div>
+                    <div class="kpi-value" style="font-size: 1.5rem;">@(assignedShelter?.Name ?? "None")</div>
+                    @if (assignedShelter != null)
+                    {
+                        <div class="kpi-footer">
+                            <span class="kpi-detail">@assignedShelter.Location</span>
+                        </div>
+                    }
+                </div>
+            </div>
+        </section>
+
+        <div class="dashboard-grid">
+            <!-- Left Column -->
+            <div class="col-left">
+                <!-- Deployment Information -->
+                <div class="modern-card">
+                    <div class="card-header">
+                        <div class="card-title-group">
+                            <h3 class="card-title">
+                                <i class="bi bi-geo-alt-fill"></i>
+                                Current Deployment
+                            </h3>
+                            @if (assignedShelter != null)
+                            {
+                                <span class="card-badge deployed">Deployed</span>
+                            }
+                            else
+                            {
+                                <span class="card-badge available">Available</span>
+                            }
+                        </div>
+                    </div>
+                    <div class="deployment-content">
+                        @if (assignedShelter != null)
+                        {
+                            <div class="deployment-section">
+                                <h4 class="section-title">Shelter Assignment</h4>
+                                <div class="info-grid">
+                                    <div class="info-item">
+                                        <label>Shelter Name:</label>
+                                        <span>@assignedShelter.Name</span>
+                                    </div>
+                                    <div class="info-item">
+                                        <label>Location:</label>
+                                        <span>@assignedShelter.Location</span>
+                                    </div>
+                                    <div class="info-item">
+                                        <label>Capacity:</label>
+                                        <span>@assignedShelter.CurrentOccupancy / @assignedShelter.Capacity</span>
+                                    </div>
+                                    <div class="info-item">
+                                        <label>Status:</label>
+                                        <span class="status-chip @(assignedShelter.IsActive ? "st-active" : "st-contained")">
+                                            @(assignedShelter.IsActive ? "Active" : "Inactive")
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="capacity-bar">
+                                    <div class="capacity-fill" style="width: @CalculateOccupancyPercent(assignedShelter)%;"></div>
+                                </div>
+                                <small class="text-muted">@CalculateOccupancyPercent(assignedShelter)% occupied</small>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="empty-state">
+                                <i class="bi bi-calendar-check" style="font-size: 3rem; margin-bottom: 1rem;"></i>
+                                <h4>No Active Deployment</h4>
+                                <p>You are currently not assigned to any shelter.</p>
+                                <p class="text-muted">Contact your coordinator for assignment.</p>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <!-- Your Profile -->
+                <div class="modern-card">
+                    <div class="card-header">
+                        <div class="card-title-group">
+                            <h3 class="card-title">
+                                <i class="bi bi-person-badge-fill"></i>
+                                Your Profile
+                            </h3>
+                        </div>
+                    </div>
+                    <div class="profile-content">
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <label>Full Name:</label>
+                                <span>@currentVolunteer.FirstName @currentVolunteer.LastName</span>
+                            </div>
+                            <div class="info-item">
+                                <label>Email:</label>
+                                <span>@currentVolunteer.Email</span>
+                            </div>
+                            <div class="info-item">
+                                <label>Contact:</label>
+                                <span>@(currentVolunteer.ContactNumber ?? "Not provided")</span>
+                            </div>
+                            <div class="info-item">
+                                <label>Address:</label>
+                                <span>@(currentVolunteer.Address ?? "Not provided")</span>
+                            </div>
+                            <div class="info-item">
+                                <label>Skills:</label>
+                                <span>@(currentVolunteer.Skills ?? "Not specified")</span>
+                            </div>
+                            <div class="info-item">
+                                <label>Availability:</label>
+                                <span>@(currentVolunteer.Availability ?? "Not specified")</span>
+                            </div>
+                            <div class="info-item">
+                                <label>Registered:</label>
+                                <span>@currentVolunteer.RegisteredAt.ToString("MMMM dd, yyyy")</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column -->
+            <div class="col-right">
+                <!-- Quick Actions -->
+                <div class="modern-card">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="bi bi-lightning-fill"></i>
+                            Quick Actions
+                        </h3>
+                    </div>
+                    <div class="actions-list">
+                        <button class="action-item" @onclick="UpdateAvailability">
+                            <i class="bi bi-calendar2-check"></i>
+                            <div>
+                                <strong>Update Availability</strong>
+                                <small>Change your availability status</small>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Notes Section -->
+                @if (!string.IsNullOrEmpty(currentVolunteer.Notes))
+                {
+                    <div class="modern-card">
+                        <div class="card-header">
+                            <h3 class="card-title">
+                                <i class="bi bi-sticky-fill"></i>
+                                Notes
+                            </h3>
+                        </div>
+                        <div class="notes-content">
+                            <p>@currentVolunteer.Notes</p>
+                        </div>
+                    </div>
+                }
+
+                <!-- Recent Activity -->
+                <div class="modern-card">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="bi bi-clock-history"></i>
+                            Recent Activity
+                        </h3>
+                    </div>
+                    <div class="activity-list">
+                        <div class="activity-item">
+                            <div class="activity-icon">
+                                <i class="bi bi-person-check-fill"></i>
+                            </div>
+                            <div class="activity-content">
+                                <strong>Logged In</strong>
+                                <small>@DateTime.Now.ToString("MMM dd, yyyy HH:mm")</small>
+                            </div>
+                        </div>
+                        <div class="activity-item">
+                            <div class="activity-icon">
+                                <i class="bi bi-person-plus-fill"></i>
+                            </div>
+                            <div class="activity-content">
+                                <strong>Account Created</strong>
+                                <small>@currentVolunteer.RegisteredAt.ToString("MMM dd, yyyy HH:mm")</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<!-- Update Availability Modal -->
+@if (showAvailabilityModal)
+{
+    <div class="modal-overlay" @onclick="CloseAvailabilityModal">
+        <div class="modal-content" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3>
+                    <i class="bi bi-calendar2-check"></i>
+                    Update Availability
+                </h3>
+                <button class="btn-close" @onclick="CloseAvailabilityModal">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="status-select">Availability Status</label>
+                    <select id="status-select" class="form-control" @bind="selectedStatus">
+                        <option value="Active">Active - Available for deployment</option>
+                        <option value="Inactive">Inactive - Not available</option>
+                        <option value="On Leave">On Leave - Temporarily unavailable</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="availability-text">Availability Details (Optional)</label>
+                    <textarea id="availability-text" 
+                              class="form-control" 
+                              rows="3" 
+                              @bind="availabilityText" 
+                              placeholder="E.g., Available weekends only, Available 24/7, etc."></textarea>
+                </div>
+                @if (!string.IsNullOrEmpty(updateMessage))
+                {
+                    <div class="alert @(updateSuccess ? "alert-success" : "alert-error")">
+                        <i class="bi @(updateSuccess ? "bi-check-circle" : "bi-x-circle")"></i>
+                        @updateMessage
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" @onclick="CloseAvailabilityModal">Cancel</button>
+                <button class="btn-primary" @onclick="SaveAvailability" disabled="@isSaving">
+                    @if (isSaving)
+                    {
+                        <span class="spinner-small"></span>
+                        <span>Saving...</span>
+                    }
+                    else
+                    {
+                        <i class="bi bi-check-lg"></i>
+                        <span>Save Changes</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private Volunteer? currentVolunteer;
+    private Shelter? assignedShelter;
+    private Disaster? assignedDisaster;
+    private bool showAvailabilityModal = false;
+    private string selectedStatus = "Active";
+    private string availabilityText = "";
+    private bool isSaving = false;
+    private string? updateMessage;
+    private bool updateSuccess;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            // Verify this is a volunteer
+            if (!Auth.IsVolunteer())
+            {
+                await JS.InvokeVoidAsync("alert", "Access denied. This page is for volunteers only.");
+                Navigation.NavigateTo("/home");
+                return;
+            }
+
+            // Get current user ID from Auth state
+            var userId = Auth.UserId;
+            if (userId == null)
+            {
+                Navigation.NavigateTo("/");
+                return;
+            }
+
+            // Load volunteer data
+            currentVolunteer = await Db.Volunteers
+                .AsNoTracking()
+                .FirstOrDefaultAsync(v => v.VolunteerId == userId.Value);
+
+            if (currentVolunteer == null)
+            {
+                await JS.InvokeVoidAsync("alert", "Volunteer record not found.");
+                Navigation.NavigateTo("/");
+                return;
+            }
+
+            // Initialize modal fields with current values
+            selectedStatus = currentVolunteer.Status ?? "Active";
+            availabilityText = currentVolunteer.Availability ?? "";
+
+            // Load assigned shelter if any
+            if (currentVolunteer.AssignedShelterId.HasValue)
+            {
+                assignedShelter = await Db.Shelters
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(s => s.ShelterId == currentVolunteer.AssignedShelterId.Value);
+            }
+
+            // Load assigned disaster if any (kept for internal logic but not displayed)
+            if (currentVolunteer.AssignedDisasterId.HasValue)
+            {
+                assignedDisaster = await Db.Disasters
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(d => d.DisasterId == currentVolunteer.AssignedDisasterId.Value);
+            }
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Error loading dashboard: {ex.Message}");
+        }
+    }
+
+    private int CalculateOccupancyPercent(Shelter shelter)
+    {
+        if (shelter.Capacity == 0) return 0;
+        return (int)Math.Round((double)shelter.CurrentOccupancy / shelter.Capacity * 100);
+    }
+
+    private string GetStatusColor(string status) => status.ToLowerInvariant() switch
+    {
+        "active" => "#10b981",
+        "inactive" => "#6b7280",
+        "on leave" => "#f59e0b",
+        _ => "#6b7280"
+    };
+
+    private string StatusClass(string status) => status.ToLowerInvariant() switch
+    {
+        "open" => "st-active",
+        "active" => "st-active",
+        "contained" => "st-contained",
+        "closed" => "st-monitoring",
+        _ => "st-stable"
+    };
+
+    private void UpdateAvailability()
+    {
+        showAvailabilityModal = true;
+        updateMessage = null;
+        updateSuccess = false;
+    }
+
+    private void CloseAvailabilityModal()
+    {
+        showAvailabilityModal = false;
+        updateMessage = null;
+        updateSuccess = false;
+    }
+
+    private async Task SaveAvailability()
+    {
+        if (currentVolunteer == null) return;
+
+        isSaving = true;
+        updateMessage = null;
+        
+        try
+        {
+            // Get the volunteer from database for updating
+            var volunteer = await Db.Volunteers.FirstOrDefaultAsync(v => v.VolunteerId == currentVolunteer.VolunteerId);
+            
+            if (volunteer != null)
+            {
+                volunteer.Status = selectedStatus;
+                volunteer.Availability = string.IsNullOrWhiteSpace(availabilityText) ? null : availabilityText;
+                
+                await Db.SaveChangesAsync();
+                
+                // Update local volunteer object
+                currentVolunteer.Status = selectedStatus;
+                currentVolunteer.Availability = volunteer.Availability;
+                
+                updateSuccess = true;
+                updateMessage = "Your availability has been updated successfully!";
+                
+                // Close modal after a short delay
+                await Task.Delay(1500);
+                CloseAvailabilityModal();
+                
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            updateSuccess = false;
+            updateMessage = $"Error updating availability: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void Logout()
+    {
+        Auth.Logout();
+        Navigation.NavigateTo("/");
+    }
+}
