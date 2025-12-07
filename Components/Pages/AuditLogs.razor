@@ -1,225 +1,421 @@
-﻿@page "/audit-logs"
-@using System.Linq
+﻿@page "/admin/audit-logs"
+@inject ResQLink.Services.AuditService AuditService
+@inject ResQLink.Services.AuthState Auth
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@using ResQLink.Data.Entities
 
-<div class="audit-root">
+<div class="audit-logs-root">
+    @if (!Auth.IsAdmin())
+    {
+        <div class="access-denied">
+            <i class="bi bi-shield-x" style="font-size: 4rem; color: #dc3545;"></i>
+            <h2>Access Denied</h2>
+            <p>You must be an administrator to view audit logs.</p>
+        </div>
+        return;
+    }
 
-    <section class="panel kpi-panel">
-        <header class="panel-head">
-            <h2 class="panel-title">Audit Logs Overview</h2>
-            <div class="panel-actions">
-                <button class="mini-btn" @onclick="Refresh" title="Refresh list">
-                    <i class="bi bi-arrow-clockwise"></i>
-                </button>
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">
+                <i class="bi bi-journal-text"></i>
+                Audit Logs
+            </h1>
+            <p class="page-subtitle">Comprehensive activity tracking and forensic analysis</p>
+        </div>
+        <button class="btn-primary" @onclick="ExportLogs">
+            <i class="bi bi-download"></i> Export Logs
+        </button>
+    </div>
+
+    <!-- Filters -->
+    <div class="modern-card filters-card">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="bi bi-funnel-fill"></i>
+                Filters
+            </h3>
+            <button class="btn-secondary" @onclick="ClearFilters">Clear Filters</button>
+        </div>
+        <div class="filters-grid">
+            <div class="filter-group">
+                <label>Start Date</label>
+                <input type="datetime-local" @bind="filterStartDate" class="form-control" />
             </div>
-        </header>
-        <div class="kpi-grid">
-            <div class="kpi-card">
-                <div class="kpi-label">Total Entries</div>
-                <div class="kpi-value text-accent">@AllLogs.Count</div>
+            <div class="filter-group">
+                <label>End Date</label>
+                <input type="datetime-local" @bind="filterEndDate" class="form-control" />
             </div>
-            <div class="kpi-card">
-                <div class="kpi-label">Today</div>
-                <div class="kpi-value">@AllLogs.Count(l => l.Timestamp.Date == DateTime.Today)</div>
+            <div class="filter-group">
+                <label>Action</label>
+                <select @bind="filterAction" class="form-control">
+                    <option value="">All Actions</option>
+                    <option value="Login">Login</option>
+                    <option value="Logout">Logout</option>
+                    <option value="Create">Create</option>
+                    <option value="Update">Update</option>
+                    <option value="Delete">Delete</option>
+                    <option value="View">View</option>
+                    <option value="Assign">Assign</option>
+                    <option value="Unassign">Unassign</option>
+                </select>
             </div>
-            <div class="kpi-card">
-                <div class="kpi-label">Actors</div>
-                <div class="kpi-value">@DistinctActors.Count()</div>
+            <div class="filter-group">
+                <label>Entity Type</label>
+                <select @bind="filterEntityType" class="form-control">
+                    <option value="">All Entities</option>
+                    <option value="Volunteer">Volunteer</option>
+                    <option value="Shelter">Shelter</option>
+                    <option value="Disaster">Disaster</option>
+                    <option value="Donation">Donation</option>
+                    <option value="Admin">Admin</option>
+                    <option value="Stock">Stock</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>Severity</label>
+                <select @bind="filterSeverity" class="form-control">
+                    <option value="">All Severities</option>
+                    <option value="Info">Info</option>
+                    <option value="Warning">Warning</option>
+                    <option value="Error">Error</option>
+                    <option value="Critical">Critical</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>User ID</label>
+                <input type="number" @bind="filterUserId" placeholder="Enter user ID" class="form-control" />
             </div>
         </div>
-    </section>
+        <div class="filter-actions">
+            <button class="btn-primary" @onclick="ApplyFilters">
+                <i class="bi bi-search"></i> Apply Filters
+            </button>
+        </div>
+    </div>
 
-    <section class="panel">
-        <header class="panel-head">
-            <h2 class="panel-title">Audit Logs</h2>
-            <div class="panel-actions">
-                <input class="mini-input"
-                       placeholder="Search user, resource or details…"
-                       @bind="search"
-                       @bind:event="oninput" />
-                <select class="mini-input" @bind="actorFilter">
-                    <option value="">Actor</option>
-                    @foreach (var a in DistinctActors)
-                    {
-                        <option>@a</option>
-                    }
-                </select>
-                <select class="mini-input" @bind="actionFilter">
-                    <option value="">Action</option>
-                    <option>CREATE</option>
-                    <option>UPDATE</option>
-                    <option>DELETE</option>
-                    <option>LOGIN</option>
-                    <option>LOGOUT</option>
-                </select>
-                <input class="mini-input" type="date" @bind="dateFrom" />
-                <input class="mini-input" type="date" @bind="dateTo" />
-                <button class="mini-btn" @onclick="ClearFilters">Clear</button>
-                <button class="mini-btn" @onclick="Refresh" title="Refresh list">
-                    <i class="bi bi-arrow-clockwise"></i>
-                </button>
-                <button class="mini-btn" disabled title="Export not implemented">
-                    Export
-                </button>
+    <!-- Statistics -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon info">
+                <i class="bi bi-info-circle-fill"></i>
             </div>
-        </header>
+            <div class="stat-content">
+                <div class="stat-value">@logs.Count(l => l.Severity == "Info")</div>
+                <div class="stat-label">Info</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon warning">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+            </div>
+            <div class="stat-content">
+                <div class="stat-value">@logs.Count(l => l.Severity == "Warning")</div>
+                <div class="stat-label">Warnings</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon error">
+                <i class="bi bi-x-circle-fill"></i>
+            </div>
+            <div class="stat-content">
+                <div class="stat-value">@logs.Count(l => l.Severity == "Error")</div>
+                <div class="stat-label">Errors</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon critical">
+                <i class="bi bi-shield-exclamation"></i>
+            </div>
+            <div class="stat-content">
+                <div class="stat-value">@logs.Count(l => l.Severity == "Critical")</div>
+                <div class="stat-label">Critical</div>
+            </div>
+        </div>
+    </div>
 
-        <div class="table-wrap">
-            <table class="dash-table">
-                <thead>
-                    <tr>
-                        <th class="t-center col-id">ID</th>
-                        <th class="col-time">Timestamp</th>
-                        <th class="col-actor">Actor</th>
-                        <th class="col-action">Action</th>
-                        <th class="col-resource">Resource</th>
-                        <th class="col-ip">IP</th>
-                        <th class="col-details t-center">Details</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var l in PagedLogs)
-                    {
+    <!-- Audit Logs Table -->
+    <div class="modern-card">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="bi bi-list-ul"></i>
+                Audit Trail (@logs.Count entries)
+            </h3>
+        </div>
+        <div class="table-responsive">
+            @if (isLoading)
+            {
+                <div class="loading-state">
+                    <div class="spinner"></div>
+                    <p>Loading audit logs...</p>
+                </div>
+            }
+            else if (!logs.Any())
+            {
+                <div class="empty-state">
+                    <i class="bi bi-inbox" style="font-size: 3rem;"></i>
+                    <h4>No Audit Logs Found</h4>
+                    <p>No activities match your current filters.</p>
+                </div>
+            }
+            else
+            {
+                <table class="audit-table">
+                    <thead>
                         <tr>
-                            <td class="t-center col-id">#@l.Id</td>
-                            <td class="col-time">@l.Timestamp.ToString("yyyy-MM-dd HH:mm")</td>
-                            <td class="col-actor">@l.Actor</td>
-                            <td class="col-action">
-                                <span class="status-chip @ActionClass(l.Action)">@l.Action</span>
-                            </td>
-                            <td class="col-resource">@l.Resource</td>
-                            <td class="t-center col-ip">@l.Ip</td>
-                            <td class="t-center col-details">
-                                <button class="mini-btn" @onclick="() => ToggleDetails(l.Id)">
-                                    @(Expanded.Contains(l.Id) ? "Hide" : "Show")
-                                </button>
-                            </td>
+                            <th>Timestamp</th>
+                            <th>User</th>
+                            <th>Action</th>
+                            <th>Entity</th>
+                            <th>Description</th>
+                            <th>Severity</th>
+                            <th>Status</th>
+                            <th>IP Address</th>
+                            <th>Details</th>
                         </tr>
-                        @if (Expanded.Contains(l.Id))
+                    </thead>
+                    <tbody>
+                        @foreach (var log in logs)
                         {
-                            <tr class="log-details">
-                                <td colspan="7">
-                                    <div class="details-grid">
-                                        <div><strong>User:</strong> @l.Actor</div>
-                                        <div><strong>Resource:</strong> @l.Resource</div>
-                                        <div><strong>Action:</strong> @l.Action</div>
-                                        <div><strong>IP:</strong> @l.Ip</div>
-                                        <div><strong>When:</strong> @l.Timestamp.ToString("f")</div>
-                                        <div class="details-msg">
-                                            <strong>Payload / Notes:</strong>
-                                            <pre>@l.Details</pre>
-                                        </div>
+                            <tr class="@(log.IsSuccessful ? "" : "failed-action")">
+                                <td class="timestamp-cell">
+                                    <div>@log.Timestamp.ToLocalTime().ToString("yyyy-MM-dd")</div>
+                                    <small>@log.Timestamp.ToLocalTime().ToString("HH:mm:ss")</small>
+                                </td>
+                                <td>
+                                    <div class="user-info">
+                                        <strong>@(log.UserName ?? "System")</strong>
+                                        <small>@log.UserType @(log.UserId.HasValue ? $"(ID: {log.UserId})" : "")</small>
                                     </div>
+                                </td>
+                                <td>
+                                    <span class="action-badge @GetActionClass(log.Action)">
+                                        @log.Action
+                                    </span>
+                                </td>
+                                <td>
+                                    <div>@log.EntityType</div>
+                                    @if (log.EntityId.HasValue)
+                                    {
+                                        <small class="text-muted">ID: @log.EntityId</small>
+                                    }
+                                </td>
+                                <td class="description-cell">@log.Description</td>
+                                <td>
+                                    <span class="severity-badge sev-@log.Severity.ToLower()">
+                                        @log.Severity
+                                    </span>
+                                </td>
+                                <td>
+                                    @if (log.IsSuccessful)
+                                    {
+                                        <span class="status-badge success">
+                                            <i class="bi bi-check-circle-fill"></i> Success
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="status-badge failed">
+                                            <i class="bi bi-x-circle-fill"></i> Failed
+                                        </span>
+                                    }
+                                </td>
+                                <td>@log.IpAddress</td>
+                                <td>
+                                    <button class="btn-icon" @onclick="() => ShowDetails(log)">
+                                        <i class="bi bi-eye-fill"></i>
+                                    </button>
                                 </td>
                             </tr>
                         }
-                    }
-                    @if (!PagedLogs.Any())
-                    {
-                        <tr>
-                            <td colspan="7" class="t-center text-muted">No logs match your filters.</td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
+                    </tbody>
+                </table>
+            }
         </div>
+    </div>
 
-        <footer class="panel-foot">
-            <div class="foot-left">
-                Showing @StartIndex–@EndIndex of @TotalFiltered
+    <!-- Details Modal -->
+    @if (selectedLog != null)
+    {
+        <div class="modal-overlay" @onclick="CloseDetails">
+            <div class="modal-content" @onclick:stopPropagation="true">
+                <div class="modal-header">
+                    <h3>
+                        <i class="bi bi-file-earmark-text-fill"></i>
+                        Audit Log Details
+                    </h3>
+                    <button class="btn-close" @onclick="CloseDetails">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="details-grid">
+                        <div class="detail-item">
+                            <label>Log ID:</label>
+                            <span>@selectedLog.AuditLogId</span>
+                        </div>
+                        <div class="detail-item">
+                            <label>Timestamp (UTC):</label>
+                            <span>@selectedLog.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")</span>
+                        </div>
+                        <div class="detail-item">
+                            <label>Timestamp (Local):</label>
+                            <span>@selectedLog.Timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</span>
+                        </div>
+                        <div class="detail-item">
+                            <label>User:</label>
+                            <span>@selectedLog.UserName (@selectedLog.UserType)</span>
+                        </div>
+                        <div class="detail-item">
+                            <label>User ID:</label>
+                            <span>@selectedLog.UserId</span>
+                        </div>
+                        <div class="detail-item">
+                            <label>Action:</label>
+                            <span>@selectedLog.Action</span>
+                        </div>
+                        <div class="detail-item">
+                            <label>Entity Type:</label>
+                            <span>@selectedLog.EntityType</span>
+                        </div>
+                        <div class="detail-item">
+                            <label>Entity ID:</label>
+                            <span>@selectedLog.EntityId</span>
+                        </div>
+                        <div class="detail-item">
+                            <label>IP Address:</label>
+                            <span>@selectedLog.IpAddress</span>
+                        </div>
+                        <div class="detail-item">
+                            <label>Session ID:</label>
+                            <span>@selectedLog.SessionId</span>
+                        </div>
+                        <div class="detail-item full-width">
+                            <label>User Agent:</label>
+                            <span>@selectedLog.UserAgent</span>
+                        </div>
+                        <div class="detail-item full-width">
+                            <label>Description:</label>
+                            <span>@selectedLog.Description</span>
+                        </div>
+                        @if (!string.IsNullOrEmpty(selectedLog.ErrorMessage))
+                        {
+                            <div class="detail-item full-width error-message">
+                                <label>Error Message:</label>
+                                <span>@selectedLog.ErrorMessage</span>
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(selectedLog.OldValues))
+                        {
+                            <div class="detail-item full-width">
+                                <label>Old Values:</label>
+                                <pre class="json-preview">@selectedLog.OldValues</pre>
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(selectedLog.NewValues))
+                        {
+                            <div class="detail-item full-width">
+                                <label>New Values:</label>
+                                <pre class="json-preview">@selectedLog.NewValues</pre>
+                            </div>
+                        }
+                    </div>
+                </div>
             </div>
-            <div class="foot-right">
-                <label class="foot-label">Rows</label>
-                <select class="mini-input" @bind="pageSize">
-                    <option>10</option>
-                    <option>20</option>
-                    <option>50</option>
-                </select>
-                <button class="mini-btn" @onclick="PrevPage" disabled="@(_pageIndex == 0)">Prev</button>
-                <span class="page-indicator">Page @(_pageIndex + 1) / @TotalPages</span>
-                <button class="mini-btn" @onclick="NextPage" disabled="@(_pageIndex >= TotalPages - 1)">Next</button>
-            </div>
-        </footer>
-    </section>
+        </div>
+    }
 </div>
 
 @code {
-    private class AuditLogItem
+    private List<AuditLog> logs = new();
+    private AuditLog? selectedLog;
+    private bool isLoading = true;
+
+    private DateTime? filterStartDate;
+    private DateTime? filterEndDate;
+    private string filterAction = "";
+    private string filterEntityType = "";
+    private string filterSeverity = "";
+    private int? filterUserId;
+
+    protected override async Task OnInitializedAsync()
     {
-        public int Id { get; set; }
-        public DateTime Timestamp { get; set; }
-        public string Actor { get; set; } = "";
-        public string Action { get; set; } = "";
-        public string Resource { get; set; } = "";
-        public string Ip { get; set; } = "";
-        public string Details { get; set; } = "";
+        if (!Auth.IsAdmin())
+        {
+            await JS.InvokeVoidAsync("alert", "Access denied. Admin privileges required.");
+            return;
+        }
+
+        await LoadLogs();
     }
 
-    private List<AuditLogItem> AllLogs = new();
-    private HashSet<int> Expanded = new();
-
-    // Filters / paging
-    private string search = string.Empty;
-    private string actorFilter = string.Empty;
-    private string actionFilter = string.Empty;
-    private DateTime dateFrom = DateTime.Today.AddDays(-7);
-    private DateTime dateTo = DateTime.Today;
-    private int _pageIndex = 0;
-    private int pageSize = 10;
-
-    private IEnumerable<string> DistinctActors =>
-        AllLogs.Select(l => l.Actor).Distinct().OrderBy(x => x);
-
-    private IEnumerable<AuditLogItem> Filtered =>
-        AllLogs
-            .Where(l => l.Timestamp.Date >= dateFrom && l.Timestamp.Date <= dateTo)
-            .Where(l => string.IsNullOrWhiteSpace(search)
-                        || l.Actor.Contains(search, StringComparison.OrdinalIgnoreCase)
-                        || l.Resource.Contains(search, StringComparison.OrdinalIgnoreCase)
-                        || l.Details.Contains(search, StringComparison.OrdinalIgnoreCase))
-            .Where(l => string.IsNullOrWhiteSpace(actorFilter) || l.Actor.Equals(actorFilter, StringComparison.OrdinalIgnoreCase))
-            .Where(l => string.IsNullOrWhiteSpace(actionFilter) || l.Action.Equals(actionFilter, StringComparison.OrdinalIgnoreCase));
-
-    private int TotalFiltered => Filtered.Count();
-    private int TotalPages => Math.Max((int)Math.Ceiling(TotalFiltered / (double)pageSize), 1);
-    private int StartIndex => TotalFiltered == 0 ? 0 : (_pageIndex * pageSize) + 1;
-    private int EndIndex => Math.Min((_pageIndex + 1) * pageSize, TotalFiltered);
-    private IEnumerable<AuditLogItem> PagedLogs => Filtered.Skip(_pageIndex * pageSize).Take(pageSize);
-
-    private string ActionClass(string action) => action switch
+    private async Task LoadLogs()
     {
-        "CREATE" => "st-med",
-        "UPDATE" => "st-stable",
-        "DELETE" => "st-critical",
-        "LOGIN" => "st-ok",
-        "LOGOUT" => "st-contained",
-        _ => ""
+        isLoading = true;
+        try
+        {
+            logs = await AuditService.GetLogsAsync(
+                startDate: filterStartDate,
+                endDate: filterEndDate,
+                action: string.IsNullOrEmpty(filterAction) ? null : filterAction,
+                entityType: string.IsNullOrEmpty(filterEntityType) ? null : filterEntityType,
+                severity: string.IsNullOrEmpty(filterSeverity) ? null : filterSeverity,
+                userId: filterUserId,
+                limit: 500
+            );
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Error loading audit logs: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ApplyFilters()
+    {
+        await LoadLogs();
+    }
+
+    private async Task ClearFilters()
+    {
+        filterStartDate = null;
+        filterEndDate = null;
+        filterAction = "";
+        filterEntityType = "";
+        filterSeverity = "";
+        filterUserId = null;
+        await LoadLogs();
+    }
+
+    private void ShowDetails(AuditLog log)
+    {
+        selectedLog = log;
+    }
+
+    private void CloseDetails()
+    {
+        selectedLog = null;
+    }
+
+    private string GetActionClass(string action) => action.ToLowerInvariant() switch
+    {
+        "login" => "action-login",
+        "logout" => "action-logout",
+        "create" => "action-create",
+        "update" => "action-update",
+        "delete" => "action-delete",
+        "view" => "action-view",
+        "assign" => "action-assign",
+        "unassign" => "action-unassign",
+        _ => "action-default"
     };
 
-    private void ToggleDetails(int id)
+    private async Task ExportLogs()
     {
-        if (!Expanded.Add(id))
-            Expanded.Remove(id);
-    }
-
-    private void Refresh() => StateHasChanged();
-
-    private void ClearFilters()
-    {
-        search = string.Empty;
-        actorFilter = string.Empty;
-        actionFilter = string.Empty;
-        dateFrom = DateTime.Today.AddDays(-7);
-        dateTo = DateTime.Today;
-        _pageIndex = 0;
-    }
-
-    private void PrevPage()
-    {
-        if (_pageIndex > 0) _pageIndex--;
-    }
-
-    private void NextPage()
-    {
-        if (_pageIndex < TotalPages - 1) _pageIndex++;
+        await JS.InvokeVoidAsync("alert", "Export functionality coming soon!");
     }
 }

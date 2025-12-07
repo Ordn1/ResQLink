@@ -20,9 +20,10 @@ public class ErrorHandlerService : IErrorHandlerService
         {
             DbUpdateException dbEx => HandleDbUpdateException(dbEx),
             ArgumentNullException => ErrorResult.Failure("Required data is missing", ErrorCategory.Validation, ex),
-            ArgumentException => ErrorResult.Failure(ex.Message, ErrorCategory.Validation, ex),
+            ArgumentException argEx => ErrorResult.Failure(argEx.Message, ErrorCategory.Validation, ex),
             InvalidOperationException => ErrorResult.Failure(ex.Message, ErrorCategory.General, ex),
             UnauthorizedAccessException => ErrorResult.Failure("You don't have permission to perform this action", ErrorCategory.Unauthorized, ex),
+            FormatException => ErrorResult.Failure("Invalid data format provided. Please check date and number fields.", ErrorCategory.Validation, ex),
             _ => ErrorResult.Failure($"An unexpected error occurred: {ex.Message}", ErrorCategory.General, ex)
         };
     }
@@ -43,6 +44,11 @@ public class ErrorHandlerService : IErrorHandlerService
                 
                 515 => ErrorResult.Failure(
                     "Required information is missing. Please fill in all required fields.",
+                    ErrorCategory.Validation, ex),
+
+                // Date/DateTime conversion errors
+                241 or 242 => ErrorResult.Failure(
+                    "Invalid date format. Please ensure dates are valid.",
                     ErrorCategory.Validation, ex),
                 
                 _ => ErrorResult.Failure(

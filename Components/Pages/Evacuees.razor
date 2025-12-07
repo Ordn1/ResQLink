@@ -94,6 +94,11 @@
                                         title="Edit evacuee">
                                     <i class="bi bi-pencil"></i>
                                 </button>
+                                <button class="action-btn delete"
+                                        @onclick="() => ShowDeleteConfirmation(e.Id, e.Name)"
+                                        title="Delete evacuee">
+                                    <i class="bi bi-trash"></i>
+                                </button>
                             </td>
                         </tr>
                     }
@@ -217,20 +222,6 @@
                 }
 
                 <div class="modal-actions">
-                    @if (editModel.EvacueeId != 0)
-                    {
-                        <button type="button"
-                                class="btn-danger"
-                                @onclick="ConfirmDeleteAsync"
-                                disabled="@saving"
-                                @onclick:stopPropagation="true">
-                            @if (saving)
-                            {
-                                <span class="spinner"></span>
-                            }
-                            Delete
-                        </button>
-                    }
                     <button type="button"
                             class="btn-cancel"
                             @onclick="CancelForm"
@@ -250,6 +241,33 @@
                         @(editModel.EvacueeId == 0 ? "Save" : "Update")
                     </button>
                 </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* Delete Confirmation Modal *@
+@if (showDeleteModal)
+{
+    <div class="modal-overlay" @onclick="CloseDeleteModal" @onclick:stopPropagation="false">
+        <div class="modal-dialog small" @onclick="PreventClose" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3>Confirm Delete</h3>
+                <button class="modal-close" @onclick="CloseDeleteModal" @onclick:stopPropagation="true">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete the evacuee <strong>"@evacueeToDeleteName"</strong>?</p>
+                <p class="warning-text">This action cannot be undone and will also delete all related data.</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" @onclick="CloseDeleteModal" @onclick:stopPropagation="true">Cancel</button>
+                <button class="btn-danger" @onclick="ConfirmDeleteAsync" disabled="@isDeleting" @onclick:stopPropagation="true">
+                    @if (isDeleting)
+                    {
+                        <span class="spinner"></span>
+                    }
+                    Delete
+                </button>
             </div>
         </div>
     </div>
@@ -277,9 +295,13 @@
     private List<Shelter> shelters = new();
     private EvacueeEditModel editModel = new();
     private bool showForm = false;
+    private bool showDeleteModal = false;
     private bool saving = false;
     private bool loadingForm = false;
+    private bool isDeleting = false;
     private string formError = string.Empty;
+    private int evacueeToDeleteId = 0;
+    private string evacueeToDeleteName = string.Empty;
 
     private string search = string.Empty;
     private string statusFilter = string.Empty;
@@ -591,17 +613,24 @@
         }
     }
 
+    private void ShowDeleteConfirmation(int id, string name)
+    {
+        evacueeToDeleteId = id;
+        evacueeToDeleteName = name;
+        showDeleteModal = true;
+    }
+
     private async Task ConfirmDeleteAsync()
     {
-        if (saving) return;
-        if (editModel.EvacueeId == 0) return;
+        if (isDeleting) return;
+        if (evacueeToDeleteId == 0) return;
 
-        saving = true;
+        isDeleting = true;
         formError = string.Empty;
 
         try
         {
-            var entity = await Db.Evacuees.FirstOrDefaultAsync(e => e.EvacueeId == editModel.EvacueeId);
+            var entity = await Db.Evacuees.FirstOrDefaultAsync(e => e.EvacueeId == evacueeToDeleteId);
             if (entity == null)
             {
                 formError = "Evacuee not found.";
@@ -610,7 +639,7 @@
 
             Db.Evacuees.Remove(entity);
             await Db.SaveChangesAsync();
-            showForm = false;
+            CloseDeleteModal();
             await LoadAsync();
         }
         catch (DbUpdateException ex)
@@ -623,9 +652,17 @@
         }
         finally
         {
-            saving = false;
+            isDeleting = false;
             await InvokeAsync(StateHasChanged);
         }
+    }
+
+    private void CloseDeleteModal()
+    {
+        showDeleteModal = false;
+        evacueeToDeleteId = 0;
+        evacueeToDeleteName = string.Empty;
+        isDeleting = false;
     }
 
     private void CancelForm()

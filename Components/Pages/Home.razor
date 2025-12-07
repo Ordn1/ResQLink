@@ -1,16 +1,143 @@
 ﻿@page "/home"
 @inject ResQLink.Data.AppDbContext Db
+@inject IJSRuntime JS
 @using Microsoft.EntityFrameworkCore
 @using ResQLink.Data.Entities
+@implements IAsyncDisposable
 
 <div class="dashboard-root">
-    <div class="dashboard-grid">
+    <!-- Summary Banner -->
+    <div class="summary-banner">
+        <div class="summary-header">
+            <div class="summary-icon">
+                <i class="bi bi-speedometer2"></i>
+            </div>
+            <div class="summary-content">
+                <h2 class="summary-title">ResQLink Dashboard</h2>
+                <p class="summary-subtitle">
+                    Real-time disaster response coordination • Last updated: @DateTime.Now.ToString("MMM dd, yyyy HH:mm")
+                </p>
+            </div>
+        </div>
+        
+        <div class="summary-stats">
+            <div class="stat-group">
+                <span class="stat-label">Active Operations</span>
+                <span class="stat-value">@ActiveDisastersCount disasters</span>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-group">
+                <span class="stat-label">People Assisted</span>
+                <span class="stat-value">@TotalEvacuees evacuees</span>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-group">
+                <span class="stat-label">Resources</span>
+                <span class="stat-value">@(LowStockCount > 0 ? $"{LowStockCount} items need restocking" : "Inventory levels healthy")</span>
+            </div>
+        </div>
+    </div>
 
+    <!-- Analytics Filters -->
+    <section class="panel">
+        <header class="panel-head">
+            <h2 class="panel-title">Analytics Controls</h2>
+            <div class="panel-actions">
+                <select class="mini-input" @bind="selectedPeriod" @bind:after="LoadChartsAsync">
+                    <option value="7">Last 7 days</option>
+                    <option value="30">Last 30 days</option>
+                    <option value="90">Last 90 days</option>
+                </select>
+                <select class="mini-input" @bind="selectedComparison" @bind:after="LoadChartsAsync">
+                    <option value="none">No Comparison</option>
+                    <option value="previous">vs Previous Period</option>
+                    <option value="year">vs Last Year</option>
+                </select>
+                <button class="mini-btn" @onclick="LoadChartsAsync" disabled="@_loading">
+                    <i class="bi bi-arrow-clockwise @(_loading ? "spin" : "")"></i> Refresh
+                </button>
+            </div>
+        </header>
+    </section>
+
+    <!-- Charts Grid -->
+    <div class="charts-grid">
+        <!-- Evacuees Trend Chart -->
+        <div class="chart-card">
+            <div class="chart-header">
+                <h3 class="chart-title">
+                    <i class="bi bi-people-fill"></i>
+                    Evacuees
+                </h3>
+                <span class="chart-badge">Last @selectedPeriod days</span>
+            </div>
+            <div class="chart-container">
+                <canvas id="evacueesTrendChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Disasters by Severity -->
+        <div class="chart-card">
+            <div class="chart-header">
+                <h3 class="chart-title">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    Disasters by Severity
+                </h3>
+                <span class="chart-badge">Current</span>
+            </div>
+            <div class="chart-container">
+                <canvas id="disastersSeverityChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Shelter Occupancy -->
+        <div class="chart-card wide">
+            <div class="chart-header">
+                <h3 class="chart-title">
+                    <i class="bi bi-house-heart-fill"></i>
+                    Shelter Occupancy
+                </h3>
+                <span class="chart-badge">Real-time</span>
+            </div>
+            <div class="chart-container">
+                <canvas id="shelterOccupancyChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Stock Levels -->
+        <div class="chart-card">
+            <div class="chart-header">
+                <h3 class="chart-title">
+                    <i class="bi bi-box-seam-fill"></i>
+                    Stock Status Distribution
+                </h3>
+                <span class="chart-badge">Current</span>
+            </div>
+            <div class="chart-container">
+                <canvas id="stockDistributionChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Budget Utilization -->
+        <div class="chart-card">
+            <div class="chart-header">
+                <h3 class="chart-title">
+                    <i class="bi bi-wallet2"></i>
+                    Budget
+                </h3>
+                <span class="chart-badge">Monthly</span>
+            </div>
+            <div class="chart-container">
+                <canvas id="budgetTrendChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="dashboard-grid">
         <!-- KPI Section -->
         <section class="kpi-section">
-            
             <!-- Active Disasters -->
-            <div class="kpi-card">
+            <div class="kpi-card priority-high">
                 <div class="kpi-header">
                     <div class="kpi-label">Active Disasters</div>
                     <div class="kpi-icon-circle" style="background: #fee2e2; color: #ef4444;">
@@ -20,7 +147,10 @@
                 <div>
                     <div class="kpi-value" style="color: #ef4444;">@ActiveDisastersCount</div>
                     <div class="kpi-footer">
-                        <span class="trend-badge">@ActiveDisasterDeltaText</span>
+                        <span class="trend-badge @GetTrendClass(_activeToday, _activeYesterday)">
+                            @ActiveDisasterDeltaText
+                        </span>
+                        <span class="kpi-detail">vs yesterday</span>
                     </div>
                 </div>
             </div>
@@ -36,7 +166,10 @@
                 <div>
                     <div class="kpi-value">@TotalEvacuees</div>
                     <div class="kpi-footer">
-                        <span class="trend-badge">@EvacueeDeltaText</span>
+                        <span class="trend-badge @GetTrendClass(_evacueesToday, _evacueesYesterday)">
+                            @EvacueeDeltaText
+                        </span>
+                        <span class="kpi-detail">registered today</span>
                     </div>
                 </div>
             </div>
@@ -51,8 +184,13 @@
                 </div>
                 <div>
                     <div class="kpi-value">@ShelterCapacityUsed%</div>
+                    <div class="kpi-footer">
+                        <div class="capacity-detail">
+                            <span>@_totalOccupancy / @_totalCapacity beds</span>
+                        </div>
+                    </div>
                     <div class="progress-container">
-                        <div class="progress-fill" style="width:@ShelterCapacityUsed%"></div>
+                        <div class="progress-fill @GetCapacityClass(ShelterCapacityUsed)" style="width:@ShelterCapacityUsed%"></div>
                     </div>
                 </div>
             </div>
@@ -60,7 +198,7 @@
             <!-- Low Stock -->
             <div class="kpi-card">
                 <div class="kpi-header">
-                    <div class="kpi-label">Low Stock Items</div>
+                    <div class="kpi-label">Low Stock Alert</div>
                     <div class="kpi-icon-circle" style="background: #ffedd5; color: #d97706;">
                         <i class="bi bi-box-seam-fill"></i>
                     </div>
@@ -68,21 +206,24 @@
                 <div>
                     <div class="kpi-value" style="color: #d97706;">@LowStockCount</div>
                     <div class="kpi-footer">
-                         <span class="trend-badge">@LowStockDeltaText</span>
-                         <span style="font-size: 0.75rem; color: #94a3b8; margin-left: 4px;">(≤ @LowStockThreshold)</span>
+                         <span class="trend-badge @GetTrendClass(_lowStockToday, _lowStockYesterday)">
+                             @LowStockDeltaText
+                         </span>
+                         <span class="kpi-detail">items ≤ @LowStockThreshold units</span>
                     </div>
                 </div>
             </div>
-
         </section>
 
         <!-- Main Content: Left Column -->
         <div class="col-left">
-            
             <!-- Recent Evacuees Table -->
             <div class="modern-card">
                 <div class="card-header">
-                    <h3 class="card-title">Recent Evacuees</h3>
+                    <div class="card-title-group">
+                        <h3 class="card-title">Recent Evacuees</h3>
+                        <span class="card-badge">@FilteredEvacuees.Count() of @AllEvacuees.Count</span>
+                    </div>
                     <div class="header-actions">
                         <input class="search-input" placeholder="Search name..." @bind="evacueeFilter" @bind:event="oninput" />
                         <button class="refresh-btn" @onclick="Refresh" disabled="@_loading" title="Refresh Data">
@@ -126,6 +267,7 @@
                             {
                                 <tr>
                                     <td colspan="5" class="empty-state">
+                                        <i class="bi bi-inbox" style="font-size: 1.5rem; margin-bottom: 8px; display:block;"></i>
                                         No recent evacuees found.
                                     </td>
                                 </tr>
@@ -134,14 +276,17 @@
                     </table>
                 </div>
                 <div class="card-footer">
-                    Showing @FilteredEvacuees.Count() of @AllEvacuees.Count total records
+                    <i class="bi bi-info-circle"></i> Showing most recent registrations
                 </div>
             </div>
 
             <!-- Active Disasters Table -->
             <div class="modern-card">
                 <div class="card-header">
-                    <h3 class="card-title">Active Disasters</h3>
+                    <div class="card-title-group">
+                        <h3 class="card-title">Active Disasters</h3>
+                        <span class="card-badge">@ActiveDisasters.Count() active</span>
+                    </div>
                 </div>
                 <div class="table-responsive">
                     <table class="clean-table">
@@ -174,6 +319,7 @@
                             {
                                 <tr>
                                     <td colspan="5" class="empty-state">
+                                        <i class="bi bi-check-circle-fill" style="font-size: 1.5rem; color: #10b981; margin-bottom: 8px; display:block;"></i>
                                         No active disasters reported.
                                     </td>
                                 </tr>
@@ -181,20 +327,24 @@
                         </tbody>
                     </table>
                 </div>
+                <div class="card-footer">
+                    <i class="bi bi-info-circle"></i> Only showing active and open status disasters
+                </div>
             </div>
-
         </div>
 
         <!-- Side Content: Right Column -->
         <div class="col-right">
-            
             <!-- Low Stock Inventory List -->
             <div class="modern-card" style="height: 100%;">
-                <div class="card-header" style="background-color: #fffaf0;">
-                    <h3 class="card-title" style="color: #9a3412;">
-                        <i class="bi bi-exclamation-circle-fill" style="margin-right: 8px;"></i>
-                        Low Stock Alert
-                    </h3>
+                <div class="card-header alert-header">
+                    <div class="card-title-group">
+                        <h3 class="card-title" style="color: #9a3412;">
+                            <i class="bi bi-exclamation-circle-fill" style="margin-right: 8px;"></i>
+                            Low Stock Alert
+                        </h3>
+                        <span class="card-badge alert-badge">@LowStockItems.Count items</span>
+                    </div>
                 </div>
                 
                 <div class="inventory-list">
@@ -210,31 +360,37 @@
                                 <div class="inv-stat">
                                     <div class="inv-qty" style="color: #ef4444;">@item.Quantity</div>
                                     <div class="inv-bar-mini">
-                                        <div class="inv-fill" style="width:@StockPercent(item.Quantity)%"></div>
+                                        <div class="inv-fill" style="width:@StockPercent(item.Quantity)%; background: @GetStockColor(item.Quantity)"></div>
                                     </div>
                                 </div>
+                            </div>
+                        }
+                        
+                        @if (LowStockItems.Count > 8)
+                        {
+                            <div class="inv-footer">
+                                <i class="bi bi-three-dots"></i> +@(LowStockItems.Count - 8) more items need attention
                             </div>
                         }
                     }
                     else
                     {
-                        <div class="empty-state">
-                            <i class="bi bi-check-circle-fill" style="font-size: 2rem; color: #10b981; margin-bottom: 10px; display:block;"></i>
-                            Inventory levels are healthy.
+                        <div class="empty-state" style="padding: 40px 20px;">
+                            <i class="bi bi-check-circle-fill" style="font-size: 2.5rem; color: #10b981; margin-bottom: 10px; display:block;"></i>
+                            <strong>All Clear!</strong>
+                            <p style="margin-top: 8px; color: #64748b;">Inventory levels are healthy.</p>
                         </div>
                     }
                 </div>
                 <div class="card-footer">
-                    Threshold: ≤ @LowStockThreshold items
+                    <i class="bi bi-info-circle"></i> Threshold: ≤ @LowStockThreshold items
                 </div>
             </div>
-
         </div>
     </div>
 </div>
 
 @code {
-    // --- EXACT SAME C# CODE AS BEFORE, NO CHANGES TO LOGIC ---
     // View models
     private record EvacueeRow(string Name, string Disaster, string Shelter, string Status, DateTime Registered);
     private record StockRow(string Name, int Quantity, string Unit);
@@ -247,6 +403,8 @@
     // Filters / state
     private string evacueeFilter = string.Empty;
     private bool _loading = false;
+    private int selectedPeriod = 30;
+    private string selectedComparison = "none";
 
     // Thresholds
     private const int LowStockThreshold = 10;
@@ -255,15 +413,18 @@
     private int ActiveDisastersCount => ActiveDisasters.Count();
     private int TotalEvacuees => AllEvacuees.Count;
     private int LowStockCount => LowStockItems.Count;
+    private int _totalCapacity;
+    private int _totalOccupancy;
+    
     private int ShelterCapacityUsed
     {
         get
         {
             var shelters = _shelterSnapshot;
             if (shelters.Count == 0) return 0;
-            var capacity = shelters.Sum(s => s.Capacity);
-            var occupancy = shelters.Sum(s => s.CurrentOccupancy);
-            return capacity > 0 ? (int)Math.Round(occupancy / (double)capacity * 100) : 0;
+            _totalCapacity = shelters.Sum(s => s.Capacity);
+            _totalOccupancy = shelters.Sum(s => s.CurrentOccupancy);
+            return _totalCapacity > 0 ? (int)Math.Round(_totalOccupancy / (double)_totalCapacity * 100) : 0;
         }
     }
 
@@ -281,7 +442,20 @@
     private int _lowStockYesterday;
     private List<Shelter> _shelterSnapshot = new();
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Wait a bit to ensure DOM is fully rendered
+            await Task.Delay(500);
+            await LoadChartsAsync();
+        }
+    }
 
     private async Task LoadAsync()
     {
@@ -346,6 +520,261 @@
         StateHasChanged();
     }
 
+    private async Task LoadChartsAsync()
+    {
+        if (_loading) return;
+        
+        _loading = true;
+        StateHasChanged();
+
+        try
+        {
+            // Small delay to ensure canvas elements are rendered
+            await Task.Delay(100);
+
+            var endDate = DateTime.UtcNow.Date;
+            var startDate = endDate.AddDays(-selectedPeriod);
+
+            // Check if charts.js is loaded
+            var isLoaded = await JS.InvokeAsync<bool>("eval", "typeof window.resqCharts !== 'undefined'");
+            if (!isLoaded)
+            {
+                Console.WriteLine("resqCharts not loaded yet, waiting...");
+                await Task.Delay(500);
+            }
+
+            // 1. Evacuees Trend
+            await LoadEvacueesTrendChartAsync(startDate, endDate);
+
+            // 2. Disasters by Severity
+            await LoadDisastersSeverityChartAsync();
+
+            // 3. Shelter Occupancy
+            await LoadShelterOccupancyChartAsync();
+
+            // 4. Stock Distribution
+            await LoadStockDistributionChartAsync();
+
+            // 5. Budget Trend
+            await LoadBudgetTrendChartAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading charts: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadEvacueesTrendChartAsync(DateTime startDate, DateTime endDate)
+    {
+        try
+        {
+            var evacuees = await Db.Evacuees
+                .Where(e => e.RegisteredAt >= startDate && e.RegisteredAt <= endDate)
+                .AsNoTracking()
+                .ToListAsync();
+
+            var groupedByDate = evacuees
+                .GroupBy(e => e.RegisteredAt.Date)
+                .OrderBy(g => g.Key)
+                .ToList();
+
+            // Generate all dates in the range
+            var allDates = Enumerable.Range(0, (endDate - startDate).Days + 1)
+                .Select(offset => startDate.AddDays(offset))
+                .ToList();
+
+            // Create cumulative count starting from 1
+            var labels = new List<string>();
+            var cumulativeCounts = new List<int>();
+            int runningTotal = 1; // Start from 1
+
+            foreach (var date in allDates)
+            {
+                labels.Add(date.ToString("MMM dd"));
+                var dailyCount = groupedByDate.FirstOrDefault(g => g.Key == date)?.Count() ?? 0;
+                runningTotal += dailyCount;
+                cumulativeCounts.Add(runningTotal);
+            }
+
+            var datasets = new object[]
+            {
+                new
+                {
+                    label = "Evacuees Registered (Cumulative)",
+                    data = cumulativeCounts.ToArray(),
+                    borderColor = "#38bd60",
+                    backgroundColor = "rgba(56, 189, 96, 0.1)",
+                    tension = 0.4,
+                    fill = true
+                }
+            };
+
+            await JS.InvokeVoidAsync("resqCharts.createLineChart", "evacueesTrendChart", labels.ToArray(), datasets, new { });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading evacuees trend chart: {ex.Message}");
+        }
+    }
+
+    private async Task LoadDisastersSeverityChartAsync()
+    {
+        try
+        {
+            var activeDisasters = await Db.Disasters
+                .Where(d => d.Status == "Active" || d.Status == "Open")
+                .AsNoTracking()
+                .ToListAsync();
+
+            var severityGroups = activeDisasters
+                .GroupBy(d => d.Severity)
+                .Select(g => new { Severity = g.Key, Count = g.Count() })
+                .ToList();
+
+            // Fix: Handle empty data without type mismatch
+            if (!severityGroups.Any())
+            {
+                // Use the same anonymous type structure
+                var labels = new[] { "No Data" };
+                var data = new[] { 1 };
+                var colors = new[] { "#6b7280" };
+
+                await JS.InvokeVoidAsync("resqCharts.createDoughnutChart", "disastersSeverityChart", labels, data, colors, new { });
+                return;
+            }
+
+            var chartLabels = severityGroups.Select(g => g.Severity).ToArray();
+            var chartData = severityGroups.Select(g => g.Count).ToArray();
+            var chartColors = chartLabels.Select(s => s.ToLower() switch
+            {
+                "critical" => "#dc2626",
+                "high" => "#f97316",
+                "moderate" => "#d97706",
+                "low" => "#16a34a",
+                _ => "#6b7280"
+            }).ToArray();
+
+            await JS.InvokeVoidAsync("resqCharts.createDoughnutChart", "disastersSeverityChart", chartLabels, chartData, chartColors, new { });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading disasters severity chart: {ex.Message}");
+        }
+    }
+
+    private async Task LoadShelterOccupancyChartAsync()
+    {
+        try
+        {
+            var shelters = await Db.Shelters
+                .Where(s => s.IsActive)
+                .OrderBy(s => s.Name)
+                .Take(10)
+                .AsNoTracking()
+                .ToListAsync();
+
+            if (!shelters.Any())
+            {
+                return;
+            }
+
+            var labels = shelters.Select(s => s.Name).ToArray();
+            var occupancy = shelters.Select(s => s.CurrentOccupancy).ToArray();
+            var capacity = shelters.Select(s => s.Capacity).ToArray();
+
+            var datasets = new object[]
+            {
+                new
+                {
+                    label = "Current Occupancy",
+                    data = occupancy,
+                    backgroundColor = "#38bd60"
+                },
+                new
+                {
+                    label = "Total Capacity",
+                    data = capacity,
+                    backgroundColor = "#e5e7eb"
+                }
+            };
+
+            await JS.InvokeVoidAsync("resqCharts.createBarChart", "shelterOccupancyChart", labels, datasets, new { });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading shelter occupancy chart: {ex.Message}");
+        }
+    }
+
+    private async Task LoadStockDistributionChartAsync()
+    {
+        try
+        {
+            var stocks = await Db.Stocks.AsNoTracking().ToListAsync();
+
+            var lowStock = stocks.Count(s => s.Quantity <= 10);
+            var mediumStock = stocks.Count(s => s.Quantity > 10 && s.Quantity <= 50);
+            var healthyStock = stocks.Count(s => s.Quantity > 50);
+
+            var labels = new[] { "Low (≤10)", "Medium (11-50)", "Healthy (>50)" };
+            var data = new[] { lowStock, mediumStock, healthyStock };
+            var colors = new[] { "#ef4444", "#f59e0b", "#10b981" };
+
+            await JS.InvokeVoidAsync("resqCharts.createDoughnutChart", "stockDistributionChart", labels, data, colors, new { });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading stock distribution chart: {ex.Message}");
+        }
+    }
+
+    private async Task LoadBudgetTrendChartAsync()
+    {
+        try
+        {
+            var budgets = await Db.BarangayBudgets
+                .Where(b => b.Year >= DateTime.Now.Year - 1)
+                .OrderBy(b => b.Year)
+                .AsNoTracking()
+                .ToListAsync();
+
+            if (!budgets.Any())
+            {
+                return;
+            }
+
+            var groupedByYear = budgets
+                .GroupBy(b => b.Year)
+                .Select(g => new { Year = g.Key, Total = g.Sum(b => b.TotalAmount) })
+                .ToList();
+
+            var labels = groupedByYear.Select(g => g.Year.ToString()).ToArray();
+            var amounts = groupedByYear.Select(g => (double)g.Total).ToArray();
+
+            var datasets = new object[]
+            {
+                new
+                {
+                    label = "Budget Allocation",
+                    data = amounts,
+                    backgroundColor = "#38bd60",
+                    borderRadius = 8
+                }
+            };
+
+            await JS.InvokeVoidAsync("resqCharts.createBarChart", "budgetTrendChart", labels, datasets, new { });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading budget trend chart: {ex.Message}");
+        }
+    }
+
     private IEnumerable<EvacueeRow> FilteredEvacuees =>
         AllEvacuees
             .Where(e =>
@@ -372,12 +801,34 @@
         return Math.Clamp((int)Math.Round(qty / (double)cap * 100), 0, 100);
     }
 
+    private static string GetStockColor(int qty)
+    {
+        if (qty == 0) return "#ef4444";
+        if (qty <= 5) return "#f97316";
+        return "#fb923c";
+    }
+
+    private static string GetCapacityClass(int percent)
+    {
+        if (percent >= 90) return "critical";
+        if (percent >= 75) return "warning";
+        return "normal";
+    }
+
+    private static string GetTrendClass(int today, int yesterday)
+    {
+        var diff = today - yesterday;
+        if (diff > 0) return "trend-up";
+        if (diff < 0) return "trend-down";
+        return "trend-neutral";
+    }
+
     private static string DeltaLabel(int today, int yesterday, string suffix)
     {
         var diff = today - yesterday;
         if (diff == 0) return "No change";
-        var sign = diff > 0 ? "+" : "−";
-        return $"{sign}{Math.Abs(diff)} {suffix}";
+        var sign = diff > 0 ? "+" : "";
+        return $"{sign}{diff} {suffix}";
     }
 
     private string StatusClass(string status) => status.ToLowerInvariant() switch
@@ -394,5 +845,15 @@
     {
         if (_loading) return;
         await LoadAsync();
+        await LoadChartsAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("resqCharts.destroyAllCharts");
+        }
+        catch { }
     }
 }

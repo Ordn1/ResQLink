@@ -2,9 +2,15 @@
 @layout ResQLink.Components.Layout.LoginLayout
 @namespace ResQLink.Components.Pages
 @using ResQLink.Components
+@using ResQLink.Services
 @inject NavigationManager Navigation
 @inject ResQLink.Services.AuthState Auth
 @inject ResQLink.Services.Users.IUserService Users
+@inject ResQLink.Data.AppDbContext Db
+@using Microsoft.EntityFrameworkCore
+@using System.Security.Cryptography
+@using System.Text
+@inject AuditService AuditService
 
 <div class="login-root">
     <div class="login-card" aria-label="Login">
@@ -15,14 +21,16 @@
 
         <div class="login-field-group">
             <label class="login-label" for="username">Username:</label>
-            <input id="username" @bind="Username" class="login-input" />
+            <input id="username" @bind="Username" class="login-input" @onkeypress="HandleKeyPress" />
 
             <label class="login-label" for="password" style="margin-top:12px;">Password:</label>
-            <input id="password" type="password" @bind="Password" class="login-input" />
+            <input id="password" type="password" @bind="Password" class="login-input" @onkeypress="HandleKeyPress" />
         </div>
 
         <div class="login-actions">
             <button type="button" class="login-btn" @onclick="HandleLogin">LOGIN</button>
+            <button type="button" class="login-btn volunteer-btn" @onclick="HandleVolunteerLogin">SIGN IN AS VOLUNTEER</button>
+            <a href="/register" class="forgot-link">Register new account</a>
             <a href="#" class="forgot-link" @onclick="PreventDefault">Forgot password?</a>
             @if (!string.IsNullOrEmpty(LoginError))
             {
@@ -63,9 +71,89 @@
             return;
         }
 
-        Auth.SetAuthenticated(true);
+        // Set authenticated with user info and role
+        Auth.SetAuthenticated(true, user);
         await Task.Yield();
-        Navigation.NavigateTo("/home");
+
+        // Log the login action
+        await AuditService.LogAsync(
+            action: "Login",
+            entityType: "User",
+            entityId: user.UserId,
+            userId: user.UserId,
+            userType: user.Role?.RoleName,
+            userName: $"{user.Username} ({user.Email})",
+            description: $"User {user.Username} logged in successfully"
+        );
+
+        // Redirect based on role
+        var redirectPath = Auth.IsInventoryManager() ? "/inventory" 
+                         : Auth.IsFinanceManager() ? "/inventory" 
+                         : "/home";
+        Navigation.NavigateTo(redirectPath);
+    }
+
+    private async Task HandleVolunteerLogin()
+    {
+        LoginError = "";
+        if (string.IsNullOrWhiteSpace(Username) || string.IsNullOrWhiteSpace(Password))
+        {
+            LoginError = "Enter first name and password.";
+            return;
+        }
+
+        // Authenticate volunteer using first name (case-insensitive) and password
+        var volunteer = await Db.Volunteers
+            .AsNoTracking()
+            .FirstOrDefaultAsync(v => v.FirstName.ToLower() == Username.ToLower() && v.Status == "Active");
+
+        if (volunteer is null)
+        {
+            LoginError = "Invalid credentials or account not active.";
+            return;
+        }
+
+        // Verify password
+        var passwordHash = HashPassword(Password);
+        if (volunteer.PasswordHash != passwordHash)
+        {
+            LoginError = "Invalid credentials.";
+            return;
+        }
+
+        // Create a temporary User object for the volunteer to work with AuthState
+        // Using FirstName as the username
+        var volunteerUser = new ResQLink.Data.Entities.User
+        {
+            UserId = volunteer.VolunteerId,
+            Username = volunteer.FirstName,
+            Email = volunteer.Email,
+            RoleId = 0, // Volunteer role (you may need to create this role in database)
+            Role = new ResQLink.Data.Entities.UserRole { RoleId = 0, RoleName = "Volunteer" },
+            IsActive = true
+        };
+
+        // Set authenticated
+        Auth.SetAuthenticated(true, volunteerUser);
+        await Task.Yield();
+
+        // Redirect to volunteer dashboard
+        Navigation.NavigateTo("/volunteer-dashboard");
+    }
+
+    private string HashPassword(string password)
+    {
+        using var sha256 = SHA256.Create();
+        var hashedBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(password));
+        return Convert.ToBase64String(hashedBytes);
+    }
+
+    private async Task HandleKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await HandleLogin();
+        }
     }
 
     private void PreventDefault(MouseEventArgs e) { }

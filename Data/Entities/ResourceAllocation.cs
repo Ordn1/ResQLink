@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace ResQLink.Data.Entities;
@@ -5,7 +6,10 @@ namespace ResQLink.Data.Entities;
 [Table("ResourceAllocations")]
 public class ResourceAllocation
 {
+    [Key]
+    [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
     public int AllocationId { get; set; }
+    
     public int StockId { get; set; }
     public Stock Stock { get; set; } = null!;
 

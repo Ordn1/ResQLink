@@ -71,15 +71,17 @@
                                         <td class="t-center">@stock.Quantity</td>
                                         <td class="t-center">@stock.MaxCapacity</td>
                                         <td class="t-center">
-                                            <span class="status-chip @StockExtensions.GetStatusClass(stock.Status)">
-                                                @stock.Status
+                                            <span class="status-chip @StockExtensions.GetStatusClass(stock.Status ?? StockExtensions.ComputeStatus(stock.Quantity, stock.MaxCapacity))">
+                                                @(stock.Status ?? StockExtensions.ComputeStatus(stock.Quantity, stock.MaxCapacity))
                                             </span>
                                         </td>
                                         <td class="t-center">
                                             <div class="progress-shell" style="width:120px;display:inline-block;">
-                                                <div class="progress-bar" style="width:@(stock.CapacityPercent)%"></div>
+                                                <div class="progress-bar" style="width:@($"{(stock.CapacityPercent ?? StockExtensions.ComputePercent(stock.Quantity, stock.MaxCapacity)):0.0}%")"></div>
                                             </div>
-                                            <span style="margin-left:6px;font-size:0.8em;">@stock.CapacityPercent.ToString("0.0")%</span>
+                                            <span style="margin-left:6px;font-size:0.8em;">
+                                                @($"{(stock.CapacityPercent ?? StockExtensions.ComputePercent(stock.Quantity, stock.MaxCapacity)):0.0}%")
+                                            </span>
                                         </td>
                                         <td>@stock.LastUpdated.ToString("MMM dd, yyyy HH:mm")</td>
                                     </tr>

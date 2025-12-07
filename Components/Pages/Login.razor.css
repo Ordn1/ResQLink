@@ -32,7 +32,7 @@
 
 .login-card {
     width: 320px;
-    height: 480px;
+    height: auto;
     padding: 22px 26px;
     border-radius: 12px;
     backdrop-filter: blur(10px);
@@ -116,10 +116,20 @@
     font-weight: 700;
     cursor: pointer;
     letter-spacing: 0.5px;
+    width: 100%;
 }
 
 .login-btn:active {
     transform: translateY(1px);
+}
+
+.login-btn.volunteer-btn {
+    background: #0b3b9f;
+    margin-top: 4px;
+}
+
+.login-btn.volunteer-btn:hover {
+    background: #083085;
 }
 
 .forgot-link {

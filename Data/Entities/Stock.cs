@@ -27,17 +27,19 @@ public class Stock
   [MaxLength(255)]
   public string? Location { get; set; }
 
+  [Column(TypeName = "decimal(14,2)")]
+  public decimal UnitCost { get; set; } = 0m;
+
   public bool IsActive { get; set; } = true;
 
   public DateTime LastUpdated { get; set; } = DateTime.UtcNow;
 
-  // Computed columns from database
   [DatabaseGenerated(DatabaseGeneratedOption.Computed)]
-  public decimal CapacityPercent { get; private set; }
+  public decimal? CapacityPercent { get; private set; }
 
   [MaxLength(20)]
   [DatabaseGenerated(DatabaseGeneratedOption.Computed)]
-  public string Status { get; private set; } = string.Empty;
+  public string? Status { get; private set; }
 
   public ICollection<ResourceAllocation> Allocations { get; set; } = [];
 
@@ -45,7 +47,8 @@ public class Stock
   {
     get
     {
-      return CapacityPercent switch
+      var cp = CapacityPercent ?? 0m;
+      return cp switch
       {
         > 100 => "st-ok",
         > 50 => "st-high",

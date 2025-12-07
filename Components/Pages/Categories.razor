@@ -97,7 +97,7 @@
                                             <i class="bi bi-pencil"></i>
                                         </button>
                                         <button class="action-btn delete"
-                                                @onclick="() => DeleteCategory(cat.CategoryId)"
+                                                @onclick="() => ShowDeleteConfirmation(cat)"
                                                 title="Delete category"
                                                 disabled="@(cat.ReliefGoods.Count > 0)">
                                             <i class="bi bi-trash"></i>
@@ -121,10 +121,10 @@
     @if (showModal)
     {
         <div class="modal-overlay" @onclick="CloseModal" @onclick:stopPropagation="false">
-            <div class="modal-dialog" @onclick:stopPropagation="true">
+            <div class="modal-dialog" @onclick="PreventClose" @onclick:stopPropagation="true">
                 <div class="modal-header">
                     <h3>@(isEditMode ? "Edit Category" : "Add Category")</h3>
-                    <button class="modal-close" @onclick="CloseModal">&times;</button>
+                    <button class="modal-close" @onclick="CloseModal" @onclick:stopPropagation="true">&times;</button>
                 </div>
                 <div class="modal-body">
                     <div class="form-row">
@@ -195,6 +195,33 @@
             </div>
         </div>
     }
+
+    @* Delete Confirmation Modal *@
+    @if (showDeleteModal && categoryToDelete != null)
+    {
+        <div class="modal-overlay" @onclick="CloseDeleteModal" @onclick:stopPropagation="false">
+            <div class="modal-dialog small" @onclick="PreventClose" @onclick:stopPropagation="true">
+                <div class="modal-header">
+                    <h3>Confirm Delete</h3>
+                    <button class="modal-close" @onclick="CloseDeleteModal" @onclick:stopPropagation="true">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p>Are you sure you want to delete the category <strong>"@categoryToDelete.CategoryName"</strong>?</p>
+                    <p class="warning-text">This action cannot be undone and will also delete all related data.</p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-cancel" @onclick="CloseDeleteModal" @onclick:stopPropagation="true">Cancel</button>
+                    <button class="btn-danger" @onclick="ConfirmDelete" disabled="@isDeleting" @onclick:stopPropagation="true">
+                        @if (isDeleting)
+                        {
+                            <span class="spinner"></span>
+                        }
+                        Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
 </div>
 
 @code {
@@ -202,10 +229,13 @@
     private List<CategoryType> categoryTypes = new();
     private bool isLoading = true;
     private bool showModal = false;
+    private bool showDeleteModal = false;
     private bool isEditMode = false;
+    private bool isDeleting = false;
     private string typeFilter = "";
     private string errorMessage = "";
     private Category editModel = new();
+    private Category? categoryToDelete = null;
 
     protected override async Task OnInitializedAsync()
     {
@@ -250,6 +280,12 @@
         'O' => "Miscellaneous items",
         _ => "Unknown"
     };
+
+    // Event handler to prevent modal from closing when clicking inside
+    private void PreventClose()
+    {
+        // This method intentionally does nothing - it just prevents the click from bubbling up
+    }
 
     private void OpenAddModal()
     {
@@ -315,17 +351,38 @@
         }
     }
 
-    private async Task DeleteCategory(int id)
+    private void ShowDeleteConfirmation(Category category)
     {
+        categoryToDelete = category;
+        showDeleteModal = true;
+    }
+
+    private async Task ConfirmDelete()
+    {
+        if (categoryToDelete == null) return;
+
+        isDeleting = true;
         try
         {
-            await CategorySvc.DeleteAsync(id);
+            await CategorySvc.DeleteAsync(categoryToDelete.CategoryId);
             await LoadDataAsync();
+            CloseDeleteModal();
         }
         catch (Exception ex)
         {
             errorMessage = $"Error deleting category: {ex.Message}";
         }
+        finally
+        {
+            isDeleting = false;
+        }
+    }
+
+    private void CloseDeleteModal()
+    {
+        showDeleteModal = false;
+        categoryToDelete = null;
+        isDeleting = false;
     }
 
     private async Task Refresh()

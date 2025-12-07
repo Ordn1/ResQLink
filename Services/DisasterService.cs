@@ -73,13 +73,87 @@ public class DisasterService : IDisasterService
 
     public async Task<bool> DeleteAsync(int id)
     {
-        var disaster = await _context.Disasters.FindAsync(id);
-        if (disaster == null)
-            return false;
+        try
+        {
+            var disaster = await _context.Disasters
+                .Include(d => d.Evacuees)
+                .FirstOrDefaultAsync(d => d.DisasterId == id);
 
-        _context.Disasters.Remove(disaster);
-        await _context.SaveChangesAsync();
-        return true;
+            if (disaster == null)
+                return false;
+
+            // Check for related required foreign key entities that cannot be orphaned
+            var hasEvacuees = disaster.Evacuees.Any();
+            if (hasEvacuees)
+            {
+                throw new InvalidOperationException(
+                    $"Cannot delete disaster: {disaster.Evacuees.Count} evacuee(s) are linked to this disaster. " +
+                    "Please reassign or delete evacuees first.");
+            }
+
+            // Check for report summaries (required FK)
+            var hasReportSummaries = await _context.ReportDisasterSummaries
+                .AnyAsync(r => r.DisasterId == id);
+            if (hasReportSummaries)
+            {
+                throw new InvalidOperationException(
+                    "Cannot delete disaster: Report summaries are linked to this disaster. " +
+                    "Please delete reports first.");
+            }
+
+            // Check for report distributions (required FK)
+            var hasReportDistributions = await _context.ReportResourceDistributions
+                .AnyAsync(r => r.DisasterId == id);
+            if (hasReportDistributions)
+            {
+                throw new InvalidOperationException(
+                    "Cannot delete disaster: Report distributions are linked to this disaster. " +
+                    "Please delete reports first.");
+            }
+
+            // For nullable FKs, we can either set them to null or delete them
+            // Here we'll nullify them (shelters, donations, stocks can exist without a disaster)
+            
+            // Nullify Shelter references
+            var shelters = await _context.Shelters
+                .Where(s => s.DisasterId == id)
+                .ToListAsync();
+            foreach (var shelter in shelters)
+            {
+                shelter.DisasterId = null;
+            }
+
+            // Nullify Donation references
+            var donations = await _context.Donations
+                .Where(d => d.DisasterId == id)
+                .ToListAsync();
+            foreach (var donation in donations)
+            {
+                donation.DisasterId = null;
+            }
+
+            // Nullify Stock references
+            var stocks = await _context.Stocks
+                .Where(s => s.DisasterId == id)
+                .ToListAsync();
+            foreach (var stock in stocks)
+            {
+                stock.DisasterId = null;
+            }
+
+            // Now safe to delete the disaster
+            _context.Disasters.Remove(disaster);
+            await _context.SaveChangesAsync();
+            
+            return true;
+        }
+        catch (DbUpdateException ex)
+        {
+            // Wrap database exceptions with more context
+            throw new InvalidOperationException(
+                $"An error occurred while deleting the disaster. {ex.InnerException?.Message ?? ex.Message}", 
+                ex);
+        }
     }
 
     public async Task<List<Disaster>> GetActiveDisastersAsync()

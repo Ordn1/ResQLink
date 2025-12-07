@@ -1,0 +1,24 @@
+/* Shared authentication page styles */
+@font-face {
+    font-family: 'Poppins';
+    src: url('/Fonts/Poppins-Bold.ttf') format('truetype');
+    font-weight: 700; 
+    font-style: normal;
+}
+
+.login-root {
+    --card-height: 480px; 
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 20px;
+    padding: clamp(24px, 12vh, calc(100vh - var(--card-height) - 40px)) 40px 32px 40px;
+    box-sizing: border-box;
+    overflow: hidden;
+    background: url("images/ResQLinkBackground.jpg") center/cover no-repeat;
+    z-index: 1000;
+}
+
+/* ... (copy all shared styles from Login.razor.css) ... */
