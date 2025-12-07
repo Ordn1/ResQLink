@@ -10,44 +10,72 @@
     <section class="panel">
         <header class="panel-head">
             <h2 class="panel-title">Reports Console</h2>
+
             <div class="panel-actions">
-                <select class="mini-input" @bind="reportType">
-                    <option value="overview">Overview</option>
-                    <option value="evacuees">Evacuees</option>
-                    <option value="disasters">Disasters</option>
-                    <option value="shelters">Shelters</option>
-                    <option value="inventory">Inventory</option>
-                    <option value="budget">Budget & Finance</option>
-                </select>
+                <!-- Left: filters -->
+                <div class="controls-left" role="region" aria-label="Report filters">
+                    <select class="mini-input" @bind="reportType" aria-label="Report type">
+                        <option value="overview">Overview</option>
+                        <option value="evacuees">Evacuees</option>
+                        <option value="disasters">Disasters</option>
+                        <option value="shelters">Shelters</option>
+                        <option value="inventory">Inventory</option>
+                        <option value="budget">Budget & Finance</option>
+                    </select>
 
-                <select class="mini-input" @bind="rangePreset" @bind:after="ApplyRangePreset">
-                    <option value="7d">Last 7d</option>
-                    <option value="30d">Last 30d</option>
-                    <option value="90d">Last 90d</option>
-                    <option value="ytd">YTD</option>
-                    <option value="all">All Time</option>
-                    <option value="custom">Custom…</option>
-                </select>
+                    <select class="mini-input" @bind="rangePreset" @bind:after="ApplyRangePreset" aria-label="Date range preset">
+                        <option value="7d">Last 7d</option>
+                        <option value="30d">Last 30d</option>
+                        <option value="90d">Last 90d</option>
+                        <option value="ytd">YTD</option>
+                        <option value="all">All Time</option>
+                        <option value="custom">Custom…</option>
+                    </select>
 
-                <input class="mini-input" type="date" @bind="dateFrom" />
-                <input class="mini-input" type="date" @bind="dateTo" />
+                    <input class="mini-input" type="date" @bind="dateFrom" aria-label="From date" />
+                    <input class="mini-input" type="date" @bind="dateTo" aria-label="To date" />
+                </div>
 
-                <button class="mini-btn" @onclick="GenerateReportAsync" disabled="@_loading">
-                    @if (_loading)
-                    {
-                        <span class="spinner"></span>
-                    }
-                    <i class="bi bi-play-fill"></i> Generate
-                </button>
-                <button class="mini-btn" @onclick="ResetFilters">
-                    <i class="bi bi-arrow-counterclockwise"></i> Reset
-                </button>
-                <button class="mini-btn" @onclick="ExportToCSV" disabled="@(!_reportGenerated)">
-                    <i class="bi bi-file-earmark-spreadsheet"></i> Export CSV
-                </button>
-                <button class="mini-btn" @onclick="PrintReport" disabled="@(!_reportGenerated)">
-                    <i class="bi bi-printer"></i> Print Report
-                </button>
+                <!-- Right: action buttons (inline, stretched via CSS) -->
+                <div class="controls-right" role="group" aria-label="Report actions">
+                    <button class="mini-btn btn-primary"
+                            @onclick="GenerateReportAsync"
+                            disabled="@_loading"
+                            title="Generate report"
+                            aria-disabled="@_loading">
+                        @if (_loading)
+                        {
+                            <span class="spinner" aria-hidden="true"></span>
+                        }
+                        <i class="bi bi-play-fill" aria-hidden="true"></i>
+                        <span class="btn-label">Generate</span>
+                    </button>
+
+                    <button class="mini-btn btn-reset"
+                            @onclick="ResetFilters"
+                            title="Reset filters">
+                        <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i>
+                        <span class="btn-label">Reset</span>
+                    </button>
+
+                    <button class="mini-btn btn-export"
+                            @onclick="ExportToCSV"
+                            disabled="@(!_reportGenerated)"
+                            title="Export CSV"
+                            aria-disabled="@(!_reportGenerated)">
+                        <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i>
+                        <span class="btn-label">Export CSV</span>
+                    </button>
+
+                    <button class="mini-btn btn-print"
+                            @onclick="PrintReport"
+                            disabled="@(!_reportGenerated)"
+                            title="Print report"
+                            aria-disabled="@(!_reportGenerated)">
+                        <i class="bi bi-printer" aria-hidden="true"></i>
+                        <span class="btn-label">Print</span>
+                    </button>
+                </div>
             </div>
         </header>
 
@@ -62,6 +90,7 @@
                         @GetTrendText(TotalRecords, PreviousPeriodRecords)
                     </div>
                 </div>
+
                 @if (reportType == "budget")
                 {
                     <div class="kpi-card">
@@ -72,6 +101,7 @@
                         </div>
                     </div>
                 }
+
                 @if (reportType == "inventory")
                 {
                     <div class="kpi-card">
@@ -80,6 +110,7 @@
                         <div class="kpi-trend warn">Action needed</div>
                     </div>
                 }
+
                 @if (reportType == "shelters")
                 {
                     <div class="kpi-card">
@@ -87,9 +118,10 @@
                         <div class="kpi-value">@AverageOccupancy.ToString("P0")</div>
                     </div>
                 }
+
                 <div class="kpi-card">
                     <div class="kpi-label">Date Range</div>
-                    <div class="kpi-value" style="font-size: 0.9rem;">
+                    <div class="kpi-value date-range">
                         @dateFrom.ToString("MMM dd") - @dateTo.ToString("MMM dd, yyyy")
                     </div>
                 </div>
@@ -99,10 +131,10 @@
 
     @if (!_reportGenerated)
     {
-        <section class="panel">
-            <div style="padding: 60px 20px; text-align: center; color: var(--text-muted);">
-                <i class="bi bi-file-text" style="font-size: 4rem; opacity: 0.3;"></i>
-                <h3 style="margin: 20px 0 10px 0; font-weight: 600;">No Report Generated</h3>
+        <section class="panel panel-empty">
+            <div class="empty-state">
+                <i class="bi bi-file-text" aria-hidden="true"></i>
+                <h3>No Report Generated</h3>
                 <p>Select a report type and date range, then click <strong>Generate</strong> to view data.</p>
             </div>
         </section>
@@ -383,7 +415,7 @@
             </header>
             <div style="padding: 20px;">
                 <div class="two-col">
-                    <div class="panel" style="margin-bottom: 0;">
+                    <div class="panel panel-sub">
                         <header class="panel-head">
                             <h3 class="panel-title">Evacuees Summary</h3>
                         </header>
@@ -406,7 +438,7 @@
                         </div>
                     </div>
 
-                    <div class="panel" style="margin-bottom: 0;">
+                    <div class="panel panel-sub">
                         <header class="panel-head">
                             <h3 class="panel-title">Disasters Summary</h3>
                         </header>
@@ -430,7 +462,7 @@
                     </div>
                 </div>
 
-                <div class="panel" style="margin-top: 20px;">
+                <div class="panel panel-sub" style="margin-top: 20px;">
                     <header class="panel-head">
                         <h3 class="panel-title">Shelters Summary</h3>
                     </header>
@@ -490,7 +522,7 @@
                         else
                         {
                             <tr>
-                                <td colspan="6" class="t-center" style="padding: 40px; color: var(--text-muted);">
+                                <td colspan="6" class="t-center" style="padding: 40px; color: var(--text-dim);">
                                     No evacuees found for the selected period.
                                 </td>
                             </tr>
@@ -546,7 +578,7 @@
                         else
                         {
                             <tr>
-                                <td colspan="8" class="t-center" style="padding: 40px; color: var(--text-muted);">
+                                <td colspan="8" class="t-center" style="padding: 40px; color: var(--text-dim);">
                                     No disasters found for the selected period.
                                 </td>
                             </tr>
@@ -607,7 +639,7 @@
                         else
                         {
                             <tr>
-                                <td colspan="8" class="t-center" style="padding: 40px; color: var(--text-muted);">
+                                <td colspan="8" class="t-center" style="padding: 40px; color: var(--text-dim);">
                                     No shelters found.
                                 </td>
                             </tr>
@@ -667,7 +699,7 @@
                         else
                         {
                             <tr>
-                                <td colspan="8" class="t-center" style="padding: 40px; color: var(--text-muted);">
+                                <td colspan="8" class="t-center" style="padding: 40px; color: var(--text-dim);">
                                     No inventory data found.
                                 </td>
                             </tr>
@@ -729,7 +761,7 @@
                         else
                         {
                             <tr>
-                                <td colspan="8" class="t-center" style="padding: 40px; color: var(--text-muted);">
+                                <td colspan="8" class="t-center" style="padding: 40px; color: var(--text-dim);">
                                     No budget data found for the selected period.
                                 </td>
                             </tr>
@@ -877,7 +909,8 @@
 
     private void PrintReport()
     {
-        // Implement your print logic here, e.g.:
+        // intentionally left minimal so behavior is unchanged
+        // to trigger browser print, uncomment the next line:
         // JS.InvokeVoidAsync("window.print");
     }
 }

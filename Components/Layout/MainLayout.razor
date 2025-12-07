@@ -13,255 +13,254 @@
 }
 else
 {
-<div class="app-shell" @onclick="CloseTransientMenus">
-    <aside class="shell-sidebar">
-        <div class="sidebar-brand">
-            <img src="images/ResQLinkLogoFull.png" 
-                 alt="ResQLink" 
-                 class="brand-logo"
-                 @onerror="HandleImageError" />
-        </div>
+    <div class="app-shell @( _sidebarCollapsed ? "sidebar-collapsed" : "" )" @onclick="CloseTransientMenus">
+        <aside class="shell-sidebar">
+            <div class="sidebar-brand">
+                <img src="images/ResQLinkLogoFull.png"
+                     alt="ResQLink"
+                     class="brand-logo"
+                     @onerror="HandleImageError" />
+            </div>
 
-        <nav class="nav-stack">
+            <nav class="nav-stack">
 
-            <!-- Header Label -->
-            <div class="nav-header-label">Menu</div>
+                <!-- Header Label -->
+                <div class="nav-header-label">Menu</div>
 
-            <button class='nav-btn @ActiveClass("/home")' @onclick='() => Go("/home")'>
-                <i class="bi bi-grid-fill nav-icon"></i>
-                <span class="nav-text">Dashboard</span>
-            </button>
-
-            @* Show Disasters, Evacuees, Shelters, Volunteers for HR only (NOT Admin) *@
-            @if (Auth.CanAccessDisasterResponse() && !Auth.IsAdmin())
-            {
-                <button class='nav-btn @ActiveClass("/disasters")' @onclick='() => Go("/disasters")'>
-                    <i class="bi bi-exclamation-triangle-fill nav-icon"></i>
-                    <span class="nav-text">Disasters</span>
+                <button class='nav-btn @ActiveClass("/home")' @onclick='() => Go("/home")'>
+                    <i class="bi bi-grid-fill nav-icon"></i>
+                    <span class="nav-text">Dashboard</span>
                 </button>
 
-                <button class='nav-btn @ActiveClass("/evacuees")' @onclick='() => Go("/evacuees")'>
-                    <i class="bi bi-people-fill nav-icon"></i>
-                    <span class="nav-text">Evacuees</span>
-                </button>
-
-                <button class='nav-btn @ActiveClass("/shelters")' @onclick='() => Go("/shelters")'>
-                    <i class="bi bi-house-heart-fill nav-icon"></i>
-                    <span class="nav-text">Shelters</span>
-                </button>
-
-                <button class='nav-btn @ActiveClass("/volunteers")' @onclick='() => Go("/volunteers")'>
-                    <i class="bi bi-person-badge nav-icon"></i>
-                    <span class="nav-text">Volunteers</span>
-                </button>
-            }
-
-            @* Show Inventory section for Inventory Manager and Finance Manager only (NOT Admin) *@
-            @if (Auth.CanViewInventory() && !Auth.IsAdmin())
-            {
-                @if (Auth.IsFinanceManager())
+                @* Show Disasters, Evacuees, Shelters, Volunteers for HR only (NOT Admin) *@
+                @if (Auth.CanAccessDisasterResponse() && !Auth.IsAdmin())
                 {
-                    @* Finance Manager: Only show Inventory Overview (read-only) *@
-                    <button class='nav-btn @ActiveClass("/inventory")' @onclick='() => Go("/inventory")'>
-                        <i class="bi bi-box-seam-fill nav-icon"></i>
-                        <span class="nav-text">Inventory Overview</span>
+                    <button class='nav-btn @ActiveClass("/disasters")' @onclick='() => Go("/disasters")'>
+                        <i class="bi bi-exclamation-triangle-fill nav-icon"></i>
+                        <span class="nav-text">Disasters</span>
                     </button>
-                    <button class='nav-btn @ActiveClass("/finance")' @onclick='() => Go("/finance")'>
-                        <i class="bi bi-cash-coin nav-icon"></i>
-                        <span class="nav-text">Finance</span>
+
+                    <button class='nav-btn @ActiveClass("/evacuees")' @onclick='() => Go("/evacuees")'>
+                        <i class="bi bi-people-fill nav-icon"></i>
+                        <span class="nav-text">Evacuees</span>
+                    </button>
+
+                    <button class='nav-btn @ActiveClass("/shelters")' @onclick='() => Go("/shelters")'>
+                        <i class="bi bi-house-heart-fill nav-icon"></i>
+                        <span class="nav-text">Shelters</span>
+                    </button>
+
+                    <button class='nav-btn @ActiveClass("/volunteers")' @onclick='() => Go("/volunteers")'>
+                        <i class="bi bi-person-badge nav-icon"></i>
+                        <span class="nav-text">Volunteers</span>
                     </button>
                 }
-                else if (Auth.IsInventoryManager())
-                {
-                    @* Inventory Manager: Full inventory menu with dropdown *@
-                    <div class="nav-item-with-menu">
 
-                        <!-- Parent button -->
-                        <button class='nav-btn @(IsInventoryActive ? "active" : "")'
-                                @onclick="ToggleInventoryMenu" @onclick:stopPropagation="true">
+                @* Show Inventory section for Inventory Manager and Finance Manager only (NOT Admin) *@
+                @if (Auth.CanViewInventory() && !Auth.IsAdmin())
+                {
+                    @if (Auth.IsFinanceManager())
+                    {
+                        @* Finance Manager: Only show Inventory Overview (read-only) *@
+                        <button class='nav-btn @ActiveClass("/inventory")' @onclick='() => Go("/inventory")'>
                             <i class="bi bi-box-seam-fill nav-icon"></i>
-                            <span class="nav-text">
-                                Inventory
-                                <i class="bi @(InventoryOpen ? "bi-chevron-up" : "bi-chevron-down")" style="font-size: 0.7rem;"></i>
-                            </span>
+                            <span class="nav-text">Inventory Overview</span>
+                        </button>
+                        <button class='nav-btn @ActiveClass("/finance")' @onclick='() => Go("/finance")'>
+                            <i class="bi bi-cash-coin nav-icon"></i>
+                            <span class="nav-text">Finance</span>
+                        </button>
+                    }
+                    else if (Auth.IsInventoryManager())
+                    {
+                        @* Inventory Manager: Full inventory menu with dropdown *@
+                        <div class="nav-item-with-menu">
+
+                            <!-- Parent button -->
+                            <button class='nav-btn @(IsInventoryActive ? "active" : "")'
+                                    @onclick="ToggleInventoryMenu" @onclick:stopPropagation="true">
+                                <i class="bi bi-box-seam-fill nav-icon"></i>
+                                <span class="nav-text">
+                                    Inventory
+                                    <i class="bi @(InventoryOpen ? "bi-chevron-up" : "bi-chevron-down")" style="font-size: 0.7rem;"></i>
+                                </span>
+                            </button>
+
+                            @if (InventoryOpen)
+                            {
+                                <div class="inventory-dropdown" @onclick:stopPropagation="true">
+
+                                    <!-- Inventory Overview -->
+                                    <button class="dropdown-link @(IsActive("/inventory") ? "active-link" : "")"
+                                            @onclick="() => GoInventory()">
+                                        Overview
+                                    </button>
+
+                                    <!-- Dynamic Categories -->
+                                    @foreach (var c in InventoryCategories)
+                                    {
+                                        var slugPath = $"/inventory/category/{c.Slug}";
+                                        <button class="dropdown-link @(IsActive(slugPath) ? "active-link" : "")"
+                                                @onclick="() => GoInventoryCategory(c.Slug)">
+                                            @c.Label
+                                        </button>
+                                    }
+
+                                    <!-- Manage Categories -->
+                                    <button class="dropdown-link @(IsActive("/categories") ? "active-link" : "")"
+                                            @onclick="() => GoCategories()">
+                                        + Manage Categories
+                                    </button>
+
+                                </div>
+                            }
+                        </div>
+
+                        <!-- Stocks -->
+                        <button class='nav-btn @ActiveClass("/stocks")' @onclick='() => Go("/stocks")'>
+                            <i class="bi bi-graph-up-arrow nav-icon"></i>
+                            <span class="nav-text">Stocks</span>
                         </button>
 
-                        @if (InventoryOpen)
-                        {
-                            <div class="inventory-dropdown" @onclick:stopPropagation="true">
+                        <!-- Suppliers -->
+                        <button class='nav-btn @ActiveClass("/suppliers")' @onclick='() => Go("/suppliers")'>
+                            <i class="bi bi-truck nav-icon"></i>
+                            <span class="nav-text">Suppliers</span>
+                        </button>
+                    }
+                }
 
-                                <!-- Inventory Overview -->
-                                <button class="dropdown-link @(IsActive("/inventory") ? "active-link" : "")"
-                                        @onclick="() => GoInventory()">Overview</button>
-
-                                <!-- Dynamic Categories -->
-                                @foreach (var c in InventoryCategories)
-                                {
-                                    var slugPath = $"/inventory/category/{c.Slug}";
-                                    <button class="dropdown-link @(IsActive(slugPath) ? "active-link" : "")"
-                                            @onclick="() => GoInventoryCategory(c.Slug)">
-                                        @c.Label
-                                    </button>
-                                }
-
-                                <!-- Manage Categories -->
-                                <button class="dropdown-link @(IsActive("/categories") ? "active-link" : "")"
-                                        @onclick="() => GoCategories()">
-                                    + Manage Categories
-                                </button>
-
-                            </div>
-                        }
-                    </div>
-
-                    <!-- Stocks -->
-                    <button class='nav-btn @ActiveClass("/stocks")' @onclick='() => Go("/stocks")'>
-                        <i class="bi bi-graph-up-arrow nav-icon"></i>
-                        <span class="nav-text">Stocks</span>
-                    </button>
-
-                    <!-- Suppliers -->
-                    <button class='nav-btn @ActiveClass("/suppliers")' @onclick='() => Go("/suppliers")'>
-                        <i class="bi bi-truck nav-icon"></i>
-                        <span class="nav-text">Suppliers</span>
+                @* Show Reports for Finance Manager, Admin, and HR *@
+                @if (Auth.CanAccessReports())
+                {
+                    <button class='nav-btn @ActiveClass("/reports")' @onclick='() => Go("/reports")'>
+                        <i class="bi bi-file-text-fill nav-icon"></i>
+                        <span class="nav-text">@(Auth.IsFinanceManager() ? "Inventory Reports" : "Reports")</span>
                     </button>
                 }
-            }
 
-            @* Show Reports for Finance Manager, Admin, and HR *@
-            @if (Auth.CanAccessReports())
-            {
+                @* Admin-only section *@
                 @if (Auth.IsAdmin())
                 {
-                    
+                    <button class='nav-btn @ActiveClass("/admin/audit-logs")' @onclick='() => Go("/admin/audit-logs")'>
+                        <i class="bi bi-clock-history nav-icon"></i>
+                        <span class="nav-text">Audit Logs</span>
+                    </button>
+
+                    <button class='nav-btn @ActiveClass("/manage-users")' @onclick='() => Go("/manage-users")'>
+                        <i class="bi bi-person-badge-fill nav-icon"></i>
+                        <span class="nav-text">Manage Users</span>
+                    </button>
+
+                    <button class='nav-btn @ActiveClass("/settings")' @onclick='() => Go("/settings")'>
+                        <i class="bi bi-gear-fill nav-icon"></i>
+                        <span class="nav-text">Settings</span>
+                    </button>
                 }
+            </nav>
+        </aside>
 
-                <button class='nav-btn @ActiveClass("/reports")' @onclick='() => Go("/reports")'>
-                    <i class="bi bi-file-text-fill nav-icon"></i>
-                    <span class="nav-text">@(Auth.IsFinanceManager() ? "Inventory Reports" : "Reports")</span>
-                </button>
-            }
+        <section class="shell-body">
 
-            @* Admin-only section *@
-            @if (Auth.IsAdmin())
-            {
-                <button class='nav-btn @ActiveClass("/admin/audit-logs")' @onclick='() => Go("/admin/audit-logs")'>
-                    <i class="bi bi-clock-history nav-icon"></i>
-                    <span class="nav-text">Audit Logs</span>
-                </button>
+            <header class="shell-header">
 
-                <button class='nav-btn @ActiveClass("/manage-users")' @onclick='() => Go("/manage-users")'>
-                    <i class="bi bi-person-badge-fill nav-icon"></i>
-                    <span class="nav-text">Manage Users</span>
-                </button>
-
-                <button class='nav-btn @ActiveClass("/settings")' @onclick='() => Go("/settings")'>
-                    <i class="bi bi-gear-fill nav-icon"></i>
-                    <span class="nav-text">Settings</span>
-                </button>
-            }
-        </nav>
-    </aside>
-
-    <section class="shell-body">
-
-        <header class="shell-header">
-
-            <!-- Mobile Menu Button -->
-            <div class="header-left-mobile">
-                <button class="menu-icon">
-                    <i class="bi bi-list"></i>
-                </button>
-            </div>
-
-            <div class="header-icons">
-                <button class="icon-btn">
-                    <i class="bi bi-bell"></i>
-                </button>
-
-                <div class="user-profile-preview">
-                    <img src="@GetUserAvatarUrl()"
-                         alt="User Avatar"
-                         class="user-avatar"
-                         @onerror="HandleAvatarError" />
-                    <div class="user-name-drop">@GetDisplayName()</div>
-                    <i class="bi bi-chevron-down" style="font-size: 0.7rem; color: #94a3b8;"></i>
-                </div>
-                
-                <button class="icon-btn" @onclick="Logout" title="Logout">
-                    <i class="bi bi-box-arrow-right"></i>
-                </button>
-            </div>
-        </header>
-
-        <main class="shell-content">
-
-            <!-- Error/Success Message Toast -->
-            @if (!string.IsNullOrEmpty(ToastMessage))
-            {
-                <div class="toast-notification @ToastType" @onclick="DismissToast">
-                    <div class="toast-icon">
-                        <i class="bi @GetToastIcon()"></i>
-                    </div>
-                    <div class="toast-content">
-                        <div class="toast-title">@ToastTitle</div>
-                        <div class="toast-message">@ToastMessage</div>
-                    </div>
-                    <button class="toast-close" @onclick="DismissToast" @onclick:stopPropagation="true">
-                        <i class="bi bi-x"></i>
+                <!-- Mobile Menu Button -->
+                <div class="header-left-mobile">
+                    <button class="menu-icon" @onclick="ToggleSidebar" @onclick:stopPropagation="true">
+                        <i class="bi bi-list"></i>
                     </button>
                 </div>
-            }
 
-            <div class="page-title-bar">
-                <h1 class="page-title">@GetCurrentTitle()</h1>
-                @if (Auth.CurrentRole != null)
-                {
-                    <span class="user-role-badge">@Auth.CurrentRole</span>
-                }
-            </div>
+                <div class="header-icons">
+                    <button class="icon-btn">
+                        <i class="bi bi-bell"></i>
+                    </button>
 
-            <ErrorBoundary>
-                <ChildContent>
-                    @Body
-                </ChildContent>
-                <ErrorContent Context="exception">
-                    <div class="error-container">
-                        <div class="error-icon">
-                            <i class="bi bi-exclamation-triangle-fill"></i>
-                        </div>
-                        <h2 class="error-title">Something went wrong</h2>
-                        <p class="error-message">
-                            We encountered an unexpected error while loading this page. 
-                            Please try refreshing or contact support if the problem persists.
-                        </p>
-                        <div class="error-actions">
-                            <button class="btn-primary" @onclick="ReloadPage">
-                                <i class="bi bi-arrow-clockwise"></i> Refresh Page
-                            </button>
-                            <button class="btn-secondary" @onclick='() => SafeNavigate("/home")'>
-                                <i class="bi bi-house-fill"></i> Go to Dashboard
-                            </button>
-                        </div>
-                        @if (!string.IsNullOrEmpty(exception?.Message))
-                        {
-                            <details class="error-details">
-                                <summary>Technical Details</summary>
-                                <code>@exception.Message</code>
-                            </details>
-                        }
+                    <div class="user-profile-preview">
+                        <img src="@GetUserAvatarUrl()"
+                             alt="User Avatar"
+                             class="user-avatar"
+                             @onerror="HandleAvatarError" />
+                        <div class="user-name-drop">@GetDisplayName()</div>
+                        <i class="bi bi-chevron-down" style="font-size: 0.7rem; color: #94a3b8;"></i>
                     </div>
-                </ErrorContent>
-            </ErrorBoundary>
 
-            <footer class="shell-footer">© 2024 ResQLink System</footer>
-        </main>
-    </section>
-</div>
+                    <button class="icon-btn" @onclick="Logout" title="Logout">
+                        <i class="bi bi-box-arrow-right"></i>
+                    </button>
+                </div>
+            </header>
+
+            <main class="shell-content">
+
+                <!-- Error/Success Message Toast -->
+                @if (!string.IsNullOrEmpty(ToastMessage))
+                {
+                    <div class="toast-notification @ToastType" @onclick="DismissToast">
+                        <div class="toast-icon">
+                            <i class="bi @GetToastIcon()"></i>
+                        </div>
+                        <div class="toast-content">
+                            <div class="toast-title">@ToastTitle</div>
+                            <div class="toast-message">@ToastMessage</div>
+                        </div>
+                        <button class="toast-close" @onclick="DismissToast" @onclick:stopPropagation="true">
+                            <i class="bi bi-x"></i>
+                        </button>
+                    </div>
+                }
+
+                <div class="page-title-bar">
+                    <h1 class="page-title">@GetCurrentTitle()</h1>
+                    @if (Auth.CurrentRole != null)
+                    {
+                        <span class="user-role-badge">@Auth.CurrentRole</span>
+                    }
+                </div>
+
+                <ErrorBoundary>
+                    <ChildContent>
+                        @Body
+                    </ChildContent>
+                    <ErrorContent Context="exception">
+                        <div class="error-container">
+                            <div class="error-icon">
+                                <i class="bi bi-exclamation-triangle-fill"></i>
+                            </div>
+                            <h2 class="error-title">Something went wrong</h2>
+                            <p class="error-message">
+                                We encountered an unexpected error while loading this page.
+                                Please try refreshing or contact support if the problem persists.
+                            </p>
+                            <div class="error-actions">
+                                <button class="btn-primary" @onclick="ReloadPage">
+                                    <i class="bi bi-arrow-clockwise"></i> Refresh Page
+                                </button>
+                                <button class="btn-secondary" @onclick='() => SafeNavigate("/home")'>
+                                    <i class="bi bi-house-fill"></i> Go to Dashboard
+                                </button>
+                            </div>
+                            @if (!string.IsNullOrEmpty(exception?.Message))
+                            {
+                                <details class="error-details">
+                                    <summary>Technical Details</summary>
+                                    <code>@exception.Message</code>
+                                </details>
+                            }
+                        </div>
+                    </ErrorContent>
+                </ErrorBoundary>
+
+                <footer class="shell-footer">© 2024 ResQLink System</footer>
+            </main>
+        </section>
+    </div>
 }
 
 @code {
     private bool InventoryOpen;
+    private bool _sidebarCollapsed;
+
     private string? ToastMessage;
     private string? ToastTitle;
     private string ToastType = "info"; // info, success, warning, error
@@ -294,8 +293,6 @@ else
         try
         {
             base.OnInitialized();
-            
-            // Subscribe to location changes for error handling
             Nav.LocationChanged += HandleLocationChanged;
         }
         catch (Exception ex)
@@ -309,7 +306,6 @@ else
     {
         try
         {
-            // Clear any error messages on navigation
             DismissToast();
             StateHasChanged();
         }
@@ -317,6 +313,11 @@ else
         {
             Console.WriteLine($"Error handling location change: {ex.Message}");
         }
+    }
+
+    private void ToggleSidebar()
+    {
+        _sidebarCollapsed = !_sidebarCollapsed;
     }
 
     private void ToggleInventoryMenu()
@@ -337,6 +338,8 @@ else
         try
         {
             InventoryOpen = false;
+            // Optional: auto-close sidebar on click outside on small screens
+            // _sidebarCollapsed = true;
         }
         catch (Exception ex)
         {
@@ -358,7 +361,6 @@ else
                 return;
             }
 
-            // Check authorization before navigation
             if (Auth == null)
             {
                 ShowToast("Authentication Error", "Unable to verify permissions. Please log in again.", "error");
@@ -422,9 +424,8 @@ else
 
             Auth.Logout();
             ShowToast("Logged Out", "You have been successfully logged out.", "success");
-            
-            // Small delay to show the message before redirecting
-            Task.Delay(500).ContinueWith(_ => 
+
+            Task.Delay(500).ContinueWith(_ =>
             {
                 Nav.NavigateTo("/", true);
             });
@@ -432,7 +433,6 @@ else
         catch (Exception ex)
         {
             Console.WriteLine($"Logout error: {ex.Message}");
-            // Even if logout fails, redirect to login
             Nav.NavigateTo("/", true);
         }
     }
@@ -456,7 +456,6 @@ else
         {
             if (_avatarImageError)
             {
-                // Fallback to default avatar if there was an error
                 return "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2307562c'%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z'/%3E%3C/svg%3E";
             }
 
@@ -566,7 +565,7 @@ else
                 "/evacuees" => "Evacuees",
                 "/shelters" => "Shelters",
                 "/disasters" => "Disasters",
-                "/volunteers" => "Volunteers",  
+                "/volunteers" => "Volunteers",
                 "/inventory" => Auth?.IsFinanceManager() == true ? "Inventory Overview" : "Inventory",
                 var p when p.StartsWith("/inventory/category/") =>
                     "Inventory - " + Uri.UnescapeDataString(p.Split('/').Last()).Replace('-', ' ').ToUpperInvariant(),
@@ -574,6 +573,7 @@ else
                 "/stocks" => "Stocks",
                 "/suppliers" => "Suppliers",
                 "/reports" => Auth?.IsFinanceManager() == true ? "Inventory Reports" : "Reports",
+                "/finance" => "Finance",
                 "/audit-logs" => "Audit Logs",
                 "/admin/audit-logs" => "Audit Logs",
                 "/manage-users" => "Manage Users",
@@ -596,10 +596,8 @@ else
             ToastMessage = message;
             ToastType = type;
 
-            // Clear existing timer
             _toastTimer?.Dispose();
 
-            // Auto-dismiss after 5 seconds
             _toastTimer = new System.Threading.Timer(_ =>
             {
                 InvokeAsync(() =>

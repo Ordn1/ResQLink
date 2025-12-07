@@ -152,10 +152,10 @@
     transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
-.modern-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(0,0,0,0.08);
-}
+    .modern-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+    }
 
 /* ===========================================
    KPI CARDS
@@ -173,13 +173,13 @@
     position: relative;
 }
 
-.kpi-card:hover {
-    box-shadow: 0 10px 20px rgba(0,0,0,0.08);
-}
+    .kpi-card:hover {
+        box-shadow: 0 10px 20px rgba(0,0,0,0.08);
+    }
 
-.kpi-card.priority-high {
-    border: 2px solid #fee2e2;
-}
+    .kpi-card.priority-high {
+        border: 2px solid #fee2e2;
+    }
 
 .kpi-header {
     display: flex;
@@ -239,20 +239,20 @@
     font-weight: 600;
 }
 
-.trend-badge.trend-up {
-    background: #fef3c7;
-    color: #92400e;
-}
+    .trend-badge.trend-up {
+        background: #fef3c7;
+        color: #92400e;
+    }
 
-.trend-badge.trend-down {
-    background: #d1fae5;
-    color: #065f46;
-}
+    .trend-badge.trend-down {
+        background: #d1fae5;
+        color: #065f46;
+    }
 
-.trend-badge.trend-neutral {
-    background: #f1f5f9;
-    color: #64748b;
-}
+    .trend-badge.trend-neutral {
+        background: #f1f5f9;
+        color: #64748b;
+    }
 
 /* Progress bar */
 .progress-container {
@@ -269,13 +269,13 @@
     transition: width 0.3s ease;
 }
 
-.progress-fill.warning {
-    background: linear-gradient(90deg, #f59e0b, #fb923c);
-}
+    .progress-fill.warning {
+        background: linear-gradient(90deg, #f59e0b, #fb923c);
+    }
 
-.progress-fill.critical {
-    background: linear-gradient(90deg, #dc2626, #ef4444);
-}
+    .progress-fill.critical {
+        background: linear-gradient(90deg, #dc2626, #ef4444);
+    }
 
 /* ===========================================
    CARD HEADERS
@@ -289,9 +289,9 @@
     background: #fafbfc;
 }
 
-.card-header.alert-header {
-    background: linear-gradient(135deg, #fffaf0 0%, #fff7ed 100%);
-}
+    .card-header.alert-header {
+        background: linear-gradient(135deg, #fffaf0 0%, #fff7ed 100%);
+    }
 
 .card-title-group {
     display: flex;
@@ -314,10 +314,10 @@
     font-weight: 700;
 }
 
-.card-badge.alert-badge {
-    background: #ffedd5;
-    color: #9a3412;
-}
+    .card-badge.alert-badge {
+        background: #ffedd5;
+        color: #9a3412;
+    }
 
 .header-actions {
     display: flex;
@@ -333,11 +333,11 @@
     transition: 0.2s ease;
 }
 
-.search-input:focus {
-    outline: none;
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px rgba(7, 86, 44, 0.15);
-}
+    .search-input:focus {
+        outline: none;
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 3px rgba(7, 86, 44, 0.15);
+    }
 
 .refresh-btn {
     width: 34px;
@@ -353,21 +353,149 @@
     transition: 0.2s ease;
 }
 
-.refresh-btn:hover {
-    border-color: var(--primary-color);
-    color: var(--primary-color);
-    background: var(--primary-light);
+    .refresh-btn:hover {
+        border-color: var(--primary-color);
+        color: var(--primary-color);
+        background: var(--primary-light);
+    }
+
+    .refresh-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
 }
 
-.refresh-btn:disabled {
-    opacity: 0.5;
+.spin {
+    animation: spin 1s linear infinite;
+}
+
+/* ===========================================
+   ANALYTICS CONTROLS (ADD THIS SECTION)
+   - pill-styled native selects with icons
+   - prominent themed refresh button
+   - caret indicator + closer refresh spacing
+=========================================== */
+.analytics-controls {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: flex-start;
+    width: 100%;
+    max-width: 960px;
+    box-sizing: border-box;
+}
+
+/* left side (selectors) */
+.ac-left {
+    display: flex;
+    gap: 8px; /* tightened gap so refresh sits closer */
+    align-items: center;
+}
+
+/* small field wrapper with icon (pill) */
+.ac-field {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #fff;
+    border: 1px solid var(--border-color);
+    padding: 6px 10px;
+    border-radius: 999px;
+    box-shadow: 0 1px 0 rgba(15,23,42,0.03);
+    min-height: 40px;
+}
+
+/* caret element (visible indicator that this is a dropdown) */
+.ac-caret {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-left: 6px;
+    pointer-events: none;
+}
+
+/* icon inside field */
+.ac-field-icon {
+    font-size: 0.95rem;
+    color: var(--primary-color);
+    width: 18px;
+    text-align: center;
+}
+
+/* select element looks like a pill but stays native for accessibility */
+.ac-select {
+    border: none;
+    background: transparent;
+    font-size: 0.95rem;
+    color: var(--text-main);
+    outline: none;
+    padding: 4px 6px;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    cursor: pointer;
+}
+
+/* remove pseudo chevron because we display explicit caret */
+.ac-field::after {
+    display: none;
+}
+
+/* right side (refresh) */
+.ac-right {
+    display: flex;
+    align-items: center;
+}
+
+/* primary refresh button matching theme */
+.btn-refresh-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: linear-gradient(90deg, #38bd60, #2da653);
+    color: #fff;
+    border: none;
+    padding: 8px 14px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 0.9rem;
+    box-shadow: 0 8px 22px rgba(11,107,51,0.12);
+    cursor: pointer;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+    min-height: 40px;
+}
+
+/* smaller variant when used inline with selects */
+.ac-refresh {
+    margin-left: 2px;
+    padding: 6px 12px;
+    height: 36px;
+    border-radius: 999px;
+    font-size: 0.88rem;
+    gap: 8px;
+}
+
+/* hover & disabled states */
+.btn-refresh-primary:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 28px rgba(11,107,51,0.14);
+}
+
+.btn-refresh-primary:disabled {
+    opacity: 0.6;
     cursor: not-allowed;
 }
 
-@keyframes spin {
-    to { transform: rotate(360deg); }
+.btn-refresh-primary .btn-text {
+    white-space: nowrap;
 }
 
+/* reuse existing spin keyframe */
 .spin {
     animation: spin 1s linear infinite;
 }
@@ -384,25 +512,25 @@
     border-collapse: collapse;
 }
 
-.clean-table thead th {
-    padding: 14px 24px;
-    font-size: 0.75rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    background: #f8fafc;
-    border-bottom: 1px solid var(--border-color);
-    color: var(--text-muted);
-}
+    .clean-table thead th {
+        padding: 14px 24px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        background: #f8fafc;
+        border-bottom: 1px solid var(--border-color);
+        color: var(--text-muted);
+    }
 
-.clean-table tbody td {
-    padding: 16px 24px;
-    border-bottom: 1px solid var(--border-color);
-}
+    .clean-table tbody td {
+        padding: 16px 24px;
+        border-bottom: 1px solid var(--border-color);
+    }
 
-.clean-table tbody tr:hover {
-    background: #f1f5f9;
-}
+    .clean-table tbody tr:hover {
+        background: #f1f5f9;
+    }
 
 .empty-state {
     text-align: center;
@@ -490,13 +618,13 @@
     transition: background 0.15s ease;
 }
 
-.inv-item:hover {
-    background: #fef9f5;
-}
+    .inv-item:hover {
+        background: #fef9f5;
+    }
 
-.inv-item:last-child {
-    border-bottom: none;
-}
+    .inv-item:last-child {
+        border-bottom: none;
+    }
 
 .inv-info {
     display: flex;
@@ -555,7 +683,7 @@
     .col-right {
         grid-column: span 12;
     }
-    
+
     .summary-stats {
         flex-wrap: wrap;
     }
@@ -591,6 +719,21 @@
         align-items: flex-start;
         gap: 8px;
     }
+
+    .analytics-controls {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+
+    .ac-left {
+        justify-content: flex-start;
+        gap: 8px;
+    }
+
+    .ac-right {
+        justify-content: flex-end;
+    }
 }
 
 /* Home Dashboard Enhancements - Chart Styles */
@@ -612,9 +755,9 @@
     flex-direction: column;
 }
 
-.chart-card.wide {
-    grid-column: span 2;
-}
+    .chart-card.wide {
+        grid-column: span 2;
+    }
 
 .chart-header {
     display: flex;
@@ -633,9 +776,9 @@
     gap: 8px;
 }
 
-.chart-title i {
-    color: #38bd60;
-}
+    .chart-title i {
+        color: #38bd60;
+    }
 
 .chart-badge {
     font-size: 0.7rem;
@@ -652,15 +795,15 @@
     width: 100%;
 }
 
-.chart-container canvas {
-    max-height: 100%;
-}
+    .chart-container canvas {
+        max-height: 100%;
+    }
 
 @media (max-width: 1200px) {
     .charts-grid {
         grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
     }
-    
+
     .chart-card.wide {
         grid-column: span 1;
     }
@@ -670,7 +813,7 @@
     .charts-grid {
         grid-template-columns: 1fr;
     }
-    
+
     .chart-container {
         height: 240px;
     }

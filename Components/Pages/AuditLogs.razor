@@ -16,138 +16,138 @@
         return;
     }
 
+    <!-- Page header (Reports-style) -->
     <div class="page-header">
         <div>
-            <h1 class="page-title">
-                <i class="bi bi-journal-text"></i>
-                Audit Logs
-            </h1>
-            <p class="page-subtitle">Comprehensive activity tracking and forensic analysis</p>
+            <h5 class="page-subtitle"> <i class="bi bi-journal-text"></i> Comprehensive activity tracking and forensic analysis</h5>
         </div>
-        <button class="btn-primary" @onclick="ExportLogs">
-            <i class="bi bi-download"></i> Export Logs
-        </button>
-    </div>
 
-    <!-- Filters -->
-    <div class="modern-card filters-card">
-        <div class="card-header">
-            <h3 class="card-title">
-                <i class="bi bi-funnel-fill"></i>
-                Filters
-            </h3>
-            <button class="btn-secondary" @onclick="ClearFilters">Clear Filters</button>
-        </div>
-        <div class="filters-grid">
-            <div class="filter-group">
-                <label>Start Date</label>
-                <input type="datetime-local" @bind="filterStartDate" class="form-control" />
-            </div>
-            <div class="filter-group">
-                <label>End Date</label>
-                <input type="datetime-local" @bind="filterEndDate" class="form-control" />
-            </div>
-            <div class="filter-group">
-                <label>Action</label>
-                <select @bind="filterAction" class="form-control">
-                    <option value="">All Actions</option>
-                    <option value="Login">Login</option>
-                    <option value="Logout">Logout</option>
-                    <option value="Create">Create</option>
-                    <option value="Update">Update</option>
-                    <option value="Delete">Delete</option>
-                    <option value="View">View</option>
-                    <option value="Assign">Assign</option>
-                    <option value="Unassign">Unassign</option>
-                </select>
-            </div>
-            <div class="filter-group">
-                <label>Entity Type</label>
-                <select @bind="filterEntityType" class="form-control">
-                    <option value="">All Entities</option>
-                    <option value="Volunteer">Volunteer</option>
-                    <option value="Shelter">Shelter</option>
-                    <option value="Disaster">Disaster</option>
-                    <option value="Donation">Donation</option>
-                    <option value="Admin">Admin</option>
-                    <option value="Stock">Stock</option>
-                </select>
-            </div>
-            <div class="filter-group">
-                <label>Severity</label>
-                <select @bind="filterSeverity" class="form-control">
-                    <option value="">All Severities</option>
-                    <option value="Info">Info</option>
-                    <option value="Warning">Warning</option>
-                    <option value="Error">Error</option>
-                    <option value="Critical">Critical</option>
-                </select>
-            </div>
-            <div class="filter-group">
-                <label>User ID</label>
-                <input type="number" @bind="filterUserId" placeholder="Enter user ID" class="form-control" />
-            </div>
-        </div>
-        <div class="filter-actions">
-            <button class="btn-primary" @onclick="ApplyFilters">
-                <i class="bi bi-search"></i> Apply Filters
+        <div class="page-actions">
+            <button class="btn-secondary" @onclick="ClearFilters" title="Clear filters">
+                <i class="bi bi-arrow-counterclockwise"></i>
+                Clear
+            </button>
+
+            <!-- uses global .btn-primary (green pill) -->
+            <button class="btn-primary" @onclick="ExportLogs" title="Export logs">
+                <i class="bi bi-download"></i>
+                Export Logs
             </button>
         </div>
     </div>
 
-    <!-- Statistics -->
-    <div class="stats-grid">
-        <div class="stat-card">
-            <div class="stat-icon info">
-                <i class="bi bi-info-circle-fill"></i>
+    <!-- Console-style controls row (mirrors Reports console) -->
+    <section class="console-panel" aria-label="Audit console">
+        <header class="console-head">
+            <div class="console-title">AUDIT CONSOLE</div>
+
+            <div class="console-actions">
+                <div class="controls-left" role="group" aria-label="Audit filters">
+                    <div class="control-item">
+                        <label class="sr-only">Start Date</label>
+                        <input type="datetime-local" @bind="filterStartDate" class="mini-input" />
+                    </div>
+
+                    <div class="control-item">
+                        <label class="sr-only">End Date</label>
+                        <input type="datetime-local" @bind="filterEndDate" class="mini-input" />
+                    </div>
+
+                    <div class="control-item">
+                        <label class="sr-only">Action</label>
+                        <select @bind="filterAction" class="mini-input">
+                            <option value="">All Actions</option>
+                            <option value="Login">Login</option>
+                            <option value="Logout">Logout</option>
+                            <option value="Create">Create</option>
+                            <option value="Update">Update</option>
+                            <option value="Delete">Delete</option>
+                            <option value="View">View</option>
+                            <option value="Assign">Assign</option>
+                            <option value="Unassign">Unassign</option>
+                        </select>
+                    </div>
+
+                    <div class="control-item">
+                        <label class="sr-only">Entity Type</label>
+                        <select @bind="filterEntityType" class="mini-input">
+                            <option value="">All Entities</option>
+                            <option value="Volunteer">Volunteer</option>
+                            <option value="Shelter">Shelter</option>
+                            <option value="Disaster">Disaster</option>
+                            <option value="Donation">Donation</option>
+                            <option value="Admin">Admin</option>
+                            <option value="Stock">Stock</option>
+                        </select>
+                    </div>
+
+                    <div class="control-item">
+                        <label class="sr-only">Severity</label>
+                        <select @bind="filterSeverity" class="mini-input">
+                            <option value="">All Severities</option>
+                            <option value="Info">Info</option>
+                            <option value="Warning">Warning</option>
+                            <option value="Error">Error</option>
+                            <option value="Critical">Critical</option>
+                        </select>
+                    </div>
+
+                    <div class="control-item">
+                        <label class="sr-only">User ID</label>
+                        <input type="number" @bind="filterUserId" placeholder="User ID" class="mini-input" />
+                    </div>
+                </div>
+
+                <div class="controls-right">
+                    <!-- uses global .btn-primary (green pill) -->
+                    <button class="btn-primary" @onclick="ApplyFilters" disabled="@isLoading" aria-disabled="@isLoading">
+                        <i class="bi bi-search"></i>
+                        <span>@(isLoading ? "Filtering..." : "Apply Filters")</span>
+                    </button>
+                </div>
             </div>
-            <div class="stat-content">
-                <div class="stat-value">@logs.Count(l => l.Severity == "Info")</div>
-                <div class="stat-label">Info</div>
+        </header>
+    </section>
+
+    <!-- KPI summary cards -->
+    <div class="kpi-panel">
+        <div class="kpi-grid">
+            <div class="kpi-card">
+                <div class="kpi-label">Info</div>
+                <div class="kpi-value">@logs.Count(l => l.Severity == "Info")</div>
             </div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-icon warning">
-                <i class="bi bi-exclamation-triangle-fill"></i>
+
+            <div class="kpi-card">
+                <div class="kpi-label">Warnings</div>
+                <div class="kpi-value">@logs.Count(l => l.Severity == "Warning")</div>
             </div>
-            <div class="stat-content">
-                <div class="stat-value">@logs.Count(l => l.Severity == "Warning")</div>
-                <div class="stat-label">Warnings</div>
+
+            <div class="kpi-card">
+                <div class="kpi-label">Errors</div>
+                <div class="kpi-value">@logs.Count(l => l.Severity == "Error")</div>
             </div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-icon error">
-                <i class="bi bi-x-circle-fill"></i>
-            </div>
-            <div class="stat-content">
-                <div class="stat-value">@logs.Count(l => l.Severity == "Error")</div>
-                <div class="stat-label">Errors</div>
-            </div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-icon critical">
-                <i class="bi bi-shield-exclamation"></i>
-            </div>
-            <div class="stat-content">
-                <div class="stat-value">@logs.Count(l => l.Severity == "Critical")</div>
-                <div class="stat-label">Critical</div>
+
+            <div class="kpi-card">
+                <div class="kpi-label">Critical</div>
+                <div class="kpi-value">@logs.Count(l => l.Severity == "Critical")</div>
             </div>
         </div>
     </div>
 
-    <!-- Audit Logs Table -->
-    <div class="modern-card">
+    <!-- Audit Trail table -->
+    <section class="modern-card" aria-label="Audit trail">
         <div class="card-header">
             <h3 class="card-title">
                 <i class="bi bi-list-ul"></i>
                 Audit Trail (@logs.Count entries)
             </h3>
         </div>
+
         <div class="table-responsive">
             @if (isLoading)
             {
                 <div class="loading-state">
-                    <div class="spinner"></div>
+                    <div class="spinner" role="status" aria-hidden="true"></div>
                     <p>Loading audit logs...</p>
                 </div>
             }
@@ -169,10 +169,10 @@
                             <th>Action</th>
                             <th>Entity</th>
                             <th>Description</th>
-                            <th>Severity</th>
-                            <th>Status</th>
+                            <th class="t-center">Severity</th>
+                            <th class="t-center">Status</th>
                             <th>IP Address</th>
-                            <th>Details</th>
+                            <th class="t-center">Details</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -183,17 +183,18 @@
                                     <div>@log.Timestamp.ToLocalTime().ToString("yyyy-MM-dd")</div>
                                     <small>@log.Timestamp.ToLocalTime().ToString("HH:mm:ss")</small>
                                 </td>
+
                                 <td>
                                     <div class="user-info">
                                         <strong>@(log.UserName ?? "System")</strong>
                                         <small>@log.UserType @(log.UserId.HasValue ? $"(ID: {log.UserId})" : "")</small>
                                     </div>
                                 </td>
+
                                 <td>
-                                    <span class="action-badge @GetActionClass(log.Action)">
-                                        @log.Action
-                                    </span>
+                                    <span class="action-badge @GetActionClass(log.Action)">@log.Action</span>
                                 </td>
+
                                 <td>
                                     <div>@log.EntityType</div>
                                     @if (log.EntityId.HasValue)
@@ -201,29 +202,26 @@
                                         <small class="text-muted">ID: @log.EntityId</small>
                                     }
                                 </td>
+
                                 <td class="description-cell">@log.Description</td>
-                                <td>
-                                    <span class="severity-badge sev-@log.Severity.ToLower()">
+
+                                <td class="t-center">
+                                    <span class="severity-badge @( "sev-" + (log.Severity?.ToLower() ?? "info"))">
                                         @log.Severity
                                     </span>
                                 </td>
-                                <td>
-                                    @if (log.IsSuccessful)
-                                    {
-                                        <span class="status-badge success">
-                                            <i class="bi bi-check-circle-fill"></i> Success
-                                        </span>
-                                    }
-                                    else
-                                    {
-                                        <span class="status-badge failed">
-                                            <i class="bi bi-x-circle-fill"></i> Failed
-                                        </span>
-                                    }
+
+                                <td class="t-center">
+                                    <span class="status-badge @(log.IsSuccessful ? "success" : "failed")">
+                                        @(log.IsSuccessful ? "Success" : "Failed")
+                                    </span>
                                 </td>
+
                                 <td>@log.IpAddress</td>
-                                <td>
-                                    <button class="btn-icon" @onclick="() => ShowDetails(log)">
+
+                                <td class="t-center">
+                                    <!-- Only icon, neutral button (not green); view-details modal trigger -->
+                                    <button class="btn-view-icon" @onclick="() => ShowDetails(log)" aria-label="View details">
                                         <i class="bi bi-eye-fill"></i>
                                     </button>
                                 </td>
@@ -233,72 +231,96 @@
                 </table>
             }
         </div>
-    </div>
+    </section>
 
-    <!-- Details Modal -->
+    <!-- Details Modal (User-details style, with green accent) -->
     @if (selectedLog != null)
     {
-        <div class="modal-overlay" @onclick="CloseDetails">
+        <div class="modal-overlay" @onclick="CloseDetails" role="dialog" aria-modal="true" aria-label="Audit log details">
             <div class="modal-content" @onclick:stopPropagation="true">
                 <div class="modal-header">
-                    <h3>
-                        <i class="bi bi-file-earmark-text-fill"></i>
-                        Audit Log Details
-                    </h3>
-                    <button class="btn-close" @onclick="CloseDetails">
+                    <h3 class="modal-title">Audit Log Details</h3>
+                    <button class="btn-close" @onclick="CloseDetails" aria-label="Close details">
                         <i class="bi bi-x-lg"></i>
                     </button>
                 </div>
+
                 <div class="modal-body">
                     <div class="details-grid">
                         <div class="detail-item">
                             <label>Log ID:</label>
                             <span>@selectedLog.AuditLogId</span>
                         </div>
-                        <div class="detail-item">
-                            <label>Timestamp (UTC):</label>
-                            <span>@selectedLog.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")</span>
-                        </div>
+
                         <div class="detail-item">
                             <label>Timestamp (Local):</label>
                             <span>@selectedLog.Timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</span>
                         </div>
+
+                        <div class="detail-item">
+                            <label>Timestamp (UTC):</label>
+                            <span>@selectedLog.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")</span>
+                        </div>
+
                         <div class="detail-item">
                             <label>User:</label>
                             <span>@selectedLog.UserName (@selectedLog.UserType)</span>
                         </div>
+
                         <div class="detail-item">
                             <label>User ID:</label>
                             <span>@selectedLog.UserId</span>
                         </div>
+
                         <div class="detail-item">
                             <label>Action:</label>
                             <span>@selectedLog.Action</span>
                         </div>
+
                         <div class="detail-item">
                             <label>Entity Type:</label>
                             <span>@selectedLog.EntityType</span>
                         </div>
+
                         <div class="detail-item">
                             <label>Entity ID:</label>
                             <span>@selectedLog.EntityId</span>
                         </div>
+
+                        <div class="detail-item">
+                            <label>Severity:</label>
+                            <span class="severity-badge @( "sev-" + (selectedLog.Severity?.ToLower() ?? "info"))">
+                                @selectedLog.Severity
+                            </span>
+                        </div>
+
+                        <div class="detail-item">
+                            <label>Status:</label>
+                            <span class="status-badge @(selectedLog.IsSuccessful ? "success" : "failed")">
+                                @(selectedLog.IsSuccessful ? "Success" : "Failed")
+                            </span>
+                        </div>
+
                         <div class="detail-item">
                             <label>IP Address:</label>
                             <span>@selectedLog.IpAddress</span>
                         </div>
+
                         <div class="detail-item">
                             <label>Session ID:</label>
                             <span>@selectedLog.SessionId</span>
                         </div>
+
                         <div class="detail-item full-width">
                             <label>User Agent:</label>
                             <span>@selectedLog.UserAgent</span>
                         </div>
+
                         <div class="detail-item full-width">
                             <label>Description:</label>
                             <span>@selectedLog.Description</span>
                         </div>
+
                         @if (!string.IsNullOrEmpty(selectedLog.ErrorMessage))
                         {
                             <div class="detail-item full-width error-message">
@@ -306,6 +328,7 @@
                                 <span>@selectedLog.ErrorMessage</span>
                             </div>
                         }
+
                         @if (!string.IsNullOrEmpty(selectedLog.OldValues))
                         {
                             <div class="detail-item full-width">
@@ -313,6 +336,7 @@
                                 <pre class="json-preview">@selectedLog.OldValues</pre>
                             </div>
                         }
+
                         @if (!string.IsNullOrEmpty(selectedLog.NewValues))
                         {
                             <div class="detail-item full-width">
@@ -401,7 +425,7 @@
         selectedLog = null;
     }
 
-    private string GetActionClass(string action) => action.ToLowerInvariant() switch
+    private string GetActionClass(string action) => action?.ToLowerInvariant() switch
     {
         "login" => "action-login",
         "logout" => "action-logout",

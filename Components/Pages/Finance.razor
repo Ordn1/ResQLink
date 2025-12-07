@@ -21,62 +21,62 @@
 }
 else
 {
-<div class="finance-root">
+    <div class="finance-root">
 
-    <section class="panel kpi-panel">
-        <header class="panel-head">
-            <h2 class="panel-title">Finance — Budgeting & Procurement</h2>
-            <div class="panel-actions">
-                <button class="mini-btn" @onclick="RefreshAll" title="Refresh">
+        <section class="panel kpi-panel">
+            <header class="panel-head">
+                <h2 class="panel-title">Finance — Budgeting & Procurement</h2>
+                <div class="panel-actions">
+                    <button class="mini-btn" @onclick="RefreshAll" title="Refresh">
                     <i class="bi bi-arrow-clockwise"></i>
+                    <span>Refresh</span>
                 </button>
-            </div>
-        </header>
+                </div>
+            </header>
 
-        <div class="kpi-grid">
-            <div class="kpi-card">
-                <div class="kpi-icon-circle">
-                    <i class="bi bi-wallet2"></i>
+            <div class="kpi-grid">
+                <div class="kpi-card">
+                    <div class="kpi-icon-circle">
+                        <i class="bi bi-wallet2"></i>
+                    </div>
+                    <div class="kpi-content">
+                        <div class="kpi-label">Total Budgets</div>
+                        <div class="kpi-value text-accent">@Budgets.Count</div>
+                        <div class="kpi-detail">₱@Budgets.Sum(b => b.TotalAmount).ToString("N2") allocated</div>
+                    </div>
                 </div>
-                <div class="kpi-content">
-                    <div class="kpi-label">Total Budgets</div>
-                    <div class="kpi-value text-accent">@Budgets.Count</div>
-                    @* FIX: Show total allocated, not just sum of TotalAmount *@
-                    <div class="kpi-detail">₱@Budgets.Sum(b => b.TotalAmount).ToString("N2") allocated</div>
+                <div class="kpi-card">
+                    <div class="kpi-icon-circle alt">
+                        <i class="bi bi-receipt"></i>
+                    </div>
+                    <div class="kpi-content">
+                        <div class="kpi-label">Procurement Requests</div>
+                        <div class="kpi-value">@Requests.Count</div>
+                        <div class="kpi-detail">₱@Requests.Sum(r => r.TotalAmount).ToString("N2")</div>
+                    </div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-icon-circle ok">
+                        <i class="bi bi-check-circle"></i>
+                    </div>
+                    <div class="kpi-content">
+                        <div class="kpi-label">Approved Requests</div>
+                        <div class="kpi-value text-success">@Requests.Count(r => r.Status == "Approved")</div>
+                        <div class="kpi-detail">₱@Requests.Where(r => r.Status == "Approved").Sum(r => r.TotalAmount).ToString("N2")</div>
+                    </div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-icon-circle warn">
+                        <i class="bi bi-hourglass-split"></i>
+                    </div>
+                    <div class="kpi-content">
+                        <div class="kpi-label">Pending Requests</div>
+                        <div class="kpi-value text-warning">@Requests.Count(r => r.Status is "Draft" or "Submitted")</div>
+                        <div class="kpi-detail">₱@Requests.Where(r => r.Status is "Draft" or "Submitted").Sum(r => r.TotalAmount).ToString("N2")</div>
+                    </div>
                 </div>
             </div>
-            <div class="kpi-card">
-                <div class="kpi-icon-circle alt">
-                    <i class="bi bi-receipt"></i>
-                </div>
-                <div class="kpi-content">
-                    <div class="kpi-label">Procurement Requests</div>
-                    <div class="kpi-value">@Requests.Count</div>
-                    <div class="kpi-detail">₱@Requests.Sum(r => r.TotalAmount).ToString("N2")</div>
-                </div>
-            </div>
-            <div class="kpi-card">
-                <div class="kpi-icon-circle ok">
-                    <i class="bi bi-check-circle"></i>
-                </div>
-                <div class="kpi-content">
-                    <div class="kpi-label">Approved Requests</div>
-                    <div class="kpi-value text-success">@Requests.Count(r => r.Status == "Approved")</div>
-                    <div class="kpi-detail">₱@Requests.Where(r => r.Status == "Approved").Sum(r => r.TotalAmount).ToString("N2")</div>
-                </div>
-            </div>
-            <div class="kpi-card">
-                <div class="kpi-icon-circle warn">
-                    <i class="bi bi-hourglass-split"></i>
-                </div>
-                <div class="kpi-content">
-                    <div class="kpi-label">Pending Requests</div>
-                    <div class="kpi-value text-warning">@Requests.Count(r => r.Status is "Draft" or "Submitted")</div>
-                    <div class="kpi-detail">₱@Requests.Where(r => r.Status is "Draft" or "Submitted").Sum(r => r.TotalAmount).ToString("N2")</div>
-                </div>
-            </div>
-        </div>
-    </section>
+        </section>
 
     <div class="two-col">
         <!-- Budgets -->

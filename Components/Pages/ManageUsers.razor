@@ -5,9 +5,13 @@
 @inject NavigationManager Navigation
 
 <div class="manage-users-container">
+    <!-- Page header, matching other admin pages -->
     <div class="page-header">
-        <h2>Manage Users</h2>
-        <button class="btn btn-primary" @onclick="OpenCreateModal">
+        <div>
+            <h5> Administer user accounts, roles, and access</h5>
+        </div>
+
+        <button class="btn-primary" @onclick="OpenCreateModal">
             <span class="icon">+</span> Add New User
         </button>
     </div>
@@ -28,7 +32,7 @@
     }
     else
     {
-        <div class="users-table-container">
+        <section class="users-table-container" aria-label="Users">
             <table class="users-table">
                 <thead>
                     <tr>
@@ -60,24 +64,24 @@
                             </td>
                             <td>@user.CreatedAt.ToString("yyyy-MM-dd")</td>
                             <td class="actions-cell">
-                                <button class="btn-icon btn-view" @onclick="() => OpenViewModal(user)" title="View Details">
-                                    👁️
+                                <button class="btn-icon" @onclick="() => OpenViewModal(user)" title="View Details">
+                                    <i class="bi bi-eye-fill"></i>
                                 </button>
-                                <button class="btn-icon btn-edit" @onclick="() => OpenEditModal(user)" title="Edit User">
-                                    ✏️
+                                <button class="btn-icon" @onclick="() => OpenEditModal(user)" title="Edit User">
+                                    <i class="bi bi-pencil-fill"></i>
                                 </button>
-                                <button class="btn-icon btn-reset" @onclick="() => OpenResetPasswordModal(user)" title="Reset Password">
-                                    🔑
+                                <button class="btn-icon" @onclick="() => OpenResetPasswordModal(user)" title="Reset Password">
+                                    <i class="bi bi-key-fill"></i>
                                 </button>
-                                <button class="btn-icon btn-delete" @onclick="() => ShowDeleteConfirmation(user)" title="Delete User">
-                                    🗑️
+                                <button class="btn-icon btn-danger-outline" @onclick="() => ShowDeleteConfirmation(user)" title="Delete User">
+                                    <i class="bi bi-trash-fill"></i>
                                 </button>
                             </td>
                         </tr>
                     }
                 </tbody>
             </table>
-        </div>
+        </section>
     }
 </div>
 
@@ -109,7 +113,9 @@
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">Status:</span>
-                    <span class="detail-value">@(SelectedUser.IsActive ? "Active" : "Inactive")</span>
+                    <span class="detail-value status-badge status-@(SelectedUser.IsActive ? "active" : "inactive")">
+                        @(SelectedUser.IsActive ? "Active" : "Inactive")
+                    </span>
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">Password Hash:</span>
@@ -166,8 +172,8 @@
                 }
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" @onclick="CloseModals" @onclick:stopPropagation="true">Cancel</button>
-                <button class="btn btn-primary" @onclick="SaveEdit" disabled="@Saving" @onclick:stopPropagation="true">
+                <button class="btn-secondary" @onclick="CloseModals" @onclick:stopPropagation="true">Cancel</button>
+                <button class="btn-primary" @onclick="SaveEdit" disabled="@Saving" @onclick:stopPropagation="true">
                     @(Saving ? "Saving..." : "Save Changes")
                 </button>
             </div>
@@ -217,8 +223,8 @@
                 }
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" @onclick="CloseModals" @onclick:stopPropagation="true">Cancel</button>
-                <button class="btn btn-primary" @onclick="SaveCreate" disabled="@Saving" @onclick:stopPropagation="true">
+                <button class="btn-secondary" @onclick="CloseModals" @onclick:stopPropagation="true">Cancel</button>
+                <button class="btn-primary" @onclick="SaveCreate" disabled="@Saving" @onclick:stopPropagation="true">
                     @(Saving ? "Creating..." : "Create User")
                 </button>
             </div>
@@ -250,8 +256,8 @@
                 }
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" @onclick="CloseModals" @onclick:stopPropagation="true">Cancel</button>
-                <button class="btn btn-primary" @onclick="SaveResetPassword" disabled="@Saving" @onclick:stopPropagation="true">
+                <button class="btn-secondary" @onclick="CloseModals" @onclick:stopPropagation="true">Cancel</button>
+                <button class="btn-primary" @onclick="SaveResetPassword" disabled="@Saving" @onclick:stopPropagation="true">
                     @(Saving ? "Resetting..." : "Reset Password")
                 </button>
             </div>
@@ -263,7 +269,7 @@
 @if (showDeleteConfirmation && userToDelete is not null)
 {
     <div class="modal-overlay" @onclick="CloseDeleteModal" @onclick:stopPropagation="false">
-        <div class="modal-content small" @onclick="PreventClose" @onclick:stopPropagation="true">
+        <div class="modal-content modal-small" @onclick="PreventClose" @onclick:stopPropagation="true">
             <div class="modal-header">
                 <h3>Confirm Delete</h3>
                 <button class="btn-close" @onclick="CloseDeleteModal" @onclick:stopPropagation="true">×</button>
@@ -274,12 +280,12 @@
                 @if (!string.IsNullOrEmpty(GetDeleteWarning()))
                 {
                     <p class="warning-text" style="margin-top: 12px;">
-                        <strong>⚠️ @GetDeleteWarning()</strong>
+                        <strong>@GetDeleteWarning()</strong>
                     </p>
                 }
-                <div style="margin-top: 16px; padding: 12px; background: #f5f5f5; border-radius: 4px; font-size: 0.9em;">
+                <div class="delete-summary">
                     <div><strong>User Details:</strong></div>
-                    <div style="margin-top: 8px;">User ID: @userToDelete.UserId</div>
+                    <div>User ID: @userToDelete.UserId</div>
                     <div>Email: @userToDelete.Email</div>
                     <div>Role: @(userToDelete.Role?.RoleName ?? "Unknown")</div>
                     <div>Status: @(userToDelete.IsActive ? "Active" : "Inactive")</div>
@@ -287,8 +293,8 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" @onclick="CloseDeleteModal" @onclick:stopPropagation="true">Cancel</button>
-                <button class="btn btn-danger" @onclick="ConfirmDelete" disabled="@(isDeleting || IsLastActiveAdmin())" @onclick:stopPropagation="true">
+                <button class="btn-secondary" @onclick="CloseDeleteModal" @onclick:stopPropagation="true">Cancel</button>
+                <button class="btn-danger" @onclick="ConfirmDelete" disabled="@(isDeleting || IsLastActiveAdmin())" @onclick:stopPropagation="true">
                     @if (isDeleting)
                     {
                         <span class="spinner"></span>
@@ -366,10 +372,10 @@
         var isAdmin = userToDelete.Role?.RoleName?.Equals("Admin", StringComparison.OrdinalIgnoreCase) == true;
         if (!isAdmin || !userToDelete.IsActive) return false;
 
-        var activeAdminCount = Users.Count(u => 
-            u.Role?.RoleName?.Equals("Admin", StringComparison.OrdinalIgnoreCase) == true 
+        var activeAdminCount = Users.Count(u =>
+            u.Role?.RoleName?.Equals("Admin", StringComparison.OrdinalIgnoreCase) == true
             && u.IsActive);
-        
+
         return activeAdminCount <= 1;
     }
 
@@ -382,11 +388,7 @@
         return string.Empty;
     }
 
-    // Event handler to prevent modal from closing when clicking inside
-    private void PreventClose()
-    {
-        // This method intentionally does nothing - it just prevents the click from bubbling up
-    }
+    private void PreventClose() { }
 
     private void OpenViewModal(User user)
     {
@@ -500,7 +502,7 @@
                 CreatePassword,
                 CreateEmail,
                 CreateRoleId,
-                0 // TODO: Pass actual admin user ID
+                0 // TODO: pass actual admin user ID
             );
 
             if (user is not null)

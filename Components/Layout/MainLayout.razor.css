@@ -30,7 +30,20 @@
     border-right: 1px solid var(--border-color);
     height: 100vh;
     z-index: 20;
-    transition: transform 0.3s ease;
+    transition: transform 0.25s ease, width 0.25s ease;
+}
+
+/* When app-shell has sidebar-collapsed, hide sidebar and free its width */
+.app-shell.sidebar-collapsed .shell-sidebar {
+    width: 0;
+    transform: translateX(-100%);
+    pointer-events: none;
+    border-right: none;
+}
+
+/* Pull the whole layout left so content touches the screen edge */
+.app-shell.sidebar-collapsed {
+    margin-left: calc(-1 * var(--sidebar-width));
 }
 
 .sidebar-brand {
@@ -38,6 +51,14 @@
     display: flex;
     align-items: center;
     padding: 0 24px;
+}
+
+/* Centered footer */
+.shell-footer {
+    text-align: center;
+    padding: 16px 0;
+    font-size: 0.85rem;
+    color: var(--text-muted);
 }
 
 .brand-logo {
@@ -86,29 +107,22 @@
     margin-bottom: 2px;
 }
 
-    /* HOVER STATE */
     .nav-btn:hover {
         background-color: #c2ffd0 !important;
         opacity: 1;
     }
 
-    /* ACTIVE STATE (The one you are fixing) */
+    /* ACTIVE STATE */
     .nav-btn.active {
-        /* Change this to a visible Light Green */
         background-color: #38bd60 !important;
-        /* Text Color */
         color: var(--primary-color) !important;
-        /* Make it Bold */
         font-weight: 800 !important;
-        /* Add a green bar on the left so it definitely looks selected */
         box-shadow: inset 4px 0 0 0 var(--primary-color) !important;
     }
 
-        /* Ensure the icon inside the active button turns green too */
         .nav-btn.active .nav-icon {
             color: var(--primary-color) !important;
         }
-
 
 /* Icons inside buttons */
 .nav-icon {
@@ -165,12 +179,10 @@
 
 /* --- Header --- */
 .shell-header {
-    height: 90px; /* Fixed height */
+    height: 90px;
     display: flex;
     align-items: center;
-    /* FIX: This pushes the Left item (Menu) and Right item (User) apart */
     justify-content: space-between;
-    /* FIX: Match this padding with .shell-content so they align vertically */
     padding: 0 40px;
     background: var(--bg-body);
     position: sticky;
@@ -258,7 +270,6 @@
 /* --- Page Content Area --- */
 .shell-content {
     flex: 1;
-    /* FIX: Match left/right padding (40px) with header to align text */
     padding: 0 40px 40px 40px;
     overflow-y: auto;
 }
@@ -266,8 +277,6 @@
 .page-title-bar {
     padding: 10px 0 32px 0;
 }
-
-/* Add to existing styles */
 
 .user-role-badge {
     display: inline-block;
@@ -305,6 +314,7 @@
         transform: translateX(400px);
         opacity: 0;
     }
+
     to {
         transform: translateX(0);
         opacity: 1;
@@ -376,9 +386,9 @@
     transition: color 0.2s;
 }
 
-.toast-close:hover {
-    color: #475569;
-}
+    .toast-close:hover {
+        color: #475569;
+    }
 
 /* Error Container Styles */
 .error-container {
@@ -418,6 +428,7 @@
     flex-wrap: wrap;
 }
 
+/* primary/secondary buttons (layout-scoped) */
 .btn-primary, .btn-secondary {
     padding: 12px 24px;
     border-radius: 8px;
@@ -436,21 +447,21 @@
     color: white;
 }
 
-.btn-primary:hover {
-    background: #064220;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(7, 86, 44, 0.3);
-}
+    .btn-primary:hover {
+        background: #064220;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(7, 86, 44, 0.3);
+    }
 
 .btn-secondary {
     background: #f1f5f9;
     color: #475569;
 }
 
-.btn-secondary:hover {
-    background: #e2e8f0;
-    transform: translateY(-1px);
-}
+    .btn-secondary:hover {
+        background: #e2e8f0;
+        transform: translateY(-1px);
+    }
 
 .error-details {
     margin-top: 24px;
@@ -461,30 +472,30 @@
     border: 1px solid #e2e8f0;
 }
 
-.error-details summary {
-    cursor: pointer;
-    font-weight: 600;
-    color: #475569;
-    font-size: 14px;
-    user-select: none;
-}
+    .error-details summary {
+        cursor: pointer;
+        font-weight: 600;
+        color: #475569;
+        font-size: 14px;
+        user-select: none;
+    }
 
-.error-details summary:hover {
-    color: #1e293b;
-}
+        .error-details summary:hover {
+            color: #1e293b;
+        }
 
-.error-details code {
-    display: block;
-    margin-top: 12px;
-    padding: 12px;
-    background: white;
-    border: 1px solid #e2e8f0;
-    border-radius: 4px;
-    font-size: 12px;
-    color: #ef4444;
-    word-break: break-word;
-    white-space: pre-wrap;
-}
+    .error-details code {
+        display: block;
+        margin-top: 12px;
+        padding: 12px;
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 4px;
+        font-size: 12px;
+        color: #ef4444;
+        word-break: break-word;
+        white-space: pre-wrap;
+    }
 
 /* Mobile Responsiveness */
 @media (max-width: 768px) {

@@ -23,17 +23,17 @@
         <div class="summary-stats">
             <div class="stat-group">
                 <span class="stat-label">Active Operations</span>
-                <span class="stat-value">@ActiveDisastersCount disasters</span>
+                <span class="stat-value">@ActiveDisastersCount Disasters</span>
             </div>
             <div class="stat-divider"></div>
             <div class="stat-group">
                 <span class="stat-label">People Assisted</span>
-                <span class="stat-value">@TotalEvacuees evacuees</span>
+                <span class="stat-value">@TotalEvacuees Evacuees</span>
             </div>
             <div class="stat-divider"></div>
             <div class="stat-group">
                 <span class="stat-label">Resources</span>
-                <span class="stat-value">@(LowStockCount > 0 ? $"{LowStockCount} items need restocking" : "Inventory levels healthy")</span>
+                <span class="stat-value">@(LowStockCount > 0 ? $"{LowStockCount} items need restocking" : "Inventory Levels Healthy")</span>
             </div>
         </div>
     </div>
@@ -42,20 +42,36 @@
     <section class="panel">
         <header class="panel-head">
             <h2 class="panel-title">Analytics Controls</h2>
-            <div class="panel-actions">
-                <select class="mini-input" @bind="selectedPeriod" @bind:after="LoadChartsAsync">
-                    <option value="7">Last 7 days</option>
-                    <option value="30">Last 30 days</option>
-                    <option value="90">Last 90 days</option>
-                </select>
-                <select class="mini-input" @bind="selectedComparison" @bind:after="LoadChartsAsync">
-                    <option value="none">No Comparison</option>
-                    <option value="previous">vs Previous Period</option>
-                    <option value="year">vs Last Year</option>
-                </select>
-                <button class="mini-btn" @onclick="LoadChartsAsync" disabled="@_loading">
-                    <i class="bi bi-arrow-clockwise @(_loading ? "spin" : "")"></i> Refresh
-                </button>
+            <div class="analytics-controls" role="region" aria-label="Analytics controls">
+                <div class="ac-left" role="group" aria-label="Analytics selectors and actions">
+                    <label class="ac-field" aria-hidden="true">
+                        <i class="bi bi-calendar-event ac-field-icon" aria-hidden="true"></i>
+                        <select class="ac-select" @bind="selectedPeriod" @bind:after="LoadChartsAsync" aria-label="Select period">
+                            <option value="7">Last 7 days</option>
+                            <option value="30">Last 30 days</option>
+                            <option value="90">Last 90 days</option>
+                        </select>
+                        <span class="ac-caret" aria-hidden="true">▾</span>
+                    </label>
+
+                    <label class="ac-field" aria-hidden="true">
+                        <i class="bi bi-bar-chart ac-field-icon" aria-hidden="true"></i>
+                        <select class="ac-select" @bind="selectedComparison" @bind:after="LoadChartsAsync" aria-label="Select comparison">
+                            <option value="none">No Comparison</option>
+                            <option value="previous">vs Previous Period</option>
+                            <option value="year">vs Last Year</option>
+                        </select>
+                        <span class="ac-caret" aria-hidden="true">▾</span>
+                    </label>
+
+                    <!-- Refresh moved next to the Comparison select (close spacing) -->
+                    <button class="btn-refresh-primary ac-refresh" @onclick="LoadChartsAsync" disabled="@_loading" aria-disabled="@_loading" title="Refresh charts">
+                        <svg class="refresh-icon @( _loading ? "spin" : "" )" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                            <path fill="currentColor" d="M12 6V3L8 7l4 4V8a4 4 0 1 1-4 4H6a6 6 0 1 0 6-6z"></path>
+                        </svg>
+                        <span class="btn-text">@(_loading ? "Refreshing..." : "Refresh")</span>
+                    </button>
+                </div>
             </div>
         </header>
     </section>
