@@ -32,7 +32,7 @@ else
                     <span class="nav-text">Dashboard</span>
                 </button>
 
-                @* Show Disasters, Evacuees, Shelters, Volunteers for HR only (NOT Admin) *@
+                @* Show Disasters, Evacuees, Shelters, Volunteers for Operation Officer only (NOT Admin) *@
                 @if (Auth.CanAccessDisasterResponse() && !Auth.IsAdmin())
                 {
                     <button class='nav-btn @ActiveClass("/disasters")' @onclick='() => Go("/disasters")'>
@@ -130,12 +130,12 @@ else
                     }
                 }
 
-                @* Show Reports for Finance Manager, Admin, and HR *@
+                @* Show Reports for Finance Manager, Inventory Manager, Admin, and Operation Officer *@
                 @if (Auth.CanAccessReports())
                 {
                     <button class='nav-btn @ActiveClass("/reports")' @onclick='() => Go("/reports")'>
                         <i class="bi bi-file-text-fill nav-icon"></i>
-                        <span class="nav-text">@(Auth.IsFinanceManager() ? "Inventory Reports" : "Reports")</span>
+                        <span class="nav-text">Reports</span>
                     </button>
                 }
 
@@ -572,7 +572,7 @@ else
                 "/categories" => "Categories",
                 "/stocks" => "Stocks",
                 "/suppliers" => "Suppliers",
-                "/reports" => Auth?.IsFinanceManager() == true ? "Inventory Reports" : "Reports",
+                "/reports" => "Reports",
                 "/finance" => "Finance",
                 "/audit-logs" => "Audit Logs",
                 "/admin/audit-logs" => "Audit Logs",

@@ -1,317 +1,686 @@
 ﻿@page "/reports"
-@inject ResQLink.Data.AppDbContext Db
+@inject ResQLink.Services.IOperationsReportService ReportService
+@inject ResQLink.Services.AuthState Auth
 @inject IJSRuntime JS
-@using Microsoft.EntityFrameworkCore
-@using ResQLink.Data.Entities
-@using System.Text
+@using ResQLink.Models.Reports
 
 <div class="reports-root">
-    <!-- HEADER / FILTER BAR -->
+    <!-- Header -->
     <section class="panel">
         <header class="panel-head">
-            <h2 class="panel-title">Reports Console</h2>
-
+            <h2 class="panel-title">Operations Report</h2>
             <div class="panel-actions">
-                <!-- Left: filters -->
-                <div class="controls-left" role="region" aria-label="Report filters">
-                    <select class="mini-input" @bind="reportType" aria-label="Report type">
-                        <option value="overview">Overview</option>
-                        <option value="evacuees">Evacuees</option>
-                        <option value="disasters">Disasters</option>
-                        <option value="shelters">Shelters</option>
-                        <option value="inventory">Inventory</option>
-                        <option value="budget">Budget & Finance</option>
-                    </select>
-
-                    <select class="mini-input" @bind="rangePreset" @bind:after="ApplyRangePreset" aria-label="Date range preset">
-                        <option value="7d">Last 7d</option>
-                        <option value="30d">Last 30d</option>
-                        <option value="90d">Last 90d</option>
-                        <option value="ytd">YTD</option>
-                        <option value="all">All Time</option>
-                        <option value="custom">Custom…</option>
-                    </select>
-
-                    <input class="mini-input" type="date" @bind="dateFrom" aria-label="From date" />
-                    <input class="mini-input" type="date" @bind="dateTo" aria-label="To date" />
-                </div>
-
-                <!-- Right: action buttons (inline, stretched via CSS) -->
-                <div class="controls-right" role="group" aria-label="Report actions">
-                    <button class="mini-btn btn-primary"
-                            @onclick="GenerateReportAsync"
-                            disabled="@_loading"
-                            title="Generate report"
-                            aria-disabled="@_loading">
-                        @if (_loading)
-                        {
-                            <span class="spinner" aria-hidden="true"></span>
-                        }
-                        <i class="bi bi-play-fill" aria-hidden="true"></i>
-                        <span class="btn-label">Generate</span>
-                    </button>
-
-                    <button class="mini-btn btn-reset"
-                            @onclick="ResetFilters"
-                            title="Reset filters">
-                        <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i>
-                        <span class="btn-label">Reset</span>
-                    </button>
-
-                    <button class="mini-btn btn-export"
-                            @onclick="ExportToCSV"
-                            disabled="@(!_reportGenerated)"
-                            title="Export CSV"
-                            aria-disabled="@(!_reportGenerated)">
-                        <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i>
-                        <span class="btn-label">Export CSV</span>
-                    </button>
-
-                    <button class="mini-btn btn-print"
-                            @onclick="PrintReport"
-                            disabled="@(!_reportGenerated)"
-                            title="Print report"
-                            aria-disabled="@(!_reportGenerated)">
-                        <i class="bi bi-printer" aria-hidden="true"></i>
-                        <span class="btn-label">Print</span>
-                    </button>
-                </div>
+                <button class="mini-btn btn-primary"
+                        @onclick="GenerateOperationsReportAsync"
+                        disabled="@_loading">
+                    @if (_loading)
+                    {
+                        <span class="spinner"></span>
+                    }
+                    <i class="bi bi-file-earmark-pdf"></i>
+                    <span class="btn-label">Generate PDF Report</span>
+                </button>
+                <button class="mini-btn" @onclick="RefreshDataAsync" disabled="@_loading">
+                    <i class="bi bi-arrow-clockwise"></i>
+                    <span>Refresh</span>
+                </button>
             </div>
         </header>
+    </section>
 
-        <!-- KPI SUMMARY -->
-        @if (_reportGenerated)
-        {
+    @if (_reportData != null)
+    {
+        <!-- Executive Summary -->
+        <section class="panel">
+            <header class="panel-head">
+                <h3 class="panel-title">1. Executive Summary</h3>
+            </header>
             <div class="kpi-grid">
                 <div class="kpi-card">
-                    <div class="kpi-label">Total Records</div>
-                    <div class="kpi-value text-accent">@TotalRecords</div>
-                    <div class="kpi-trend @GetTrendClass(TotalRecords, PreviousPeriodRecords)">
-                        @GetTrendText(TotalRecords, PreviousPeriodRecords)
+                    <div class="kpi-label">Active Disasters</div>
+                    <div class="kpi-value text-accent">@_reportData.Summary.ActiveDisasters</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Total Evacuees</div>
+                    <div class="kpi-value">@_reportData.Summary.TotalEvacuees</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Active Shelters</div>
+                    <div class="kpi-value">@_reportData.Summary.ActiveShelters</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Volunteers Deployed</div>
+                    <div class="kpi-value">@_reportData.Summary.TotalVolunteers</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Disaster Overview -->
+        <section class="panel">
+            <header class="panel-head">
+                <h3 class="panel-title">2. Disaster Situation Overview</h3>
+            </header>
+            <div class="table-wrap">
+                <table class="rep-table">
+                    <thead>
+                        <tr>
+                            <th>Disaster</th>
+                            <th>Type</th>
+                            <th>Severity</th>
+                            <th>Location</th>
+                            <th>Days Active</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var disaster in _reportData.ActiveDisasters)
+                        {
+                            <tr>
+                                <td><strong>@disaster.Title</strong></td>
+                                <td>@disaster.DisasterType</td>
+                                <td><span class="status-chip">@disaster.Severity</span></td>
+                                <td>@disaster.Location</td>
+                                <td>@disaster.DaysActive days</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Evacuee Statistics -->
+        <section class="panel">
+            <header class="panel-head">
+                <h3 class="panel-title">3. Evacuee Statistics</h3>
+            </header>
+            <div style="padding: 16px;">
+                <h4 style="font-size: 0.9rem; margin-bottom: 10px;">Status Breakdown</h4>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
+                    @foreach (var status in _reportData.EvacueeStats.ByStatus)
+                    {
+                        <div style="padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px;">
+                            <div style="font-size: 0.75rem; color: #666; margin-bottom: 4px;">@status.Key</div>
+                            <div style="font-size: 1.5rem; font-weight: 700;">@status.Value</div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </section>
+
+        <!-- Shelter Operations -->
+        <section class="panel">
+            <header class="panel-head">
+                <h3 class="panel-title">4. Shelter Operations Report</h3>
+            </header>
+            <div class="table-wrap">
+                <table class="rep-table">
+                    <thead>
+                        <tr>
+                            <th>Shelter Name</th>
+                            <th>Location</th>
+                            <th>Capacity</th>
+                            <th>Occupancy</th>
+                            <th>% Full</th>
+                            <th>Volunteers</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var shelter in _reportData.ShelterOps.ActiveShelters)
+                        {
+                            <tr>
+                                <td><strong>@shelter.Name</strong></td>
+                                <td>@shelter.Location</td>
+                                <td>@shelter.Capacity</td>
+                                <td>@shelter.CurrentOccupancy</td>
+                                <td>@shelter.OccupancyPercent.ToString("F1")%</td>
+                                <td>@shelter.AssignedVolunteers</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            @if (_reportData.ShelterOps.Needs.Any())
+            {
+                <div style="padding: 16px; border-top: 1px solid #e5e7eb;">
+                    <h4 style="font-size: 0.9rem; margin-bottom: 10px;">Shelter Needs Assessment</h4>
+                    @foreach (var need in _reportData.ShelterOps.Needs)
+                    {
+                        <div style="padding: 8px; margin-bottom: 8px; border-left: 3px solid #ef4444; background: #fef2f2;">
+                            <strong>[@need.Priority]</strong> @need.ShelterName - @need.ItemName:
+                            Current: @need.CurrentQuantity, Need: @need.RequiredQuantity
+                        </div>
+                    }
+                </div>
+            }
+        </section>
+
+        <!-- Financial Summary Section - RENUMBERED from 4.5 to 5 -->
+        <section class="panel">
+            <header class="panel-head">
+                <h3 class="panel-title">5. Financial Summary</h3>
+            </header>
+
+            <!-- Financial KPIs -->
+            <div class="kpi-grid" style="padding: 16px;">
+                <div class="kpi-card">
+                    <div class="kpi-label">Funds Received (Procurement)</div>
+                    <div class="kpi-value" style="color: #16a34a;">₱@_reportData.FinancialInfo.TotalFundsReceived.ToString("N2")</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Total Expenditures</div>
+                    <div class="kpi-value" style="color: #dc2626;">₱@_reportData.FinancialInfo.TotalExpenditures.ToString("N2")</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Balance</div>
+                    <div class="kpi-value text-accent">₱@_reportData.FinancialInfo.Balance.ToString("N2")</div>
+                    <div class="kpi-trend @((_reportData.FinancialInfo.Balance >= 0) ? "up" : "down")">
+                        @((_reportData.FinancialInfo.Balance >= 0) ? "Surplus" : "Deficit")
+                    </div>
+                </div>
+            </div>
+
+            <!-- Procurement Breakdown -->
+            @if (_reportData.FinancialInfo.ProcurementBreakdown.Any())
+            {
+                <div style="padding: 16px; border-top: 1px solid #e5e7eb;">
+                    <h4 style="font-size: 0.9rem; margin-bottom: 10px;">
+                        <i class="bi bi-cart3" style="margin-right: 6px;"></i>
+                        Procurement Requests Breakdown
+                    </h4>
+                    <div class="table-wrap">
+                        <table class="rep-table">
+                            <thead>
+                                <tr>
+                                    <th>Request ID</th>
+                                    <th>Barangay</th>
+                                    <th>Supplier</th>
+                                    <th>Status</th>
+                                    <th class="t-right">Amount</th>
+                                    <th>Date</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var procurement in _reportData.FinancialInfo.ProcurementBreakdown)
+                                {
+                                    <tr>
+                                        <td><strong>#@procurement.RequestId</strong></td>
+                                        <td>@procurement.BarangayName</td>
+                                        <td>@procurement.Supplier</td>
+                                        <td>
+                                            <span class="status-chip status-@procurement.Status.ToLower()">
+                                                @procurement.Status
+                                            </span>
+                                        </td>
+                                        <td class="t-right">₱@procurement.Amount.ToString("N2")</td>
+                                        <td>@procurement.RequestDate.ToString("MMM dd, yyyy")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                            <tfoot>
+                                <tr style="background: #f9fafb; font-weight: 700;">
+                                    <td colspan="4" class="t-right">Total Procurement:</td>
+                                    <td class="t-right" style="color: #16a34a;">
+                                        ₱@_reportData.FinancialInfo.TotalFundsReceived.ToString("N2")
+                                    </td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            }
+
+            <!-- Expenditures Breakdown -->
+            @if (_reportData.FinancialInfo.ExpenditureBreakdown.Any())
+            {
+                <div style="padding: 16px; border-top: 1px solid #e5e7eb;">
+                    <h4 style="font-size: 0.9rem; margin-bottom: 10px;">
+                        <i class="bi bi-wallet2" style="margin-right: 6px;"></i>
+                        Expenditures Breakdown
+                    </h4>
+                    <div class="table-wrap">
+                        <table class="rep-table">
+                            <thead>
+                                <tr>
+                                    <th>Category</th>
+                                    <th>Description</th>
+                                    <th>Reference</th>
+                                    <th class="t-right">Amount</th>
+                                    <th>Date</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var expenditure in _reportData.FinancialInfo.ExpenditureBreakdown)
+                                {
+                                    <tr>
+                                        <td><strong>@expenditure.Category</strong></td>
+                                        <td>@expenditure.Description</td>
+                                        <td>@expenditure.Reference</td>
+                                        <td class="t-right">₱@expenditure.Amount.ToString("N2")</td>
+                                        <td>@expenditure.Date.ToString("MMM dd, yyyy")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                            <tfoot>
+                                <tr style="background: #f9fafb; font-weight: 700;">
+                                    <td colspan="3" class="t-right">Total Expenditures:</td>
+                                    <td class="t-right" style="color: #dc2626;">
+                                        ₱@_reportData.FinancialInfo.TotalExpenditures.ToString("N2")
+                                    </td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            }
+
+            <!-- Balance Summary -->
+            <div style="padding: 16px; border-top: 2px solid #e5e7eb; background: #f9fafb;">
+                <div style="display: flex; justify-content: space-between; align-items: center; max-width: 600px; margin: 0 auto;">
+                    <div>
+                        <div style="font-size: 0.75rem; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">
+                            Current Balance
+                        </div>
+                        <div style="font-size: 2rem; font-weight: 800; color: @((_reportData.FinancialInfo.Balance >= 0) ? "#16a34a" : "#dc2626");">
+                            ₱@_reportData.FinancialInfo.Balance.ToString("N2")
+                        </div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="font-size: 0.75rem; color: #666; margin-bottom: 4px;">Status</div>
+                        <span class="status-chip @((_reportData.FinancialInfo.Balance >= 0) ? "status-approved" : "status-draft")"
+                              style="font-size: 0.85rem; padding: 6px 14px;">
+                            @((_reportData.FinancialInfo.Balance >= 0) ? "✓ Surplus" : "⚠ Deficit")
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            @if (_reportData.FinancialInfo.ProcurementBreakdown.Count == 0 && _reportData.FinancialInfo.ExpenditureBreakdown.Count == 0)
+            {
+                <div style="padding: 40px; text-align: center; color: #666; font-style: italic;">
+                    <i class="bi bi-inbox" style="font-size: 2rem; display: block; margin-bottom: 10px; opacity: 0.5;"></i>
+                    No financial transactions recorded for this reporting period.
+                </div>
+            }
+        </section>
+
+        <!-- Volunteer Deployment - RENUMBERED from 5 to 6 -->
+        <section class="panel">
+            <header class="panel-head">
+                <h3 class="panel-title">6. Volunteer Deployment Report</h3>
+                <span class="card-badge">@_reportData.VolunteerInfo.TotalActiveVolunteers active</span>
+            </header>
+            <div class="table-wrap">
+                <table class="rep-table">
+                    <thead>
+                        <tr>
+                            <th>Volunteer Name</th>
+                            <th>Assigned Shelter</th>
+                            <th>Skills</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var volunteer in _reportData.VolunteerInfo.Assignments)
+                        {
+                            <tr>
+                                <td>@volunteer.VolunteerName</td>
+                                <td>@volunteer.AssignedShelter</td>
+                                <td>@volunteer.Skills</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Inventory Report - RENUMBERED from 6 to 7 -->
+        <section class="panel">
+            <header class="panel-head">
+                <h3 class="panel-title">7. Inventory Report</h3>
+            </header>
+
+            <!-- 7.1 Executive Summary -->
+            <div style="padding: 16px; background: #f9fafb; border-bottom: 1px solid #e5e7eb;">
+                <h4 style="font-size: 0.95rem; margin-bottom: 12px; font-weight: 600;">
+                    <i class="bi bi-clipboard-data" style="margin-right: 6px;"></i>
+                    Executive Summary
+                </h4>
+
+                <div class="kpi-grid">
+                    <div class="kpi-card">
+                        <div class="kpi-label">Total Items in Stock</div>
+                        <div class="kpi-value">@_reportData.InventoryInfo.ExecutiveSummary.TotalItemsInStock</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-label">Stock Received (Period)</div>
+                        <div class="kpi-value" style="color: #16a34a;">@_reportData.InventoryInfo.ExecutiveSummary.TotalStockReceived</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-label">Stock Released (Period)</div>
+                        <div class="kpi-value" style="color: #dc2626;">@_reportData.InventoryInfo.ExecutiveSummary.TotalStockReleased</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-label">Overall Condition</div>
+                        <div class="kpi-value text-accent">@_reportData.InventoryInfo.ExecutiveSummary.OverallCondition</div>
                     </div>
                 </div>
 
-                @if (reportType == "budget")
+                <div style="margin-top: 16px; padding: 12px; background: white; border-radius: 8px; border-left: 4px solid #ef4444;">
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+                        <i class="bi bi-exclamation-triangle-fill" style="color: #ef4444; font-size: 1.2rem;"></i>
+                        <strong style="font-size: 0.9rem;">Critical Stock Alerts</strong>
+                    </div>
+                    <div style="display: flex; gap: 16px;">
+                        <div>
+                            <span style="font-size: 0.75rem; color: #666;">Critically Low Items:</span>
+                            <span style="font-size: 1.1rem; font-weight: 700; color: #ef4444; margin-left: 8px;">
+                                @_reportData.InventoryInfo.ExecutiveSummary.CriticallyLowItems
+                            </span>
+                        </div>
+                        <div>
+                            <span style="font-size: 0.75rem; color: #666;">Low Stock Items:</span>
+                            <span style="font-size: 1.1rem; font-weight: 700; color: #f59e0b; margin-left: 8px;">
+                                @_reportData.InventoryInfo.ExecutiveSummary.LowStockItems
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                @if (_reportData.InventoryInfo.ExecutiveSummary.ImmediateProcurementNeeds.Any())
                 {
-                    <div class="kpi-card">
-                        <div class="kpi-label">Total Amount</div>
-                        <div class="kpi-value">₱@TotalAmount.ToString("N2")</div>
-                        <div class="kpi-trend @GetTrendClass((int)TotalAmount, (int)PreviousPeriodAmount)">
-                            @GetTrendText((int)TotalAmount, (int)PreviousPeriodAmount)
+                    <div style="margin-top: 12px; padding: 12px; background: #fef2f2; border-radius: 8px;">
+                        <strong style="font-size: 0.85rem; display: block; margin-bottom: 8px;">
+                            <i class="bi bi-cart-plus" style="margin-right: 4px;"></i>
+                            Immediate Procurement Requirements:
+                        </strong>
+                        <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                            @foreach (var item in _reportData.InventoryInfo.ExecutiveSummary.ImmediateProcurementNeeds)
+                            {
+                                <span style="padding: 4px 12px; background: white; border-radius: 16px; font-size: 0.75rem; border: 1px solid #ef4444; color: #ef4444;">
+                                    @item
+                                </span>
+                            }
                         </div>
                     </div>
                 }
-
-                @if (reportType == "inventory")
-                {
-                    <div class="kpi-card">
-                        <div class="kpi-label">Low Stock Items</div>
-                        <div class="kpi-value">@LowStockCount</div>
-                        <div class="kpi-trend warn">Action needed</div>
-                    </div>
-                }
-
-                @if (reportType == "shelters")
-                {
-                    <div class="kpi-card">
-                        <div class="kpi-label">Avg. Occupancy</div>
-                        <div class="kpi-value">@AverageOccupancy.ToString("P0")</div>
-                    </div>
-                }
-
-                <div class="kpi-card">
-                    <div class="kpi-label">Date Range</div>
-                    <div class="kpi-value date-range">
-                        @dateFrom.ToString("MMM dd") - @dateTo.ToString("MMM dd, yyyy")
-                    </div>
-                </div>
             </div>
-        }
-    </section>
 
-    @if (!_reportGenerated)
+            <!-- 7.2 Current Inventory Status -->
+            <div style="padding: 16px; border-bottom: 1px solid #e5e7eb;">
+                <h4 style="font-size: 0.95rem; margin-bottom: 12px; font-weight: 600;">
+                    <i class="bi bi-box-seam" style="margin-right: 6px;"></i>
+                    Current Inventory Status
+                </h4>
+
+                @if (_reportData.InventoryInfo.CurrentInventory.Any())
+                {
+                    <div class="table-wrap">
+                        <table class="rep-table">
+                            <thead>
+                                <tr>
+                                    <th>Item Name</th>
+                                    <th>Category</th>
+                                    <th>Available Qty</th>
+                                    <th>Unit</th>
+                                    <th>Stock Level</th>
+                                    <th>Storage Location</th>
+                                    <th>Expiration</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var item in _reportData.InventoryInfo.CurrentInventory)
+                                {
+                                    <tr>
+                                        <td><strong>@item.ItemName</strong></td>
+                                        <td>
+                                            <span style="font-size: 0.75rem; padding: 2px 8px; background: #f3f4f6; border-radius: 4px;">
+                                                @item.Category
+                                            </span>
+                                        </td>
+                                        <td>@item.AvailableQuantity</td>
+                                        <td>@item.Unit</td>
+                                        <td>
+                                            <span class="status-chip" style="background: @GetStockLevelColor(item.StockLevel); color: white;">
+                                                @item.StockLevel
+                                            </span>
+                                        </td>
+                                        <td>@item.StorageLocation</td>
+                                        <td style="font-size: 0.85rem;">
+                                            @if (item.ExpirationDate.HasValue)
+                                            {
+                                                <span style="color: @(item.ExpirationDate.Value < DateTime.Now.AddDays(30) ? "#ef4444" : "#666");">
+                                                    @item.ExpirationDate.Value.ToString("MMM dd, yyyy")
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <span style="color: #666;">N/A</span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <p style="color: #666; font-style: italic; text-align: center; padding: 20px;">
+                        No inventory items found.
+                    </p>
+                }
+            </div>
+
+            <!-- 7.3 Stock-In Summary -->
+            <div style="padding: 16px; border-bottom: 1px solid #e5e7eb;">
+                <h4 style="font-size: 0.95rem; margin-bottom: 12px; font-weight: 600;">
+                    <i class="bi bi-arrow-down-circle" style="margin-right: 6px; color: #16a34a;"></i>
+                    Stock-In Summary (Recent Transactions)
+                </h4>
+
+                @if (_reportData.InventoryInfo.StockInSummary.Any())
+                {
+                    <div class="table-wrap">
+                        <table class="rep-table">
+                            <thead>
+                                <tr>
+                                    <th>Transaction ID</th>
+                                    <th>Item Name</th>
+                                    <th>Quantity</th>
+                                    <th>Supplier</th>
+                                    <th>Batch Number</th>
+                                    <th>Expiration</th>
+                                    <th>Received Date</th>
+                                    <th>Received By</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var transaction in _reportData.InventoryInfo.StockInSummary.Take(20))
+                                {
+                                    <tr>
+                                        <td><strong>#@transaction.TransactionId</strong></td>
+                                        <td>@transaction.ItemName</td>
+                                        <td style="color: #16a34a; font-weight: 600;">+@transaction.Quantity @transaction.Unit</td>
+                                        <td>@transaction.Supplier</td>
+                                        <td style="font-family: monospace; font-size: 0.8rem;">@transaction.BatchNumber</td>
+                                        <td style="font-size: 0.85rem;">
+                                            @if (transaction.ExpirationDate.HasValue)
+                                            {
+                                                @transaction.ExpirationDate.Value.ToString("MMM dd, yyyy")
+                                            }
+                                            else
+                                            {
+                                                <span style="color: #666;">N/A</span>
+                                            }
+                                        </td>
+                                        <td>@transaction.ReceivedDate.ToString("MMM dd, yyyy")</td>
+                                        <td>@transaction.ReceivedBy</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <p style="color: #666; font-style: italic; text-align: center; padding: 20px;">
+                        No stock-in transactions recorded.
+                    </p>
+                }
+            </div>
+
+            <!-- 7.4 Stock-Out Summary -->
+            <div style="padding: 16px;">
+                <h4 style="font-size: 0.95rem; margin-bottom: 12px; font-weight: 600;">
+                    <i class="bi bi-arrow-up-circle" style="margin-right: 6px; color: #dc2626;"></i>
+                    Stock-Out Summary (Recent Transactions)
+                </h4>
+
+                @if (_reportData.InventoryInfo.StockOutSummary.Any())
+                {
+                    <div class="table-wrap">
+                        <table class="rep-table">
+                            <thead>
+                                <tr>
+                                    <th>Transaction ID</th>
+                                    <th>Item Name</th>
+                                    <th>Qty Released</th>
+                                    <th>Destination</th>
+                                    <th>Purpose</th>
+                                    <th>Release Date</th>
+                                    <th>Released By</th>
+                                    <th>Remaining</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var transaction in _reportData.InventoryInfo.StockOutSummary.Take(20))
+                                {
+                                    <tr>
+                                        <td><strong>#@transaction.TransactionId</strong></td>
+                                        <td>@transaction.ItemName</td>
+                                        <td style="color: #dc2626; font-weight: 600;">-@transaction.QuantityReleased @transaction.Unit</td>
+                                        <td>@transaction.Destination</td>
+                                        <td>
+                                            <span style="font-size: 0.75rem; padding: 2px 8px; background: #f3f4f6; border-radius: 4px;">
+                                                @transaction.Purpose
+                                            </span>
+                                        </td>
+                                        <td>@transaction.ReleaseDate.ToString("MMM dd, yyyy")</td>
+                                        <td>@transaction.ReleasedBy</td>
+                                        <td style="font-weight: 600;">@transaction.RemainingBalance</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <p style="color: #666; font-style: italic; text-align: center; padding: 20px;">
+                        No stock-out transactions recorded.
+                    </p>
+                }
+            </div>
+        </section>
+
+        <!-- Operational Issues - RENUMBERED from 7 to 8 -->
+        <section class="panel">
+            <header class="panel-head">
+                <h3 class="panel-title">8. Operational Issues & Recommendations</h3>
+                <button class="mini-btn" @onclick="ToggleEditMode">
+                    <i class="bi @(isEditingIssues ? "bi-x" : "bi-pencil")"></i>
+                    @(isEditingIssues ? "Cancel" : "Edit")
+                </button>
+            </header>
+            <div style="padding: 16px;">
+                @if (isEditingIssues)
+                {
+                    <div class="form-group">
+                        <label>Needed Support</label>
+                        <textarea class="form-control" rows="3" @bind="_reportData.Issues.NeededSupport"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Urgent Supplies</label>
+                        <textarea class="form-control" rows="3" @bind="_reportData.Issues.UrgentSupplies"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Funding Requests</label>
+                        <textarea class="form-control" rows="3" @bind="_reportData.Issues.FundingRequests"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Concerns</label>
+                        <textarea class="form-control" rows="3" @bind="_reportData.Issues.Concerns"></textarea>
+                    </div>
+                    <button class="btn-primary" @onclick="SaveIssuesAsync">
+                        <i class="bi bi-save"></i> Save Changes
+                    </button>
+                }
+                else
+                {
+                    @if (!string.IsNullOrEmpty(_reportData.Issues.NeededSupport))
+                    {
+                        <div><strong>Needed Support:</strong> @_reportData.Issues.NeededSupport</div>
+                    }
+                    @if (!string.IsNullOrEmpty(_reportData.Issues.UrgentSupplies))
+                    {
+                        <div><strong>Urgent Supplies:</strong> @_reportData.Issues.UrgentSupplies</div>
+                    }
+                    @if (!string.IsNullOrEmpty(_reportData.Issues.FundingRequests))
+                    {
+                        <div><strong>Funding Requests:</strong> @_reportData.Issues.FundingRequests</div>
+                    }
+                    @if (!string.IsNullOrEmpty(_reportData.Issues.Concerns))
+                    {
+                        <div><strong>Concerns:</strong> @_reportData.Issues.Concerns</div>
+                    }
+
+                    @if (string.IsNullOrEmpty(_reportData.Issues.NeededSupport) &&
+                                string.IsNullOrEmpty(_reportData.Issues.UrgentSupplies) &&
+                                string.IsNullOrEmpty(_reportData.Issues.FundingRequests) &&
+                                string.IsNullOrEmpty(_reportData.Issues.Concerns))
+                    {
+                        <p style="color: #666; font-style: italic;">No operational issues reported at this time.</p>
+                    }
+                }
+            </div>
+        </section>
+    }
+    else if (!_loading)
     {
         <section class="panel panel-empty">
             <div class="empty-state">
                 <i class="bi bi-file-text" aria-hidden="true"></i>
                 <h3>No Report Generated</h3>
-                <p>Select a report type and date range, then click <strong>Generate</strong> to view data.</p>
-            </div>
-        </section>
-    }
-    else
-    {
-        <!-- REPORT CONTENT -->
-        <div id="printable-report">
-            @switch (reportType)
-            {
-                case "overview":
-                    @RenderOverviewReport()
-                    break;
-                case "evacuees":
-                    @RenderEvacueesReport()
-                    break;
-                case "disasters":
-                    @RenderDisastersReport()
-                    break;
-                case "shelters":
-                    @RenderSheltersReport()
-                    break;
-                case "inventory":
-                    @RenderInventoryReport()
-                    break;
-                case "budget":
-                    @RenderBudgetReport()
-                    break;
-            }
-        </div>
-
-        <!-- SUMMARY FOOTER -->
-        <section class="panel">
-            <div class="panel-foot" style="display: flex; justify-content: space-between;">
-                <div>
-                    <strong>Report Generated:</strong> @DateTime.Now.ToString("MMMM dd, yyyy HH:mm:ss")
-                </div>
-                <div>
-                    <strong>Total Records:</strong> @TotalRecords
-                </div>
+                <p>Click <strong>Refresh</strong> to load report data or <strong>Generate PDF Report</strong> to create a comprehensive operations report.</p>
             </div>
         </section>
     }
 </div>
 
 @code {
-    private string reportType = "overview";
-    private string rangePreset = "30d";
-    private DateTime dateFrom = DateTime.UtcNow.Date.AddDays(-29);
-    private DateTime dateTo = DateTime.UtcNow.Date;
+    private OperationsReportData? _reportData;
     private bool _loading = false;
-    private bool _reportGenerated = false;
+    private bool isEditingIssues = false;
 
-    // Data collections
-    private List<Evacuee> evacueeData = new();
-    private List<Disaster> disasterData = new();
-    private List<Shelter> shelterData = new();
-    private List<Stock> stockData = new();
-    private List<ReliefGood> reliefGoodsData = new();
-    private List<BarangayBudget> budgetData = new();
-
-    // KPI metrics
-    private int TotalRecords => reportType switch
+    protected override async Task OnInitializedAsync()
     {
-        "evacuees" => evacueeData?.Count ?? 0,
-        "disasters" => disasterData?.Count ?? 0,
-        "shelters" => shelterData?.Count ?? 0,
-        "inventory" => stockData?.Count ?? 0,
-        "budget" => budgetData?.Count ?? 0,
-        _ => (evacueeData?.Count ?? 0) + (disasterData?.Count ?? 0) + (shelterData?.Count ?? 0)
-    };
-
-    private int PreviousPeriodRecords { get; set; }
-    private decimal TotalAmount { get; set; }
-    private decimal PreviousPeriodAmount { get; set; }
-    private int LowStockCount { get; set; }
-    private double AverageOccupancy { get; set; }
-
-    private bool IsCustomRange => rangePreset == "custom";
-
-    private void ApplyRangePreset()
-    {
-        var now = DateTime.UtcNow.Date;
-        switch (rangePreset)
-        {
-            case "7d": dateFrom = now.AddDays(-6); dateTo = now; break;
-            case "30d": dateFrom = now.AddDays(-29); dateTo = now; break;
-            case "90d": dateFrom = now.AddDays(-89); dateTo = now; break;
-            case "ytd":
-                dateFrom = new DateTime(now.Year, 1, 1);
-                dateTo = now;
-                break;
-            case "all":
-                dateFrom = new DateTime(2020, 1, 1);
-                dateTo = now;
-                break;
-            case "custom":
-                break;
-            default:
-                dateFrom = now.AddDays(-29);
-                dateTo = now;
-                break;
-        }
+        await RefreshDataAsync();
     }
 
-    private async Task GenerateReportAsync()
+    private async Task RefreshDataAsync()
     {
-        if (_loading) return;
-
         _loading = true;
-        _reportGenerated = false;
         StateHasChanged();
 
         try
         {
-            var daysDiff = (dateTo - dateFrom).Days + 1;
-            var prevFrom = dateFrom.AddDays(-daysDiff);
-            var prevTo = dateFrom.AddDays(-1);
-
-            switch (reportType)
-            {
-                case "evacuees":
-                    await LoadEvacueesDataAsync();
-                    PreviousPeriodRecords = await Db.Evacuees
-                        .Where(e => e.RegisteredAt.Date >= prevFrom && e.RegisteredAt.Date <= prevTo)
-                        .CountAsync();
-                    break;
-
-                case "disasters":
-                    await LoadDisastersDataAsync();
-                    PreviousPeriodRecords = await Db.Disasters
-                        .Where(d => d.StartDate.Date >= prevFrom && d.StartDate.Date <= prevTo)
-                        .CountAsync();
-                    break;
-
-                case "shelters":
-                    await LoadSheltersDataAsync();
-                    PreviousPeriodRecords = shelterData?.Count ?? 0;
-                    if (shelterData != null && shelterData.Any())
-                    {
-                        var totalCapacity = shelterData.Sum(s => s.Capacity);
-                        AverageOccupancy = totalCapacity > 0
-                            ? shelterData.Sum(s => s.CurrentOccupancy) / (double)totalCapacity
-                            : 0;
-                    }
-                    break;
-
-                case "inventory":
-                    await LoadInventoryDataAsync();
-                    LowStockCount = stockData?.Count(s => s.Quantity <= 10) ?? 0;
-                    PreviousPeriodRecords = stockData?.Count ?? 0;
-                    break;
-
-                case "budget":
-                    await LoadBudgetDataAsync();
-                    TotalAmount = budgetData?.Sum(b => b.TotalAmount) ?? 0;
-                    PreviousPeriodRecords = await Db.BarangayBudgets
-                        .Where(b => b.Year < dateFrom.Year)
-                        .CountAsync();
-                    PreviousPeriodAmount = await Db.BarangayBudgets
-                        .Where(b => b.Year < dateFrom.Year)
-                        .SumAsync(b => (decimal?)b.TotalAmount) ?? 0;
-                    break;
-
-                case "overview":
-                default:
-                    await LoadOverviewDataAsync();
-                    PreviousPeriodRecords = 0;
-                    break;
-            }
-
-            _reportGenerated = true;
+            _reportData = await ReportService.GenerateReportDataAsync();
+            _reportData.GeneratedBy = Auth.CurrentUser?.Username ?? "System";
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error generating report: {ex.Message}");
-            await JS.InvokeVoidAsync("alert", $"Error generating report: {ex.Message}");
+            await JS.InvokeVoidAsync("alert", $"Error loading report data: {ex.Message}");
         }
         finally
         {
@@ -320,597 +689,72 @@
         }
     }
 
-    private async Task LoadEvacueesDataAsync()
+    private async Task GenerateOperationsReportAsync()
     {
-        evacueeData = await Db.Evacuees
-            .Include(e => e.Disaster)
-            .Include(e => e.Shelter)
-            .Where(e => e.RegisteredAt.Date >= dateFrom && e.RegisteredAt.Date <= dateTo)
-            .AsNoTracking()
-            .OrderByDescending(e => e.RegisteredAt)
-            .ToListAsync();
-    }
-
-    private async Task LoadDisastersDataAsync()
-    {
-        disasterData = await Db.Disasters
-            .Where(d => d.StartDate.Date >= dateFrom && d.StartDate.Date <= dateTo)
-            .AsNoTracking()
-            .OrderByDescending(d => d.StartDate)
-            .ToListAsync();
-    }
-
-    private async Task LoadSheltersDataAsync()
-    {
-        shelterData = await Db.Shelters
-            .Include(s => s.Disaster)
-            .AsNoTracking()
-            .OrderBy(s => s.Name)
-            .ToListAsync();
-    }
-
-    private async Task LoadInventoryDataAsync()
-    {
-        stockData = await Db.Stocks
-            .Include(s => s.ReliefGood)
-            .Include(s => s.Shelter)
-            .AsNoTracking()
-            .OrderBy(s => s.Quantity)
-            .ToListAsync();
-
-        reliefGoodsData = await Db.ReliefGoods
-            .AsNoTracking()
-            .ToListAsync();
-    }
-
-    private async Task LoadBudgetDataAsync()
-    {
-        var fromYear = dateFrom.Year;
-        var toYear = dateTo.Year;
-
-        budgetData = await Db.BarangayBudgets
-            .Include(b => b.Items)
-            .Where(b => b.Year >= fromYear && b.Year <= toYear)
-            .AsNoTracking()
-            .OrderByDescending(b => b.Year)
-            .ToListAsync();
-    }
-
-    private async Task LoadOverviewDataAsync()
-    {
-        await LoadEvacueesDataAsync();
-        await LoadDisastersDataAsync();
-        await LoadSheltersDataAsync();
-    }
-
-    private void ResetFilters()
-    {
-        reportType = "overview";
-        rangePreset = "30d";
-        ApplyRangePreset();
-        _reportGenerated = false;
-        StateHasChanged();
-    }
-
-    private string GetTrendClass(int current, int previous)
-    {
-        if (current == previous) return "neutral";
-        return current > previous ? "up" : "down";
-    }
-
-    private string GetTrendText(int current, int previous)
-    {
-        var diff = current - previous;
-        if (diff == 0) return "No change";
-        var sign = diff > 0 ? "+" : "";
-        var percent = previous > 0 ? $" ({Math.Abs(diff * 100 / previous)}%)" : "";
-        return $"{sign}{diff}{percent}";
-    }
-
-    private RenderFragment RenderOverviewReport() => __builder =>
-    {
-        <section class="panel">
-            <header class="panel-head">
-                <h2 class="panel-title">Overview Report</h2>
-            </header>
-            <div style="padding: 20px;">
-                <div class="two-col">
-                    <div class="panel panel-sub">
-                        <header class="panel-head">
-                            <h3 class="panel-title">Evacuees Summary</h3>
-                        </header>
-                        <div style="padding: 16px;">
-                            <p><strong>Total Evacuees:</strong> @(evacueeData?.Count ?? 0)</p>
-                            @if (evacueeData != null && evacueeData.Any())
-                            {
-                                <p><strong>By Status:</strong></p>
-                                <ul>
-                                    @foreach (var group in evacueeData.GroupBy(e => e.Status).OrderByDescending(g => g.Count()))
-                                    {
-                                        <li>@group.Key: @group.Count() (@((group.Count() * 100.0 / evacueeData.Count).ToString("F1"))%)</li>
-                                    }
-                                </ul>
-                            }
-                            else
-                            {
-                                <p><em>No evacuees data for this period.</em></p>
-                            }
-                        </div>
-                    </div>
-
-                    <div class="panel panel-sub">
-                        <header class="panel-head">
-                            <h3 class="panel-title">Disasters Summary</h3>
-                        </header>
-                        <div style="padding: 16px;">
-                            <p><strong>Total Disasters:</strong> @(disasterData?.Count ?? 0)</p>
-                            @if (disasterData != null && disasterData.Any())
-                            {
-                                <p><strong>By Severity:</strong></p>
-                                <ul>
-                                    @foreach (var group in disasterData.GroupBy(d => d.Severity).OrderByDescending(g => g.Count()))
-                                    {
-                                        <li>@group.Key: @group.Count()</li>
-                                    }
-                                </ul>
-                            }
-                            else
-                            {
-                                <p><em>No disasters data for this period.</em></p>
-                            }
-                        </div>
-                    </div>
-                </div>
-
-                <div class="panel panel-sub" style="margin-top: 20px;">
-                    <header class="panel-head">
-                        <h3 class="panel-title">Shelters Summary</h3>
-                    </header>
-                    <div style="padding: 16px;">
-                        <p><strong>Total Shelters:</strong> @(shelterData?.Count ?? 0)</p>
-                        @if (shelterData != null && shelterData.Any())
-                        {
-                            <p><strong>Active Shelters:</strong> @shelterData.Count(s => s.IsActive)</p>
-                            <p><strong>Total Capacity:</strong> @shelterData.Sum(s => s.Capacity) beds</p>
-                            <p><strong>Current Occupancy:</strong> @shelterData.Sum(s => s.CurrentOccupancy) (@AverageOccupancy.ToString("P1"))</p>
-                        }
-                        else
-                        {
-                            <p><em>No shelters data available.</em></p>
-                        }
-                    </div>
-                </div>
-            </div>
-        </section>
-    };
-
-    private RenderFragment RenderEvacueesReport() => __builder =>
-    {
-        <section class="panel">
-            <header class="panel-head">
-                <h2 class="panel-title">Evacuees Report (@(evacueeData?.Count ?? 0) records)</h2>
-            </header>
-            <div class="table-wrap">
-                <table class="rep-table">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>Name</th>
-                            <th>Disaster</th>
-                            <th>Shelter</th>
-                            <th>Status</th>
-                            <th>Registered</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @if (evacueeData != null && evacueeData.Any())
-                        {
-                            int idx = 0;
-                            foreach (var e in evacueeData)
-                            {
-                                idx++;
-                                <tr>
-                                    <td class="t-center">@idx</td>
-                                    <td>@e.FirstName @e.LastName</td>
-                                    <td>@(e.Disaster?.Title ?? "—")</td>
-                                    <td>@(e.Shelter?.Name ?? "—")</td>
-                                    <td><span class="status-chip">@e.Status</span></td>
-                                    <td>@e.RegisteredAt.ToString("MMM dd, yyyy HH:mm")</td>
-                                </tr>
-                            }
-                        }
-                        else
-                        {
-                            <tr>
-                                <td colspan="6" class="t-center" style="padding: 40px; color: var(--text-dim);">
-                                    No evacuees found for the selected period.
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-            <footer class="panel-foot">
-                Total: @(evacueeData?.Count ?? 0) evacuees
-            </footer>
-        </section>
-    };
-
-    private RenderFragment RenderDisastersReport() => __builder =>
-    {
-        <section class="panel">
-            <header class="panel-head">
-                <h2 class="panel-title">Disasters Report (@(disasterData?.Count ?? 0) records)</h2>
-            </header>
-            <div class="table-wrap">
-                <table class="rep-table">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>Title</th>
-                            <th>Type</th>
-                            <th>Severity</th>
-                            <th>Status</th>
-                            <th>Location</th>
-                            <th>Start Date</th>
-                            <th>End Date</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @if (disasterData != null && disasterData.Any())
-                        {
-                            int idx = 0;
-                            foreach (var d in disasterData)
-                            {
-                                idx++;
-                                <tr>
-                                    <td class="t-center">@idx</td>
-                                    <td><strong>@d.Title</strong></td>
-                                    <td>@d.DisasterType</td>
-                                    <td><span class="status-chip">@d.Severity</span></td>
-                                    <td>@d.Status</td>
-                                    <td>@d.Location</td>
-                                    <td>@d.StartDate.ToString("MMM dd, yyyy")</td>
-                                    <td>@(d.EndDate?.ToString("MMM dd, yyyy") ?? "Ongoing")</td>
-                                </tr>
-                            }
-                        }
-                        else
-                        {
-                            <tr>
-                                <td colspan="8" class="t-center" style="padding: 40px; color: var(--text-dim);">
-                                    No disasters found for the selected period.
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-            <footer class="panel-foot">
-                Total: @(disasterData?.Count ?? 0) disasters
-            </footer>
-        </section>
-    };
-
-    private RenderFragment RenderSheltersReport() => __builder =>
-    {
-        <section class="panel">
-            <header class="panel-head">
-                <h2 class="panel-title">
-                    Shelters Report (@(shelterData?.Count ?? 0) records)
-                </h2>
-            </header>
-            <div class="table-wrap">
-                <table class="rep-table">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>Name</th>
-                            <th>Location</th>
-                            <th>Disaster</th>
-                            <th class="t-right">Capacity</th>
-                            <th class="t-right">Occupancy</th>
-                            <th class="t-right">% Full</th>
-                            <th class="t-center">Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @if (shelterData != null && shelterData.Any())
-                        {
-                            int idx = 0;
-                            foreach (var s in shelterData)
-                            {
-                                idx++;
-                                var pct = s.Capacity > 0 ? (s.CurrentOccupancy * 100.0 / s.Capacity) : 0;
-                                <tr>
-                                    <td class="t-center">@idx</td>
-                                    <td><strong>@s.Name</strong></td>
-                                    <td>@(s.Location ?? "—")</td>
-                                    <td>@(s.Disaster?.Title ?? "—")</td>
-                                    <td class="t-right">@s.Capacity</td>
-                                    <td class="t-right">@s.CurrentOccupancy</td>
-                                    <td class="t-right">@pct.ToString("F1")%</td>
-                                    <td class="t-center">
-                                        <span class="status-chip">@(s.IsActive ? "Active" : "Inactive")</span>
-                                    </td>
-                                </tr>
-                            }
-                        }
-                        else
-                        {
-                            <tr>
-                                <td colspan="8" class="t-center" style="padding: 40px; color: var(--text-dim);">
-                                    No shelters found.
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-            <footer class="panel-foot">
-                Total: @(shelterData?.Count ?? 0) shelters |
-                Total Capacity: @(shelterData?.Sum(s => s.Capacity) ?? 0) |
-                Current Occupancy: @(shelterData?.Sum(s => s.CurrentOccupancy) ?? 0)
-            </footer>
-        </section>
-    };
-
-    private RenderFragment RenderInventoryReport() => __builder =>
-    {
-        <section class="panel">
-            <header class="panel-head">
-                <h2 class="panel-title">Inventory Report (@(stockData?.Count ?? 0) records)</h2>
-            </header>
-            <div class="table-wrap">
-                <table class="rep-table">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>Item</th>
-                            <th>Shelter</th>
-                            <th>Unit</th>
-                            <th class="t-right">Quantity</th>
-                            <th class="t-right">Max Capacity</th>
-                            <th>Status</th>
-                            <th>Last Updated</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @if (stockData != null && stockData.Any())
-                        {
-                            int idx = 0;
-                            foreach (var s in stockData)
-                            {
-                                idx++;
-                                var status = s.Quantity <= 10 ? "Low" : s.Quantity <= 50 ? "Medium" : "Healthy";
-                                var statusClass = s.Quantity <= 10 ? "st-critical" : s.Quantity <= 50 ? "st-med" : "st-stable";
-                                <tr>
-                                    <td class="t-center">@idx</td>
-                                    <td><strong>@(s.ReliefGood?.Name ?? "Unknown")</strong></td>
-                                    <td>@(s.Shelter?.Name ?? "Central")</td>
-                                    <td>@(s.ReliefGood?.Unit ?? "—")</td>
-                                    <td class="t-right">@s.Quantity</td>
-                                    <td class="t-right">@s.MaxCapacity</td>
-                                    <td><span class="status-chip @statusClass">@status</span></td>
-                                    <td>@s.LastUpdated.ToString("MMM dd, yyyy")</td>
-                                </tr>
-                            }
-                        }
-                        else
-                        {
-                            <tr>
-                                <td colspan="8" class="t-center" style="padding: 40px; color: var(--text-dim);">
-                                    No inventory data found.
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-            <footer class="panel-foot">
-                Total Items: @(stockData?.Count ?? 0) | Low Stock: @LowStockCount items
-            </footer>
-        </section>
-    };
-
-    private RenderFragment RenderBudgetReport() => __builder =>
-    {
-        <section class="panel">
-            <header class="panel-head">
-                <h2 class="panel-title">Budget Report (@(budgetData?.Count ?? 0) records)</h2>
-            </header>
-            <div class="table-wrap">
-                <table class="rep-table">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>Year</th>
-                            <th>Barangay</th>
-                            <th class="t-right">Total Amount</th>
-                            <th class="t-right">Allocated</th>
-                            <th class="t-right">Available</th>
-                            <th>Status</th>
-                            <th>Items</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @if (budgetData != null && budgetData.Any())
-                        {
-                            int idx = 0;
-                            foreach (var b in budgetData)
-                            {
-                                idx++;
-                                var allocated = b.Items?.Sum(i => i.Amount) ?? 0;
-                                var available = b.TotalAmount - allocated;
-                                <tr>
-                                    <td class="t-center">@idx</td>
-                                    <td><strong>@b.Year</strong></td>
-                                    <td>@b.BarangayName</td>
-                                    <td class="t-right">₱@b.TotalAmount.ToString("N2")</td>
-                                    <td class="t-right">₱@allocated.ToString("N2")</td>
-                                    <td class="t-right">₱@available.ToString("N2")</td>
-                                    <td>
-                                        <span class="status-chip @(available > 0 ? "st-stable" : "st-critical")">
-                                            @(available > 0 ? "Available" : "Depleted")
-                                        </span>
-                                    </td>
-                                    <td>@(b.Items?.Count ?? 0) items</td>
-                                </tr>
-                            }
-                        }
-                        else
-                        {
-                            <tr>
-                                <td colspan="8" class="t-center" style="padding: 40px; color: var(--text-dim);">
-                                    No budget data found for the selected period.
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-            <footer class="panel-foot">
-                Total Budgets: @(budgetData?.Count ?? 0) | Total Amount: ₱@(budgetData?.Sum(b => b.TotalAmount).ToString("N2") ?? "0.00")
-            </footer>
-        </section>
-
-        <!-- Budget Items Detail -->
-        @if (budgetData != null && budgetData.Any() && budgetData.Any(b => b.Items != null && b.Items.Any()))
+        if (_reportData == null)
         {
-            <section class="panel" style="margin-top: 20px;">
-                <header class="panel-head">
-                    <h2 class="panel-title">Budget Items Detail</h2>
-                </header>
-                <div class="table-wrap">
-                    <table class="rep-table">
-                        <thead>
-                            <tr>
-                                <th>Year</th>
-                                <th>Category</th>
-                                <th>Description</th>
-                                <th class="t-right">Amount</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var b in budgetData.Where(b => b.Items != null && b.Items.Any()))
-                            {
-                                foreach (var item in b.Items!)
-                                {
-                                    <tr>
-                                        <td>@b.Year</td>
-                                        <td>@item.Category</td>
-                                        <td>@item.Description</td>
-                                        <td class="t-right">₱@item.Amount.ToString("N2")</td>
-                                    </tr>
-                                }
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            </section>
+            await RefreshDataAsync();
+            if (_reportData == null) return;
         }
-    };
 
-    // Export functionality
-    private async Task ExportToCSV()
-    {
+        _loading = true;
+        StateHasChanged();
+
         try
         {
-            var csv = new StringBuilder();
-            csv.AppendLine($"ResQLink Report - {reportType.ToUpper()}");
-            csv.AppendLine($"Generated: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
-            csv.AppendLine($"Period: {dateFrom:yyyy-MM-dd} to {dateTo:yyyy-MM-dd}");
-            csv.AppendLine();
+            var pdfBytes = await ReportService.GeneratePdfReportAsync(_reportData);
+            var fileName = $"Operations_Report_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
 
-            switch (reportType)
-            {
-                case "overview":
-                    csv.AppendLine("Evacuees,Disasters,Shelters");
-                    csv.AppendLine($"{evacueeData.Count},{disasterData.Count},{shelterData.Count}");
-                    break;
-
-                case "evacuees":
-                    csv.AppendLine("ID,Name,Disaster,Shelter,Status,Registered");
-                    if (evacueeData != null)
-                    {
-                        foreach (var e in evacueeData)
-                        {
-                            csv.AppendLine($"{e.EvacueeId},\"{e.FirstName} {e.LastName}\",\"{e.Disaster?.Title}\",\"{e.Shelter?.Name}\",\"{e.Status}\",\"{e.RegisteredAt:yyyy-MM-dd HH:mm}\"");
-                        }
-                    }
-                    break;
-
-                case "disasters":
-                    csv.AppendLine("ID,Title,Type,Severity,Status,Location,Start Date,End Date");
-                    if (disasterData != null)
-                    {
-                        foreach (var d in disasterData)
-                        {
-                            csv.AppendLine($"{d.DisasterId},\"{d.Title}\",\"{d.DisasterType}\",\"{d.Severity}\",\"{d.Status}\",\"{d.Location}\",\"{d.StartDate:yyyy-MM-dd}\",\"{(d.EndDate != null ? d.EndDate.Value.ToString("yyyy-MM-dd") : "Ongoing")}\"");
-                        }
-                    }
-                    break;
-
-                case "shelters":
-                    csv.AppendLine("ID,Name,Location,Disaster,Capacity,Occupancy,Status");
-                    if (shelterData != null)
-                    {
-                        foreach (var s in shelterData)
-                        {
-                            csv.AppendLine($"{s.ShelterId},\"{s.Name}\",\"{s.Location}\",\"{s.Disaster?.Title}\",{s.Capacity},{s.CurrentOccupancy},\"{(s.IsActive ? "Active" : "Inactive")}\"");
-                        }
-                    }
-                    break;
-
-                case "inventory":
-                    csv.AppendLine("ID,Item,Shelter,Unit,Quantity,Max Capacity,Status,Last Updated");
-                    if (stockData != null)
-                    {
-                        foreach (var s in stockData)
-                        {
-                            csv.AppendLine($"{s.StockId},\"{s.ReliefGood?.Name}\",\"{s.Shelter?.Name}\",\"{s.ReliefGood?.Unit}\",{s.Quantity},{s.MaxCapacity},\"{(s.Quantity <= 10 ? "Low" : s.Quantity <= 50 ? "Medium" : "Healthy")}\",\"{s.LastUpdated:yyyy-MM-dd}\"");
-                        }
-                    }
-                    break;
-
-                case "budget":
-                    csv.AppendLine("ID,Year,Barangay,Total Amount,Allocated,Available");
-                    if (budgetData != null)
-                    {
-                        foreach (var b in budgetData)
-                        {
-                            var allocated = b.Items?.Sum(i => i.Amount) ?? 0;
-                            var available = b.TotalAmount - allocated;
-                            csv.AppendLine($"{b.BudgetId},{b.Year},\"{b.BarangayName}\",{b.TotalAmount:F2},{allocated:F2},{available:F2}");
-                        }
-                    }
-                    break;
-            }
-
-            var fileName = $"ResQLink_{reportType}_Report_{DateTime.Now:yyyyMMdd_HHmmss}.csv";
-            var bytes = Encoding.UTF8.GetBytes(csv.ToString());
-            var base64 = Convert.ToBase64String(bytes);
-
+            var base64 = Convert.ToBase64String(pdfBytes);
             await JS.InvokeVoidAsync("eval", $@"
                 const link = document.createElement('a');
                 link.download = '{fileName}';
-                link.href = 'data:text/csv;base64,{base64}';
+                link.href = 'data:application/pdf;base64,{base64}';
                 link.click();
             ");
 
-            await JS.InvokeVoidAsync("alert", "Report exported successfully!");
+            await JS.InvokeVoidAsync("alert", "Operations Report PDF generated successfully!");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Export error: {ex.Message}");
-            await JS.InvokeVoidAsync("alert", $"Export failed: {ex.Message}");
+            await JS.InvokeVoidAsync("alert", $"Error generating PDF: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+            StateHasChanged();
         }
     }
 
-    private void PrintReport()
+    private void ToggleEditMode()
     {
-        // intentionally left minimal so behavior is unchanged
-        // to trigger browser print, uncomment the next line:
-        // JS.InvokeVoidAsync("window.print");
+        isEditingIssues = !isEditingIssues;
+    }
+
+    private async Task SaveIssuesAsync()
+    {
+        if (_reportData == null) return;
+
+        try
+        {
+            await ReportService.SaveOperationalIssuesAsync(_reportData.Issues);
+            await JS.InvokeVoidAsync("alert", "Operational issues saved successfully!");
+            isEditingIssues = false;
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Error saving issues: {ex.Message}");
+        }
+    }
+
+    private string GetStockLevelColor(string stockLevel)
+    {
+        return stockLevel switch
+        {
+            "Critical" => "#ef4444",
+            "Low" => "#f59e0b",
+            "Normal" => "#10b981",
+            _ => "#6b7280"
+        };
     }
 }

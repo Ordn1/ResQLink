@@ -44,21 +44,21 @@ namespace ResQLink.Services
         public bool IsFinanceManager() => IsInRole("Finance Manager");
         public bool IsInventoryManager() => IsInRole("Inventory Manager");
         public bool IsAdmin() => IsInRole("Admin");
-        public bool IsHR() => IsInRole("HR");
+        public bool IsOperationOfficer() => IsInRole("Operation Officer");
         public bool IsVolunteer() => IsInRole("Volunteer");
 
         public bool CanViewInventory() =>
             HasAnyRole("Admin", "Inventory Manager", "Finance Manager");
 
         public bool CanAccessReports() =>
-            HasAnyRole("Admin", "Finance Manager", "HR");
+            HasAnyRole("Admin", "Finance Manager", "Operation Officer", "Inventory Manager");
 
         public bool CanManageBudget() => 
             IsInRole("Admin") || IsInRole("Finance Manager");
 
-        // HR and Admin can access disaster response pages (NOT Volunteers)
+        // Operation Officer and Admin can access disaster response pages (NOT Volunteers)
         public bool CanAccessDisasterResponse() =>
-            HasAnyRole("Admin", "HR") || 
+            HasAnyRole("Admin", "Operation Officer") || 
             (!IsInventoryManager() && !IsFinanceManager() && !IsVolunteer());
 
         public bool CanAccess(string path)
@@ -81,7 +81,7 @@ namespace ResQLink.Services
                 "/home" => !IsVolunteer(),
                 "/volunteer-dashboard" => IsVolunteer(),
                 
-                // Disaster response pages - accessible to HR and Admin (NOT Volunteers)
+                // Disaster response pages - accessible to Operation Officer and Admin (NOT Volunteers)
                 "/disasters" => CanAccessDisasterResponse(),
                 "/evacuees" => CanAccessDisasterResponse(),
                 "/shelters" => CanAccessDisasterResponse(),
@@ -96,7 +96,7 @@ namespace ResQLink.Services
                 // Finance
                 "/finance" => IsFinanceManager() || IsAdmin(),
                 
-                // Reports - accessible to Admin, Finance Manager, and HR
+                // Reports - accessible to Admin, Finance Manager, Operation Officer, and Inventory Manager
                 "/reports" => CanAccessReports(),
                 
                 // Admin section

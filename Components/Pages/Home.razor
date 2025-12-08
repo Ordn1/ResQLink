@@ -1,420 +1,980 @@
 ﻿@page "/home"
-@inject ResQLink.Data.AppDbContext Db
+@inject IDbContextFactory<ResQLink.Data.AppDbContext> DbFactory
 @inject IJSRuntime JS
+@inject ResQLink.Services.AuthState AuthState
 @using Microsoft.EntityFrameworkCore
 @using ResQLink.Data.Entities
 @implements IAsyncDisposable
 
 <div class="dashboard-root">
-    <!-- Summary Banner -->
-    <div class="summary-banner">
-        <div class="summary-header">
-            <div class="summary-icon">
-                <i class="bi bi-speedometer2"></i>
-            </div>
-            <div class="summary-content">
-                <h2 class="summary-title">ResQLink Dashboard</h2>
-                <p class="summary-subtitle">
-                    Real-time disaster response coordination • Last updated: @DateTime.Now.ToString("MMM dd, yyyy HH:mm")
-                </p>
-            </div>
-        </div>
-        
-        <div class="summary-stats">
-            <div class="stat-group">
-                <span class="stat-label">Active Operations</span>
-                <span class="stat-value">@ActiveDisastersCount Disasters</span>
-            </div>
-            <div class="stat-divider"></div>
-            <div class="stat-group">
-                <span class="stat-label">People Assisted</span>
-                <span class="stat-value">@TotalEvacuees Evacuees</span>
-            </div>
-            <div class="stat-divider"></div>
-            <div class="stat-group">
-                <span class="stat-label">Resources</span>
-                <span class="stat-value">@(LowStockCount > 0 ? $"{LowStockCount} items need restocking" : "Inventory Levels Healthy")</span>
-            </div>
-        </div>
-    </div>
-
-    <!-- Analytics Filters -->
-    <section class="panel">
-        <header class="panel-head">
-            <h2 class="panel-title">Analytics Controls</h2>
-            <div class="analytics-controls" role="region" aria-label="Analytics controls">
-                <div class="ac-left" role="group" aria-label="Analytics selectors and actions">
-                    <label class="ac-field" aria-hidden="true">
-                        <i class="bi bi-calendar-event ac-field-icon" aria-hidden="true"></i>
-                        <select class="ac-select" @bind="selectedPeriod" @bind:after="LoadChartsAsync" aria-label="Select period">
-                            <option value="7">Last 7 days</option>
-                            <option value="30">Last 30 days</option>
-                            <option value="90">Last 90 days</option>
-                        </select>
-                        <span class="ac-caret" aria-hidden="true">▾</span>
-                    </label>
-
-                    <label class="ac-field" aria-hidden="true">
-                        <i class="bi bi-bar-chart ac-field-icon" aria-hidden="true"></i>
-                        <select class="ac-select" @bind="selectedComparison" @bind:after="LoadChartsAsync" aria-label="Select comparison">
-                            <option value="none">No Comparison</option>
-                            <option value="previous">vs Previous Period</option>
-                            <option value="year">vs Last Year</option>
-                        </select>
-                        <span class="ac-caret" aria-hidden="true">▾</span>
-                    </label>
-
-                    <!-- Refresh moved next to the Comparison select (close spacing) -->
-                    <button class="btn-refresh-primary ac-refresh" @onclick="LoadChartsAsync" disabled="@_loading" aria-disabled="@_loading" title="Refresh charts">
-                        <svg class="refresh-icon @( _loading ? "spin" : "" )" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                            <path fill="currentColor" d="M12 6V3L8 7l4 4V8a4 4 0 1 1-4 4H6a6 6 0 1 0 6-6z"></path>
-                        </svg>
-                        <span class="btn-text">@(_loading ? "Refreshing..." : "Refresh")</span>
-                    </button>
+    <!-- Summary Banner - Conditional based on role -->
+    @if (!AuthState.IsInventoryManager() && !AuthState.IsFinanceManager() && !AuthState.IsOperationOfficer())
+    {
+        <div class="summary-banner">
+            <div class="summary-header">
+                <div class="summary-icon">
+                    <i class="bi bi-speedometer2"></i>
+                </div>
+                <div class="summary-content">
+                    <h2 class="summary-title">ResQLink Dashboard</h2>
+                    <p class="summary-subtitle">
+                        Real-time disaster response coordination • Last updated: @DateTime.Now.ToString("MMM dd, yyyy HH:mm")
+                    </p>
                 </div>
             </div>
-        </header>
-    </section>
 
-    <!-- Charts Grid -->
-    <div class="charts-grid">
-        <!-- Evacuees Trend Chart -->
-        <div class="chart-card">
-            <div class="chart-header">
-                <h3 class="chart-title">
-                    <i class="bi bi-people-fill"></i>
-                    Evacuees
-                </h3>
-                <span class="chart-badge">Last @selectedPeriod days</span>
-            </div>
-            <div class="chart-container">
-                <canvas id="evacueesTrendChart"></canvas>
+            <div class="summary-stats">
+                <div class="stat-group">
+                    <span class="stat-label">Active Operations</span>
+                    <span class="stat-value">@ActiveDisastersCount Disasters</span>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat-group">
+                    <span class="stat-label">People Assisted</span>
+                    <span class="stat-value">@TotalEvacuees Evacuees</span>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat-group">
+                    <span class="stat-label">Resources</span>
+                    <span class="stat-value">@(LowStockCount > 0 ? $"{LowStockCount} items need restocking" : "Inventory Levels Healthy")</span>
+                </div>
             </div>
         </div>
-
-        <!-- Disasters by Severity -->
-        <div class="chart-card">
-            <div class="chart-header">
-                <h3 class="chart-title">
-                    <i class="bi bi-exclamation-triangle-fill"></i>
-                    Disasters by Severity
-                </h3>
-                <span class="chart-badge">Current</span>
-            </div>
-            <div class="chart-container">
-                <canvas id="disastersSeverityChart"></canvas>
-            </div>
-        </div>
-
-        <!-- Shelter Occupancy -->
-        <div class="chart-card wide">
-            <div class="chart-header">
-                <h3 class="chart-title">
-                    <i class="bi bi-house-heart-fill"></i>
-                    Shelter Occupancy
-                </h3>
-                <span class="chart-badge">Real-time</span>
-            </div>
-            <div class="chart-container">
-                <canvas id="shelterOccupancyChart"></canvas>
-            </div>
-        </div>
-
-        <!-- Stock Levels -->
-        <div class="chart-card">
-            <div class="chart-header">
-                <h3 class="chart-title">
+    }
+    else if (AuthState.IsInventoryManager())
+    {
+        <!-- Simplified banner for Inventory Manager -->
+        <div class="summary-banner">
+            <div class="summary-header">
+                <div class="summary-icon">
                     <i class="bi bi-box-seam-fill"></i>
-                    Stock Status Distribution
-                </h3>
-                <span class="chart-badge">Current</span>
+                </div>
+                <div class="summary-content">
+                    <h2 class="summary-title">Inventory Dashboard</h2>
+                    <p class="summary-subtitle">
+                        Stock management and monitoring • Last updated: @DateTime.Now.ToString("MMM dd, yyyy HH:mm")
+                    </p>
+                </div>
             </div>
-            <div class="chart-container">
-                <canvas id="stockDistributionChart"></canvas>
+
+            <div class="summary-stats">
+                <div class="stat-group">
+                    <span class="stat-label">Resources</span>
+                    <span class="stat-value">@(LowStockCount > 0 ? $"{LowStockCount} items need restocking" : "Inventory Levels Healthy")</span>
+                </div>
             </div>
         </div>
-
-        <!-- Budget Utilization -->
-        <div class="chart-card">
-            <div class="chart-header">
-                <h3 class="chart-title">
+    }
+    else if (AuthState.IsFinanceManager())
+    {
+        <!-- Simplified banner for Finance Manager -->
+        <div class="summary-banner">
+            <div class="summary-header">
+                <div class="summary-icon">
                     <i class="bi bi-wallet2"></i>
-                    Budget
-                </h3>
-                <span class="chart-badge">Monthly</span>
+                </div>
+                <div class="summary-content">
+                    <h2 class="summary-title">Finance Dashboard</h2>
+                    <p class="summary-subtitle">
+                        Budget management and procurement overview • Last updated: @DateTime.Now.ToString("MMM dd, yyyy HH:mm")
+                    </p>
+                </div>
             </div>
-            <div class="chart-container">
-                <canvas id="budgetTrendChart"></canvas>
+
+            <div class="summary-stats">
+                <div class="stat-group">
+                    <span class="stat-label">Total Budget</span>
+                    <span class="stat-value">₱@_totalBudgetAllocation.ToString("N2")</span>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat-group">
+                    <span class="stat-label">Procurement Requests</span>
+                    <span class="stat-value">@_procurementRequestCount Total</span>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat-group">
+                    <span class="stat-label">Pending Approvals</span>
+                    <span class="stat-value">@_pendingRequestCount Requests</span>
+                </div>
             </div>
         </div>
-    </div>
-
-    <div class="dashboard-grid">
-        <!-- KPI Section -->
-        <section class="kpi-section">
-            <!-- Active Disasters -->
-            <div class="kpi-card priority-high">
-                <div class="kpi-header">
-                    <div class="kpi-label">Active Disasters</div>
-                    <div class="kpi-icon-circle" style="background: #fee2e2; color: #ef4444;">
-                        <i class="bi bi-exclamation-triangle-fill"></i>
-                    </div>
+    }
+    else if (AuthState.IsOperationOfficer())
+    {
+        <!-- Simplified banner for Operation Officer -->
+        <div class="summary-banner">
+            <div class="summary-header">
+                <div class="summary-icon">
+                    <i class="bi bi-speedometer2"></i>
                 </div>
-                <div>
-                    <div class="kpi-value" style="color: #ef4444;">@ActiveDisastersCount</div>
-                    <div class="kpi-footer">
-                        <span class="trend-badge @GetTrendClass(_activeToday, _activeYesterday)">
-                            @ActiveDisasterDeltaText
-                        </span>
-                        <span class="kpi-detail">vs yesterday</span>
-                    </div>
+                <div class="summary-content">
+                    <h2 class="summary-title">Operations Dashboard</h2>
+                    <p class="summary-subtitle">
+                        Disaster response coordination • Last updated: @DateTime.Now.ToString("MMM dd, yyyy HH:mm")
+                    </p>
                 </div>
             </div>
 
-            <!-- Evacuees -->
-            <div class="kpi-card">
-                <div class="kpi-header">
-                    <div class="kpi-label">Total Evacuees</div>
-                    <div class="kpi-icon-circle">
-                        <i class="bi bi-people-fill"></i>
-                    </div>
+            <div class="summary-stats">
+                <div class="stat-group">
+                    <span class="stat-label">Active Operations</span>
+                    <span class="stat-value">@ActiveDisastersCount Disasters</span>
                 </div>
-                <div>
-                    <div class="kpi-value">@TotalEvacuees</div>
-                    <div class="kpi-footer">
-                        <span class="trend-badge @GetTrendClass(_evacueesToday, _evacueesYesterday)">
-                            @EvacueeDeltaText
-                        </span>
-                        <span class="kpi-detail">registered today</span>
-                    </div>
+                <div class="stat-divider"></div>
+                <div class="stat-group">
+                    <span class="stat-label">People Assisted</span>
+                    <span class="stat-value">@TotalEvacuees Evacuees</span>
                 </div>
             </div>
+        </div>
+    }
 
-            <!-- Shelter Capacity -->
-            <div class="kpi-card">
-                <div class="kpi-header">
-                    <div class="kpi-label">Shelter Capacity</div>
-                    <div class="kpi-icon-circle">
-                        <i class="bi bi-house-heart-fill"></i>
-                    </div>
-                </div>
-                <div>
-                    <div class="kpi-value">@ShelterCapacityUsed%</div>
-                    <div class="kpi-footer">
-                        <div class="capacity-detail">
-                            <span>@_totalOccupancy / @_totalCapacity beds</span>
-                        </div>
-                    </div>
-                    <div class="progress-container">
-                        <div class="progress-fill @GetCapacityClass(ShelterCapacityUsed)" style="width:@ShelterCapacityUsed%"></div>
-                    </div>
-                </div>
-            </div>
+    <!-- Analytics Filters - Hidden for Inventory Manager and Finance Manager -->
+    @if (!AuthState.IsInventoryManager() && !AuthState.IsFinanceManager())
+    {
+        <section class="panel">
+            <header class="panel-head">
+                <h2 class="panel-title">Analytics Controls</h2>
+                <div class="analytics-controls" role="region" aria-label="Analytics controls">
+                    <div class="ac-left" role="group" aria-label="Analytics selectors and actions">
+                        <label class="ac-field" aria-hidden="true">
+                            <i class="bi bi-calendar-event ac-field-icon" aria-hidden="true"></i>
+                            <select class="ac-select" @bind="selectedPeriod" @bind:after="LoadChartsAsync" aria-label="Select period">
+                                <option value="7">Last 7 days</option>
+                                <option value="30">Last 30 days</option>
+                                <option value="90">Last 90 days</option>
+                            </select>
+                            <span class="ac-caret" aria-hidden="true">▾</span>
+                        </label>
 
-            <!-- Low Stock -->
-            <div class="kpi-card">
-                <div class="kpi-header">
-                    <div class="kpi-label">Low Stock Alert</div>
-                    <div class="kpi-icon-circle" style="background: #ffedd5; color: #d97706;">
-                        <i class="bi bi-box-seam-fill"></i>
-                    </div>
-                </div>
-                <div>
-                    <div class="kpi-value" style="color: #d97706;">@LowStockCount</div>
-                    <div class="kpi-footer">
-                         <span class="trend-badge @GetTrendClass(_lowStockToday, _lowStockYesterday)">
-                             @LowStockDeltaText
-                         </span>
-                         <span class="kpi-detail">items ≤ @LowStockThreshold units</span>
-                    </div>
-                </div>
-            </div>
-        </section>
+                        <label class="ac-field" aria-hidden="true">
+                            <i class="bi bi-bar-chart ac-field-icon" aria-hidden="true"></i>
+                            <select class="ac-select" @bind="selectedComparison" @bind:after="LoadChartsAsync" aria-label="Select comparison">
+                                <option value="none">No Comparison</option>
+                                <option value="previous">vs Previous Period</option>
+                                <option value="year">vs Last Year</option>
+                            </select>
+                            <span class="ac-caret" aria-hidden="true">▾</span>
+                        </label>
 
-        <!-- Main Content: Left Column -->
-        <div class="col-left">
-            <!-- Recent Evacuees Table -->
-            <div class="modern-card">
-                <div class="card-header">
-                    <div class="card-title-group">
-                        <h3 class="card-title">Recent Evacuees</h3>
-                        <span class="card-badge">@FilteredEvacuees.Count() of @AllEvacuees.Count</span>
-                    </div>
-                    <div class="header-actions">
-                        <input class="search-input" placeholder="Search name..." @bind="evacueeFilter" @bind:event="oninput" />
-                        <button class="refresh-btn" @onclick="Refresh" disabled="@_loading" title="Refresh Data">
-                            <i class="bi bi-arrow-clockwise @(_loading ? "spin" : "")"></i>
+                        <button class="btn-refresh-primary ac-refresh" @onclick="LoadChartsAsync" disabled="@_loading" aria-disabled="@_loading" title="Refresh charts">
+                            <svg class="refresh-icon @( _loading ? "spin" : "" )" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                <path fill="currentColor" d="M12 6V3L8 7l4 4V8a4 4 0 1 1-4 4H6a6 6 0 1 0 6-6z"></path>
+                            </svg>
+                            <span class="btn-text">@(_loading ? "Refreshing..." : "Refresh")</span>
                         </button>
                     </div>
                 </div>
-                
-                <div class="table-responsive">
-                    <table class="clean-table">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Disaster</th>
-                                <th>Shelter</th>
-                                <th>Status</th>
-                                <th>Registered</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @if (FilteredEvacuees.Any())
-                            {
-                                foreach (var e in FilteredEvacuees)
+            </header>
+        </section>
+    }
+
+    <!-- Charts Grid -->
+    <div class="charts-grid">
+        <!-- Evacuees Trend Chart - Hidden for Inventory Manager and Finance Manager -->
+        @if (!AuthState.IsInventoryManager() && !AuthState.IsFinanceManager())
+        {
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3 class="chart-title">
+                        <i class="bi bi-people-fill"></i>
+                        Evacuees
+                    </h3>
+                    <span class="chart-badge">Last @selectedPeriod days</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="evacueesTrendChart"></canvas>
+                </div>
+                <div class="chart-interpretation">
+                    <i class="bi bi-lightbulb"></i>
+                    <span>@GetEvacueeTrendInterpretation()</span>
+                </div>
+            </div>
+        }
+
+        <!-- Disasters by Severity - Hidden for Inventory Manager and Finance Manager -->
+        @if (!AuthState.IsInventoryManager() && !AuthState.IsFinanceManager())
+        {
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3 class="chart-title">
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+                        Disasters by Severity
+                    </h3>
+                    <span class="chart-badge">Current</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="disastersSeverityChart"></canvas>
+                </div>
+                <div class="chart-interpretation">
+                    <i class="bi bi-lightbulb"></i>
+                    <span>@GetDisasterSeverityInterpretation()</span>
+                </div>
+            </div>
+        }
+
+        <!-- Shelter Occupancy - Hidden for Inventory Manager and Finance Manager -->
+        @if (!AuthState.IsInventoryManager() && !AuthState.IsFinanceManager())
+        {
+            <div class="chart-card wide">
+                <div class="chart-header">
+                    <h3 class="chart-title">
+                        <i class="bi bi-house-heart-fill"></i>
+                        Shelter Occupancy
+                    </h3>
+                    <span class="chart-badge">Real-time</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="shelterOccupancyChart"></canvas>
+                </div>
+                <div class="chart-interpretation">
+                    <i class="bi bi-lightbulb"></i>
+                    <span>@GetShelterOccupancyInterpretation()</span>
+                </div>
+            </div>
+        }
+
+        <!-- Stock Levels - Visible for Inventory Manager, Hidden for Finance Manager and Operation Officer -->
+        @if (AuthState.IsInventoryManager())
+        {
+            <div class="chart-card wide">
+                <div class="chart-header">
+                    <h3 class="chart-title">
+                        <i class="bi bi-box-seam-fill"></i>
+                        Stock Status Distribution
+                    </h3>
+                    <span class="chart-badge">Current</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="stockDistributionChart"></canvas>
+                </div>
+                <div class="chart-interpretation">
+                    <i class="bi bi-lightbulb"></i>
+                    <span>@GetStockDistributionInterpretation()</span>
+                </div>
+            </div>
+        }
+        else if (!AuthState.IsFinanceManager() && !AuthState.IsOperationOfficer())
+        {
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3 class="chart-title">
+                        <i class="bi bi-box-seam-fill"></i>
+                        Stock Status Distribution
+                    </h3>
+                    <span class="chart-badge">Current</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="stockDistributionChart"></canvas>
+                </div>
+                <div class="chart-interpretation">
+                    <i class="bi bi-lightbulb"></i>
+                    <span>@GetStockDistributionInterpretation()</span>
+                </div>
+            </div>
+        }
+
+        <!-- Budget Utilization - ALWAYS VISIBLE for Finance Manager, wider display, hidden for Inventory Manager and Operation Officer -->
+        @if (AuthState.IsFinanceManager())
+        {
+            <div class="chart-card wide">
+                <div class="chart-header">
+                    <h3 class="chart-title">
+                        <i class="bi bi-wallet2"></i>
+                        Budget Trend
+                    </h3>
+                    <span class="chart-badge">Yearly</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="budgetTrendChart"></canvas>
+                </div>
+                <div class="chart-interpretation">
+                    <i class="bi bi-lightbulb"></i>
+                    <span>@GetBudgetTrendInterpretation()</span>
+                </div>
+            </div>
+        }
+        else if (!AuthState.IsInventoryManager() && !AuthState.IsOperationOfficer())
+        {
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3 class="chart-title">
+                        <i class="bi bi-wallet2"></i>
+                        Budget
+                    </h3>
+                    <span class="chart-badge">Monthly</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="budgetTrendChart"></canvas>
+                </div>
+                <div class="chart-interpretation">
+                    <i class="bi bi-lightbulb"></i>
+                    <span>@GetBudgetTrendInterpretation()</span>
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="dashboard-grid">
+        <!-- KPI Section - Conditional rendering -->
+        <section class="kpi-section">
+            @if (!AuthState.IsInventoryManager() && !AuthState.IsFinanceManager() && !AuthState.IsOperationOfficer())
+            {
+                <!-- Active Disasters -->
+                <div class="kpi-card priority-high">
+                    <div class="kpi-header">
+                        <div class="kpi-label">Active Disasters</div>
+                        <div class="kpi-icon-circle" style="background: #fee2e2; color: #ef4444;">
+                            <i class="bi bi-exclamation-triangle-fill"></i>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="kpi-value" style="color: #ef4444;">@ActiveDisastersCount</div>
+                        <div class="kpi-footer">
+                            <span class="trend-badge @GetTrendClass(_activeToday, _activeYesterday)">
+                                @ActiveDisasterDeltaText
+                            </span>
+                            <span class="kpi-detail">vs yesterday</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Evacuees -->
+                <div class="kpi-card">
+                    <div class="kpi-header">
+                        <div class="kpi-label">Total Evacuees</div>
+                        <div class="kpi-icon-circle">
+                            <i class="bi bi-people-fill"></i>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="kpi-value">@TotalEvacuees</div>
+                        <div class="kpi-footer">
+                            <span class="trend-badge @GetTrendClass(_evacueesToday, _evacueesYesterday)">
+                                @EvacueeDeltaText
+                            </span>
+                            <span class="kpi-detail">registered today</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Shelter Capacity -->
+                <div class="kpi-card">
+                    <div class="kpi-header">
+                        <div class="kpi-label">Shelter Capacity</div>
+                        <div class="kpi-icon-circle">
+                            <i class="bi bi-house-heart-fill"></i>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="kpi-value">@ShelterCapacityUsed%</div>
+                        <div class="kpi-footer">
+                            <div class="capacity-detail">
+                                <span>@_totalOccupancy / @_totalCapacity beds</span>
+                            </div>
+                        </div>
+                        <div class="progress-container">
+                            <div class="progress-fill @GetCapacityClass(ShelterCapacityUsed)" style="width:@(ShelterCapacityUsed)%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Low Stock -->
+                <div class="kpi-card">
+                    <div class="kpi-header">
+                        <div class="kpi-label">Low Stock Alert</div>
+                        <div class="kpi-icon-circle" style="background: #ffedd5; color: #d97706;">
+                            <i class="bi bi-box-seam-fill"></i>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="kpi-value" style="color: #d97706;">@LowStockCount</div>
+                        <div class="kpi-footer">
+                            <span class="trend-badge @GetTrendClass(_lowStockToday, _lowStockYesterday)">
+                                @LowStockDeltaText
+                            </span>
+                            <span class="kpi-detail">items ≤ @LowStockThreshold units</span>
+                        </div>
+                    </div>
+                </div>
+            }
+            else if (AuthState.IsOperationOfficer())
+            {
+                <!-- Active Disasters - Operation Officer Only -->
+                <div class="kpi-card priority-high">
+                    <div class="kpi-header">
+                        <div class="kpi-label">Active Disasters</div>
+                        <div class="kpi-icon-circle" style="background: #fee2e2; color: #ef4444;">
+                            <i class="bi bi-exclamation-triangle-fill"></i>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="kpi-value" style="color: #ef4444;">@ActiveDisastersCount</div>
+                        <div class="kpi-footer">
+                            <span class="trend-badge @GetTrendClass(_activeToday, _activeYesterday)">
+                                @ActiveDisasterDeltaText
+                            </span>
+                            <span class="kpi-detail">vs yesterday</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Evacuees - Operation Officer Only -->
+                <div class="kpi-card">
+                    <div class="kpi-header">
+                        <div class="kpi-label">Total Evacuees</div>
+                        <div class="kpi-icon-circle">
+                            <i class="bi bi-people-fill"></i>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="kpi-value">@TotalEvacuees</div>
+                        <div class="kpi-footer">
+                            <span class="trend-badge @GetTrendClass(_evacueesToday, _evacueesYesterday)">
+                                @EvacueeDeltaText
+                            </span>
+                            <span class="kpi-detail">registered today</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Shelter Capacity - Operation Officer Only -->
+                <div class="kpi-card">
+                    <div class="kpi-header">
+                        <div class="kpi-label">Shelter Capacity</div>
+                        <div class="kpi-icon-circle">
+                            <i class="bi bi-house-heart-fill"></i>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="kpi-value">@ShelterCapacityUsed%</div>
+                        <div class="kpi-footer">
+                            <div class="capacity-detail">
+                                <span>@_totalOccupancy / @_totalCapacity beds</span>
+                            </div>
+                        </div>
+                        <div class="progress-container">
+                            <div class="progress-fill @GetCapacityClass(ShelterCapacityUsed)" style="width:@(ShelterCapacityUsed)%"></div>
+                        </div>
+                    </div>
+                </div>
+            }
+            else if (AuthState.IsInventoryManager())
+            {
+                <!-- Low Stock - Inventory Manager Only -->
+                <div class="kpi-card">
+                    <div class="kpi-header">
+                        <div class="kpi-label">Low Stock Alert</div>
+                        <div class="kpi-icon-circle" style="background: #ffedd5; color: #d97706;">
+                            <i class="bi bi-box-seam-fill"></i>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="kpi-value" style="color: #d97706;">@LowStockCount</div>
+                        <div class="kpi-footer">
+                            <span class="trend-badge @GetTrendClass(_lowStockToday, _lowStockYesterday)">
+                                @LowStockDeltaText
+                            </span>
+                            <span class="kpi-detail">items ≤ @LowStockThreshold units</span>
+                        </div>
+                    </div>
+                </div>
+            }
+            else if (AuthState.IsFinanceManager())
+            {
+                <!-- Procurement KPIs - Finance Manager Only -->
+                <div class="kpi-card" style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-left: 4px solid #22c55e;">
+                    <div class="kpi-header">
+                        <div class="kpi-label" style="color: #166534; font-weight: 600;">TOTAL BUDGETS</div>
+                        <div class="kpi-icon-circle" style="background: #dcfce7; color: #16a34a;">
+                            <i class="bi bi-folder-fill"></i>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="kpi-value" style="color: #16a34a; font-size: 2.5rem; font-weight: 700;">@_barangayCount</div>
+                        <div class="kpi-footer">
+                            <span class="kpi-detail" style="color: #166534; font-weight: 500;">₱@_totalBudgetAllocation.ToString("N2") allocated</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="kpi-card" style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border-left: 4px solid #3b82f6;">
+                    <div class="kpi-header">
+                        <div class="kpi-label" style="color: #1e3a8a; font-weight: 600;">PROCUREMENT REQUESTS</div>
+                        <div class="kpi-icon-circle" style="background: #dbeafe; color: #2563eb;">
+                            <i class="bi bi-file-text-fill"></i>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="kpi-value" style="color: #2563eb; font-size: 2.5rem; font-weight: 700;">@_procurementRequestCount</div>
+                        <div class="kpi-footer">
+                            <span class="kpi-detail" style="color: #1e3a8a; font-weight: 500;">₱@_totalProcurementAmount.ToString("N2")</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="kpi-card" style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-left: 4px solid #10b981;">
+                    <div class="kpi-header">
+                        <div class="kpi-label" style="color: #065f46; font-weight: 600;">APPROVED REQUESTS</div>
+                        <div class="kpi-icon-circle" style="background: #d1fae5; color: #059669;">
+                            <i class="bi bi-check-circle-fill"></i>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="kpi-value" style="color: #059669; font-size: 2.5rem; font-weight: 700;">@_approvedRequestCount</div>
+                        <div class="kpi-footer">
+                            <span class="kpi-detail" style="color: #065f46; font-weight: 500;">₱@_approvedAmount.ToString("N2")</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="kpi-card" style="background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); border-left: 4px solid #f59e0b;">
+                    <div class="kpi-header">
+                        <div class="kpi-label" style="color: #92400e; font-weight: 600;">PENDING REQUESTS</div>
+                        <div class="kpi-icon-circle" style="background: #fef3c7; color: #d97706;">
+                            <i class="bi bi-hourglass-split"></i>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="kpi-value" style="color: #d97706; font-size: 2.5rem; font-weight: 700;">@_pendingRequestCount</div>
+                        <div class="kpi-footer">
+                            <span class="kpi-detail" style="color: #92400e; font-weight: 500;">₱@_pendingAmount.ToString("N2")</span>
+                        </div>
+                    </div>
+                </div>
+            }
+        </section>
+
+        <!-- Main Content: Left Column - Hidden for Inventory Manager and Finance Manager -->
+        @if (!AuthState.IsInventoryManager() && !AuthState.IsFinanceManager())
+        {
+            <div class="col-left">
+                <!-- Recent Evacuees Table -->
+                <div class="modern-card">
+                    <div class="card-header">
+                        <div class="card-title-group">
+                            <h3 class="card-title">Recent Evacuees</h3>
+                            <span class="card-badge">@FilteredEvacuees.Count() of @AllEvacuees.Count</span>
+                        </div>
+                        <div class="header-actions">
+                            <input class="search-input" placeholder="Search name..." @bind="evacueeFilter" @bind:event="oninput" />
+                            <button class="refresh-btn" @onclick="Refresh" disabled="@_loading" title="Refresh Data">
+                                <i class="bi bi-arrow-clockwise @(_loading ? "spin" : "")"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="clean-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Disaster</th>
+                                    <th>Shelter</th>
+                                    <th>Status</th>
+                                    <th>Registered</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (FilteredEvacuees.Any())
+                                {
+                                    foreach (var e in FilteredEvacuees)
+                                    {
+                                        <tr>
+                                            <td>
+                                                <div style="font-weight:600;">@e.Name</div>
+                                            </td>
+                                            <td>@e.Disaster</td>
+                                            <td>@e.Shelter</td>
+                                            <td>
+                                                <span class="status-chip @StatusClass(e.Status)">@e.Status</span>
+                                            </td>
+                                            <td style="color: var(--text-muted); font-size: 0.85rem;">
+                                                @e.RegisteredAt.ToString("MMM dd, HH:mm")
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                                else
                                 {
                                     <tr>
-                                        <td>
-                                            <div style="font-weight:600;">@e.Name</div>
-                                        </td>
-                                        <td>@e.Disaster</td>
-                                        <td>@e.Shelter</td>
-                                        <td>
-                                            <span class="status-chip @StatusClass(e.Status)">@e.Status</span>
-                                        </td>
-                                        <td style="color: var(--text-muted); font-size: 0.85rem;">
-                                            @e.Registered.ToString("MMM dd, HH:mm")
+                                        <td colspan="5" class="empty-state">
+                                            <i class="bi bi-inbox" style="font-size: 1.5rem; margin-bottom: 8px; display:block;"></i>
+                                            No recent evacuees found.
                                         </td>
                                     </tr>
                                 }
-                            }
-                            else
-                            {
-                                <tr>
-                                    <td colspan="5" class="empty-state">
-                                        <i class="bi bi-inbox" style="font-size: 1.5rem; margin-bottom: 8px; display:block;"></i>
-                                        No recent evacuees found.
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-                <div class="card-footer">
-                    <i class="bi bi-info-circle"></i> Showing most recent registrations
-                </div>
-            </div>
-
-            <!-- Active Disasters Table -->
-            <div class="modern-card">
-                <div class="card-header">
-                    <div class="card-title-group">
-                        <h3 class="card-title">Active Disasters</h3>
-                        <span class="card-badge">@ActiveDisasters.Count() active</span>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="card-footer">
+                        <i class="bi bi-info-circle"></i> Showing most recent registrations
                     </div>
                 </div>
-                <div class="table-responsive">
-                    <table class="clean-table">
-                        <thead>
-                            <tr>
-                                <th>Title</th>
-                                <th>Type</th>
-                                <th>Severity</th>
-                                <th>Started</th>
-                                <th>Location</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @if (ActiveDisasters.Any())
-                            {
-                                foreach (var d in ActiveDisasters)
+
+                <!-- Active Disasters Table -->
+                <div class="modern-card">
+                    <div class="card-header">
+                        <div class="card-title-group">
+                            <h3 class="card-title">Active Disasters</h3>
+                            <span class="card-badge">@ActiveDisasters.Count() active</span>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="clean-table">
+                            <thead>
+                                <tr>
+                                    <th>Title</th>
+                                    <th>Type</th>
+                                    <th>Severity</th>
+                                    <th>Started</th>
+                                    <th>Location</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (ActiveDisasters.Any())
+                                {
+                                    foreach (var d in ActiveDisasters)
+                                    {
+                                        <tr>
+                                            <td style="font-weight: 700;">@d.Title</td>
+                                            <td>@d.DisasterType</td>
+                                            <td>
+                                                <span class="sev-chip sev-@d.Severity.ToLower()">@d.Severity</span>
+                                            </td>
+                                            <td style="color: var(--text-muted);">@d.StartDate.ToString("MMM dd, yyyy")</td>
+                                            <td>@d.Location</td>
+                                        </tr>
+                                    }
+                                }
+                                else
                                 {
                                     <tr>
-                                        <td style="font-weight: 700;">@d.Title</td>
-                                        <td>@d.DisasterType</td>
-                                        <td>
-                                            <span class="sev-chip sev-@d.Severity.ToLower()">@d.Severity</span>
+                                        <td colspan="5" class="empty-state">
+                                            <i class="bi bi-check-circle-fill" style="font-size: 1.5rem; color: #10b981; margin-bottom: 8px; display:block;"></i>
+                                            No active disasters reported.
                                         </td>
-                                        <td style="color: var(--text-muted);">@d.StartDate.ToString("MMM dd, yyyy")</td>
-                                        <td>@d.Location</td>
                                     </tr>
                                 }
-                            }
-                            else
-                            {
-                                <tr>
-                                    <td colspan="5" class="empty-state">
-                                        <i class="bi bi-check-circle-fill" style="font-size: 1.5rem; color: #10b981; margin-bottom: 8px; display:block;"></i>
-                                        No active disasters reported.
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-                <div class="card-footer">
-                    <i class="bi bi-info-circle"></i> Only showing active and open status disasters
-                </div>
-            </div>
-        </div>
-
-        <!-- Side Content: Right Column -->
-        <div class="col-right">
-            <!-- Low Stock Inventory List -->
-            <div class="modern-card" style="height: 100%;">
-                <div class="card-header alert-header">
-                    <div class="card-title-group">
-                        <h3 class="card-title" style="color: #9a3412;">
-                            <i class="bi bi-exclamation-circle-fill" style="margin-right: 8px;"></i>
-                            Low Stock Alert
-                        </h3>
-                        <span class="card-badge alert-badge">@LowStockItems.Count items</span>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="card-footer">
+                        <i class="bi bi-info-circle"></i> Only showing active and open status disasters
                     </div>
                 </div>
-                
-                <div class="inventory-list">
-                    @if (LowStockItems.Any())
-                    {
-                        foreach (var item in LowStockItems.Take(8))
+            </div>
+        }
+
+        <!-- Side Content: Right Column - Conditional content -->
+        @if (AuthState.IsInventoryManager())
+        {
+            <!-- Low Stock Inventory List - Inventory Manager Only -->
+            <div class="col-right col-full-width">
+                <div class="modern-card" style="height: 100%;">
+                    <div class="card-header alert-header">
+                        <div class="card-title-group">
+                            <h3 class="card-title" style="color: #9a3412;">
+                                <i class="bi bi-exclamation-circle-fill" style="margin-right: 8px;"></i>
+                                Low Stock Alert
+                            </h3>
+                            <span class="card-badge alert-badge">@LowStockItems.Count items</span>
+                        </div>
+                    </div>
+
+                    <div class="inventory-list">
+                        @if (LowStockItems.Any())
                         {
-                            <div class="inv-item">
-                                <div class="inv-info">
-                                    <div class="inv-name">@item.Name</div>
-                                    <div class="inv-meta">Unit: @item.Unit</div>
-                                </div>
-                                <div class="inv-stat">
-                                    <div class="inv-qty" style="color: #ef4444;">@item.Quantity</div>
-                                    <div class="inv-bar-mini">
-                                        <div class="inv-fill" style="width:@StockPercent(item.Quantity)%; background: @GetStockColor(item.Quantity)"></div>
+                            @foreach (var item in LowStockItems)
+                            {
+                                <div class="inv-item">
+                                    <div class="inv-info">
+                                        <div class="inv-name">@item.Name</div>
+                                        <div class="inv-meta">Unit: @item.Unit</div>
+                                    </div>
+                                    <div class="inv-stat">
+                                        <div class="inv-qty" style="color: #ef4444;">@item.Quantity</div>
+                                        <div class="inv-bar-mini">
+                                            <div class="inv-fill" style="width:@StockPercent(item.Quantity)%; background: @GetStockColor(item.Quantity)"></div>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
+                            }
                         }
-                        
-                        @if (LowStockItems.Count > 8)
+                        else
                         {
-                            <div class="inv-footer">
-                                <i class="bi bi-three-dots"></i> +@(LowStockItems.Count - 8) more items need attention
+                            <div class="empty-state" style="padding: 40px 20px;">
+                                <i class="bi bi-check-circle-fill" style="font-size: 2.5rem; color: #10b981; margin-bottom: 10px; display:block;"></i>
+                                <strong>All Clear!</strong>
+                                <p style="margin-top: 8px; color: #64748b;">Inventory levels are healthy.</p>
                             </div>
                         }
-                    }
-                    else
-                    {
-                        <div class="empty-state" style="padding: 40px 20px;">
-                            <i class="bi bi-check-circle-fill" style="font-size: 2.5rem; color: #10b981; margin-bottom: 10px; display:block;"></i>
-                            <strong>All Clear!</strong>
-                            <p style="margin-top: 8px; color: #64748b;">Inventory levels are healthy.</p>
-                        </div>
-                    }
-                </div>
-                <div class="card-footer">
-                    <i class="bi bi-info-circle"></i> Threshold: ≤ @LowStockThreshold items
+                    </div>
+                    <div class="card-footer">
+                        <i class="bi bi-info-circle"></i> Threshold: ≤ @LowStockThreshold items
+                    </div>
                 </div>
             </div>
-        </div>
+        }
+        else if (AuthState.IsFinanceManager())
+        {
+            <!-- Finance Manager - No side content displayed -->
+        }
+        else if (!AuthState.IsOperationOfficer())
+        {
+            <!-- Low Stock Inventory List - Other roles (excluding Operation Officer) -->
+            <div class="col-right">
+                <div class="modern-card" style="height: 100%;">
+                    <div class="card-header alert-header">
+                        <div class="card-title-group">
+                            <h3 class="card-title" style="color: #9a3412;">
+                                <i class="bi bi-exclamation-circle-fill" style="margin-right: 8px;"></i>
+                                Low Stock Alert
+                            </h3>
+                            <span class="card-badge alert-badge">@LowStockItems.Count items</span>
+                        </div>
+                    </div>
+
+                    <div class="inventory-list">
+                        @if (LowStockItems.Any())
+                        {
+                            @foreach (var item in LowStockItems.Take(8))
+                            {
+                                <div class="inv-item">
+                                    <div class="inv-info">
+                                        <div class="inv-name">@item.Name</div>
+                                        <div class="inv-meta">Unit: @item.Unit</div>
+                                    </div>
+                                    <div class="inv-stat">
+                                        <div class="inv-qty" style="color: #ef4444;">@item.Quantity</div>
+                                        <div class="inv-bar-mini">
+                                            <div class="inv-fill" style="width:@StockPercent(item.Quantity)%; background: @GetStockColor(item.Quantity)"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+
+                            @if (LowStockItems.Count > 8)
+                            {
+                                <div class="inv-footer">
+                                    <i class="bi bi-three-dots"></i> +@(LowStockItems.Count - 8) more items need attention
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="empty-state" style="padding: 40px 20px;">
+                                <i class="bi bi-check-circle-fill" style="font-size: 2.5rem; color: #10b981; margin-bottom: 10px; display:block;"></i>
+                                <strong>All Clear!</strong>
+                                <p style="margin-top: 8px; color: #64748b;">Inventory levels are healthy.</p>
+                            </div>
+                        }
+                    </div>
+                    <div class="card-footer">
+                        <i class="bi bi-info-circle"></i> Threshold: ≤ @LowStockThreshold items
+                    </div>
+                </div>
+            </div>
+        }
     </div>
 </div>
 
+<style>
+    .chart-interpretation {
+        padding: 12px 16px;
+        background: #f0f9ff;
+        border-top: 1px solid #e0f2fe;
+        border-radius: 0 0 8px 8px;
+        font-size: 0.85rem;
+        color: #0c4a6e;
+        line-height: 1.5;
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+        .chart-interpretation i {
+            color: #0284c7;
+            font-size: 1rem;
+            margin-top: 2px;
+            flex-shrink: 0;
+        }
+
+        .chart-interpretation span {
+            flex: 1;
+        }
+
+    /* Full width column for Inventory Manager and Finance Manager */
+    .col-full-width {
+        grid-column: 1 / -1;
+        max-width: 100%;
+    }
+
+    /* Budget Utilization Styling */
+.budget-percent-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    min-width: 50px;
+    text-align: center;
+}
+
+.budget-percent-badge.budget-low {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.budget-percent-badge.budget-medium {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.budget-percent-badge.budget-high {
+    background: #ffedd5;
+    color: #9a3412;
+}
+
+.budget-percent-badge.budget-critical {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.budget-bar-mini {
+    height: 6px;
+    width: 80px;
+    background: #e5e7eb;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.budget-fill {
+    height: 100%;
+    transition: width 0.3s ease;
+    border-radius: 3px;
+}
+
+.budget-fill.budget-low {
+    background: linear-gradient(90deg, #10b981, #059669);
+}
+
+.budget-fill.budget-medium {
+    background: linear-gradient(90deg, #f59e0b, #d97706);
+}
+
+.budget-fill.budget-high {
+    background: linear-gradient(90deg, #f97316, #ea580c);
+}
+
+.budget-fill.budget-critical {
+    background: linear-gradient(90deg, #ef4444, #dc2626);
+}
+
+/* Procurement Table Enhancements */
+    .table-responsive {
+        width: 100%;
+        overflow-x: auto;
+    }
+
+    .clean-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+    }
+
+    .clean-table thead {
+        background: #f8fafc;
+        border-bottom: 2px solid #e2e8f0;
+    }
+
+    .clean-table th {
+        padding: 12px 16px;
+        text-align: left;
+        font-weight: 600;
+        color: #475569;
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .clean-table tbody tr {
+        border-bottom: 1px solid #e2e8f0;
+        transition: background-color 0.2s ease;
+    }
+
+    .clean-table tbody tr:hover {
+        background-color: #f8fafc;
+    }
+
+    .clean-table td {
+        padding: 14px 16px;
+        color: #334155;
+        vertical-align: middle;
+    }
+
+    .status-chip.st-med {
+        background: #fef3c7;
+        color: #92400e;
+    }
+
+    .status-chip.st-stable {
+        background: #dcfce7;
+        color: #166534;
+    }
+
+    .status-chip.st-critical {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+
+    .status-chip.st-contained {
+        background: #dbeafe;
+        color: #1e3a8a;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px !important;
+        color: #94a3b8;
+        font-size: 0.95rem;
+    }
+
+    /* Scrollbar styling for table */
+    .table-responsive::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+
+    .table-responsive::-webkit-scrollbar-track {
+        background: #f1f5f9;
+        border-radius: 4px;
+    }
+
+    .table-responsive::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 4px;
+    }
+
+    .table-responsive::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+    }
+</style>
+
 @code {
     // View models
-    private record EvacueeRow(string Name, string Disaster, string Shelter, string Status, DateTime Registered);
+    private record EvacueeRow(string Name, string Disaster, string Shelter, string Status, DateTime RegisteredAt);
     private record StockRow(string Name, int Quantity, string Unit);
+    private record BudgetSummaryRow(string BarangayName, decimal TotalAmount, decimal AllocatedAmount, decimal RemainingAmount);
 
     // Data collections
     private List<EvacueeRow> AllEvacuees = new();
     private List<Disaster> AllDisasters = new();
     private List<StockRow> LowStockItems = new();
+    private List<BudgetSummaryRow> _budgetSummaries = new();
+
+    // Active disasters property
+    private IEnumerable<Disaster> ActiveDisasters { get; set; } = Enumerable.Empty<Disaster>();
 
     // Filters / state
     private string evacueeFilter = string.Empty;
@@ -431,7 +991,7 @@
     private int LowStockCount => LowStockItems.Count;
     private int _totalCapacity;
     private int _totalOccupancy;
-    
+
     private int ShelterCapacityUsed
     {
         get
@@ -458,6 +1018,35 @@
     private int _lowStockYesterday;
     private List<Shelter> _shelterSnapshot = new();
 
+    // Chart data for interpretations
+    private int _evacueeGrowthRate;
+    private List<string> _criticalSeverities = new();
+    private double _averageOccupancyRate;
+    private int _lowStockPercentage;
+    private decimal _totalBudgetAllocation;
+    private decimal _totalAllocated;
+    private decimal _totalRemaining;
+    private int _barangayCount;
+    private decimal _averageBudgetPerBarangay;
+
+    // Finance Manager specific metrics
+    private int _procurementRequestCount;
+    private int _approvedRequestCount;
+    private int _pendingRequestCount;
+    private decimal _totalProcurementAmount;
+    private decimal _approvedAmount;
+    private decimal _pendingAmount;
+
+    // Filtered evacuees property
+    private IEnumerable<EvacueeRow> FilteredEvacuees => AllEvacuees
+        .Where(e => string.IsNullOrWhiteSpace(evacueeFilter) ||
+                    e.Name.Contains(evacueeFilter, StringComparison.OrdinalIgnoreCase) ||
+                    e.Disaster.Contains(evacueeFilter, StringComparison.OrdinalIgnoreCase) ||
+                    e.Shelter.Contains(evacueeFilter, StringComparison.OrdinalIgnoreCase) ||
+                    e.Status.Contains(evacueeFilter, StringComparison.OrdinalIgnoreCase))
+        .OrderByDescending(e => e.RegisteredAt)
+        .Take(12);
+
     protected override async Task OnInitializedAsync()
     {
         await LoadAsync();
@@ -475,83 +1064,204 @@
 
     private async Task LoadAsync()
     {
+        if (_loading) return;
+
         _loading = true;
 
-        var today = DateTime.UtcNow.Date;
-        var yesterday = today.AddDays(-1);
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
 
-        // Evacuees
-        var evacueesQuery = Db.Evacuees
-            .Include(e => e.Disaster)
-            .Include(e => e.Shelter)
-            .AsNoTracking();
+            var today = DateTime.UtcNow.Date;
+            var yesterday = today.AddDays(-1);
 
-        var evacuees = await evacueesQuery
-            .OrderByDescending(e => e.RegisteredAt)
-            .Take(200)
-            .ToListAsync();
+            // Load budget data for Finance Manager or other roles
+            var budgets = await db.BarangayBudgets.AsNoTracking().ToListAsync();
+            _totalBudgetAllocation = budgets.Sum(b => b.TotalAmount);
+            _barangayCount = budgets.Count;
+            _averageBudgetPerBarangay = _barangayCount > 0 ? _totalBudgetAllocation / _barangayCount : 0;
 
-        AllEvacuees = evacuees.Select(e => new EvacueeRow(
-            e.FirstName + " " + e.LastName,
-            e.Disaster.Title,
-            e.Shelter?.Name ?? "—",
-            e.Status,
-            e.RegisteredAt
-        )).ToList();
+            // Initialize allocated/remaining to defaults
+            _totalAllocated = 0;
+            _totalRemaining = _totalBudgetAllocation;
 
-        _evacueesToday = evacuees.Count(e => e.RegisteredAt.Date == today);
-        _evacueesYesterday = evacuees.Count(e => e.RegisteredAt.Date == yesterday);
+            // Load evacuee data only if not Inventory Manager or Finance Manager
+            if (!AuthState.IsInventoryManager() && !AuthState.IsFinanceManager())
+            {
+                var evacuees = await db.Evacuees
+                    .Include(e => e.Disaster)
+                    .Include(e => e.Shelter)
+                    .AsNoTracking()
+                    .OrderByDescending(e => e.RegisteredAt)
+                    .Take(200)
+                    .ToListAsync();
 
-        // Disasters
-        AllDisasters = await Db.Disasters.AsNoTracking()
-            .OrderByDescending(d => d.StartDate)
-            .Take(100)
-            .ToListAsync();
+                AllEvacuees = evacuees.Select(e => new EvacueeRow(
+                    e.FirstName + " " + e.LastName, 
+                    e.Disaster.Title,
+                    e.Shelter?.Name ?? "—",
+                    e.Status,
+                    e.RegisteredAt
+                )).ToList();
 
-        _activeToday = AllDisasters.Count(d => IsActiveStatus(d.Status) && d.StartDate.Date <= today);
-        _activeYesterday = AllDisasters.Count(d => IsActiveStatus(d.Status) && d.StartDate.Date <= yesterday);
+                _evacueesToday = evacuees.Count(e => e.RegisteredAt.Date == today);
+                _evacueesYesterday = evacuees.Count(e => e.RegisteredAt.Date == yesterday);
+                _evacueeGrowthRate = _evacueesYesterday > 0 ? (int)Math.Round((_evacueesToday - _evacueesYesterday) / (double)_evacueesYesterday * 100) : 0;
 
-        // Shelters
-        _shelterSnapshot = await Db.Shelters.AsNoTracking().ToListAsync();
+                // Disasters
+                AllDisasters = await db.Disasters.AsNoTracking()
+                    .OrderByDescending(d => d.StartDate)
+                    .Take(100)
+                    .ToListAsync();
 
-        // Stocks (low)
-        var lowStocks = await Db.Stocks
-            .Include(s => s.ReliefGood)
-            .AsNoTracking()
-            .Where(s => s.Quantity <= LowStockThreshold)
-            .OrderBy(s => s.Quantity)
-            .Take(50)
-            .ToListAsync();
+                _activeToday = AllDisasters.Count(d => IsActiveStatus(d.Status) && d.StartDate.Date <= today);
+                _activeYesterday = AllDisasters.Count(d => IsActiveStatus(d.Status) && d.StartDate.Date <= yesterday);
 
-        LowStockItems = lowStocks.Select(s => new StockRow(
-            s.ReliefGood.Name,
-            s.Quantity,
-            s.ReliefGood.Unit
-        )).ToList();
+                // Set the ActiveDisasters property
+                ActiveDisasters = AllDisasters.Where(d => IsActiveStatus(d.Status)).ToList();
 
-        _lowStockToday = lowStocks.Count(s => s.LastUpdated.Date == today);
-        _lowStockYesterday = lowStocks.Count(s => s.LastUpdated.Date == yesterday);
+                _criticalSeverities = ActiveDisasters.Where(d => d.Severity == "Critical" || d.Severity == "High").Select(d => d.Severity).ToList();
 
-        _loading = false;
-        StateHasChanged();
+                // Shelters
+                _shelterSnapshot = await db.Shelters.AsNoTracking().ToListAsync();
+                if (_shelterSnapshot.Count > 0)
+                {
+                    _averageOccupancyRate = _shelterSnapshot.Average(s => s.Capacity > 0 ? (s.CurrentOccupancy / (double)s.Capacity * 100) : 0);
+                }
+            }
+
+            // Stocks (low) - Load for Inventory Manager and other roles (not Finance Manager)
+            if (!AuthState.IsFinanceManager())
+            {
+                var allStocks = await db.Stocks.AsNoTracking().ToListAsync();
+                var lowStocks = await db.Stocks
+                    .Include(s => s.ReliefGood)
+                    .AsNoTracking()
+                    .Where(s => s.Quantity <= LowStockThreshold)
+                    .OrderBy(s => s.Quantity)
+                    .ToListAsync();
+
+                LowStockItems = lowStocks.Select(s => new StockRow(
+                    s.ReliefGood.Name,
+                    s.Quantity,
+                    s.ReliefGood.Unit
+                )).ToList();
+
+                _lowStockToday = lowStocks.Count(s => s.LastUpdated.Date == today);
+                _lowStockYesterday = lowStocks.Count(s => s.LastUpdated.Date == yesterday);
+                _lowStockPercentage = allStocks.Count > 0 ? (int)Math.Round(lowStocks.Count / (double)allStocks.Count * 100) : 0;
+            }
+
+            // Procurement requests data for Finance Manager
+            if (AuthState.IsFinanceManager())
+            {
+                var requests = await db.ProcurementRequests
+                    .Include(r => r.Items)
+                    .AsNoTracking()
+                    .OrderByDescending(r => r.RequestDate)
+                    .ToListAsync();
+
+                _procurementRequestCount = requests.Count;
+                _approvedRequestCount = requests.Count(r => r.Status == "Approved");
+                _pendingRequestCount = requests.Count(r => r.Status == "Pending");
+                _totalProcurementAmount = requests.Sum(r => r.TotalAmount);
+                _approvedAmount = requests.Where(r => r.Status == "Approved").Sum(r => r.TotalAmount);
+                _pendingAmount = requests.Where(r => r.Status == "Pending").Sum(r => r.TotalAmount);
+
+                // Calculate allocated based on approved procurement requests
+                _totalAllocated = _approvedAmount;
+                _totalRemaining = _totalBudgetAllocation - _totalAllocated;
+            }
+        }
+        finally
+        {
+            _loading = false;
+            StateHasChanged();
+        }
+    }
+
+    // Interpretation methods
+    private string GetEvacueeTrendInterpretation()
+    {
+        if (TotalEvacuees == 0)
+            return "No evacuees registered in the selected period. System is ready for emergency response.";
+
+        if (_evacueesToday > _evacueesYesterday)
+            return $"Evacuee registrations are increasing. {_evacueesToday} new registrations today compared to {_evacueesYesterday} yesterday.";
+
+        if (_evacueesToday < _evacueesYesterday)
+            return $"Evacuee registrations have decreased. {_evacueesToday} registrations today, down from {_evacueesYesterday} yesterday.";
+
+        return "Evacuee registrations are stable at the moment.";
+    }
+
+    private string GetDisasterSeverityInterpretation()
+    {
+        if (_criticalSeverities.Count == 0)
+            return "No active disasters with critical or high severity.";
+
+        var criticalCount = _criticalSeverities.Count(s => s == "Critical");
+        var highCount = _criticalSeverities.Count(s => s == "High");
+
+        return $"{criticalCount} critical and {highCount} high severity disasters are currently active.";
+    }
+
+    private string GetShelterOccupancyInterpretation()
+    {
+        if (_averageOccupancyRate > 80)
+            return "Shelters are nearing full capacity. Please prepare for additional evacuees.";
+
+        if (_averageOccupancyRate > 50)
+            return "Shelters are over 50% occupied. Monitor for additional evacuees.";
+
+        return "Shelter occupancy is within safe limits.";
+    }
+
+    private string GetStockDistributionInterpretation()
+    {
+        if (_lowStockPercentage > 20)
+            return "Warning: Over 20% of inventory items are at low stock levels!";
+
+        if (_lowStockPercentage > 10)
+            return "Caution: More than 10% of items are low on stock.";
+
+        return "Stock levels are healthy.";
+    }
+
+    private string GetBudgetTrendInterpretation()
+    {
+        if (_totalBudgetAllocation <= 0)
+            return "No budget allocations recorded. Set up barangay budgets to track financial resources for disaster response.";
+
+        if (_totalAllocated <= 0)
+            return $"Total budget allocated: ₱{_totalBudgetAllocation:N2}. No expenditures recorded yet.";
+
+        var utilizationRate = _totalBudgetAllocation > 0 ? (_totalAllocated / _totalBudgetAllocation) * 100 : 0;
+
+        if (utilizationRate > 90)
+            return $"⚠ High budget utilization at {utilizationRate:F1}%. Total allocated: ₱{_totalAllocated:N2} of ₱{_totalBudgetAllocation:N2}. Monitor expenditures closely and prepare for additional funding if needed.";
+        else if (utilizationRate > 75)
+            return $"Moderate budget utilization at {utilizationRate:F1}%. ₱{_totalRemaining:N2} remaining across all barangays. Continue monitoring spending patterns.";
+        else
+            return $"Budget utilization at {utilizationRate:F1}%. ₱{_totalRemaining:N2} available for future allocations. Financial resources are healthy across {_barangayCount} barangays.";
     }
 
     private async Task LoadChartsAsync()
     {
         if (_loading) return;
-        
+
         _loading = true;
         StateHasChanged();
 
         try
         {
-            // Small delay to ensure canvas elements are rendered
+            await using var db = await DbFactory.CreateDbContextAsync();
+
             await Task.Delay(100);
 
             var endDate = DateTime.UtcNow.Date;
             var startDate = endDate.AddDays(-selectedPeriod);
 
-            // Check if charts.js is loaded
             var isLoaded = await JS.InvokeAsync<bool>("eval", "typeof window.resqCharts !== 'undefined'");
             if (!isLoaded)
             {
@@ -559,20 +1269,28 @@
                 await Task.Delay(500);
             }
 
-            // 1. Evacuees Trend
-            await LoadEvacueesTrendChartAsync(startDate, endDate);
-
-            // 2. Disasters by Severity
-            await LoadDisastersSeverityChartAsync();
-
-            // 3. Shelter Occupancy
-            await LoadShelterOccupancyChartAsync();
-
-            // 4. Stock Distribution
-            await LoadStockDistributionChartAsync();
-
-            // 5. Budget Trend
-            await LoadBudgetTrendChartAsync();
+            if (AuthState.IsInventoryManager())
+            {
+                await LoadStockDistributionChartAsync(db);
+            }
+            else if (AuthState.IsFinanceManager())
+            {
+                await LoadBudgetTrendChartAsync(db);
+            }
+            else if (AuthState.IsOperationOfficer())
+            {
+                await LoadEvacueesTrendChartAsync(db, startDate, endDate);
+                await LoadDisastersSeverityChartAsync(db);
+                await LoadShelterOccupancyChartAsync(db);
+            }
+            else
+            {
+                await LoadEvacueesTrendChartAsync(db, startDate, endDate);
+                await LoadDisastersSeverityChartAsync(db);
+                await LoadShelterOccupancyChartAsync(db);
+                await LoadStockDistributionChartAsync(db);
+                await LoadBudgetTrendChartAsync(db);
+            }
         }
         catch (Exception ex)
         {
@@ -585,11 +1303,11 @@
         }
     }
 
-    private async Task LoadEvacueesTrendChartAsync(DateTime startDate, DateTime endDate)
+    private async Task LoadEvacueesTrendChartAsync(ResQLink.Data.AppDbContext db, DateTime startDate, DateTime endDate)
     {
         try
         {
-            var evacuees = await Db.Evacuees
+            var evacuees = await db.Evacuees
                 .Where(e => e.RegisteredAt >= startDate && e.RegisteredAt <= endDate)
                 .AsNoTracking()
                 .ToListAsync();
@@ -599,15 +1317,13 @@
                 .OrderBy(g => g.Key)
                 .ToList();
 
-            // Generate all dates in the range
             var allDates = Enumerable.Range(0, (endDate - startDate).Days + 1)
                 .Select(offset => startDate.AddDays(offset))
                 .ToList();
 
-            // Create cumulative count starting from 1
             var labels = new List<string>();
             var cumulativeCounts = new List<int>();
-            int runningTotal = 1; // Start from 1
+            int runningTotal = 0;
 
             foreach (var date in allDates)
             {
@@ -638,11 +1354,11 @@
         }
     }
 
-    private async Task LoadDisastersSeverityChartAsync()
+    private async Task LoadDisastersSeverityChartAsync(ResQLink.Data.AppDbContext db)
     {
         try
         {
-            var activeDisasters = await Db.Disasters
+            var activeDisasters = await db.Disasters
                 .Where(d => d.Status == "Active" || d.Status == "Open")
                 .AsNoTracking()
                 .ToListAsync();
@@ -652,10 +1368,8 @@
                 .Select(g => new { Severity = g.Key, Count = g.Count() })
                 .ToList();
 
-            // Fix: Handle empty data without type mismatch
             if (!severityGroups.Any())
             {
-                // Use the same anonymous type structure
                 var labels = new[] { "No Data" };
                 var data = new[] { 1 };
                 var colors = new[] { "#6b7280" };
@@ -666,7 +1380,7 @@
 
             var chartLabels = severityGroups.Select(g => g.Severity).ToArray();
             var chartData = severityGroups.Select(g => g.Count).ToArray();
-            var chartColors = chartLabels.Select(s => s.ToLower() switch
+            var chartColors = chartLabels.Select(s => s.ToLower() as string ?? "").Select(s => s switch
             {
                 "critical" => "#dc2626",
                 "high" => "#f97316",
@@ -683,11 +1397,11 @@
         }
     }
 
-    private async Task LoadShelterOccupancyChartAsync()
+    private async Task LoadShelterOccupancyChartAsync(ResQLink.Data.AppDbContext db)
     {
         try
         {
-            var shelters = await Db.Shelters
+            var shelters = await db.Shelters
                 .Where(s => s.IsActive)
                 .OrderBy(s => s.Name)
                 .Take(10)
@@ -727,11 +1441,11 @@
         }
     }
 
-    private async Task LoadStockDistributionChartAsync()
+    private async Task LoadStockDistributionChartAsync(ResQLink.Data.AppDbContext db)
     {
         try
         {
-            var stocks = await Db.Stocks.AsNoTracking().ToListAsync();
+            var stocks = await db.Stocks.AsNoTracking().ToListAsync();
 
             var lowStock = stocks.Count(s => s.Quantity <= 10);
             var mediumStock = stocks.Count(s => s.Quantity > 10 && s.Quantity <= 50);
@@ -749,24 +1463,27 @@
         }
     }
 
-    private async Task LoadBudgetTrendChartAsync()
+    private async Task LoadBudgetTrendChartAsync(ResQLink.Data.AppDbContext db)
     {
         try
         {
-            var budgets = await Db.BarangayBudgets
-                .Where(b => b.Year >= DateTime.Now.Year - 1)
-                .OrderBy(b => b.Year)
+            var currentYear = DateTime.Now.Year;
+
+            var budgets = await db.BarangayBudgets
+                .Where(b => b.Year >= currentYear - 2 && b.Year <= currentYear)
                 .AsNoTracking()
                 .ToListAsync();
 
             if (!budgets.Any())
             {
+                Console.WriteLine("No budget data available for chart");
                 return;
             }
 
             var groupedByYear = budgets
                 .GroupBy(b => b.Year)
                 .Select(g => new { Year = g.Key, Total = g.Sum(b => b.TotalAmount) })
+                .OrderBy(g => g.Year)
                 .ToList();
 
             var labels = groupedByYear.Select(g => g.Year.ToString()).ToArray();
@@ -776,9 +1493,11 @@
             {
                 new
                 {
-                    label = "Budget Allocation",
+                    label = "Total Budget Allocation",
                     data = amounts,
                     backgroundColor = "#38bd60",
+                    borderColor = "#22c55e",
+                    borderWidth = 2,
                     borderRadius = 8
                 }
             };
@@ -791,73 +1510,68 @@
         }
     }
 
-    private IEnumerable<EvacueeRow> FilteredEvacuees =>
-        AllEvacuees
-            .Where(e =>
-                string.IsNullOrWhiteSpace(evacueeFilter) ||
-                e.Name.Contains(evacueeFilter, StringComparison.OrdinalIgnoreCase) ||
-                e.Shelter.Contains(evacueeFilter, StringComparison.OrdinalIgnoreCase) ||
-                e.Status.Contains(evacueeFilter, StringComparison.OrdinalIgnoreCase) ||
-                e.Disaster.Contains(evacueeFilter, StringComparison.OrdinalIgnoreCase))
-            .OrderByDescending(e => e.Registered)
-            .Take(12);
-
-    private IEnumerable<Disaster> ActiveDisasters =>
-        AllDisasters.Where(d => IsActiveStatus(d.Status))
-                    .OrderByDescending(d => d.StartDate)
-                    .Take(15);
-
-    private static bool IsActiveStatus(string status) =>
-        status.Equals("Active", StringComparison.OrdinalIgnoreCase) ||
-        status.Equals("Open", StringComparison.OrdinalIgnoreCase);
-
-    private static int StockPercent(int qty)
+    private string GetTrendClass(int today, int yesterday)
     {
-        var cap = Math.Max(LowStockThreshold * 2, 1);
-        return Math.Clamp((int)Math.Round(qty / (double)cap * 100), 0, 100);
+        if (today > yesterday)
+            return "trend-up";
+        else if (today < yesterday)
+            return "trend-down";
+        else
+            return "trend-same";
     }
 
-    private static string GetStockColor(int qty)
+    private string StatusClass(string status)
     {
-        if (qty == 0) return "#ef4444";
-        if (qty <= 5) return "#f97316";
+        return status switch
+        {
+            "Active" => "status-chip st-stable",
+            "Evacuated" => "status-chip st-med",
+            "Sheltered" => "status-chip st-contained",
+            "Critical" => "status-chip st-critical",
+            _ => "status-chip",
+        };
+    }
+
+    private bool IsActiveStatus(string status)
+    {
+        return status != null && status.Equals("Active", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string GetCapacityClass(int capacityUsed)
+    {
+        if (capacityUsed < 50)
+            return "low";
+        else if (capacityUsed < 80)
+            return "medium";
+        else
+            return "high";
+    }
+
+    private string GetStockColor(int quantity)
+    {
+        if (quantity == 0) return "#ef4444";
+        if (quantity <= 5) return "#f97316";
         return "#fb923c";
     }
 
-    private static string GetCapacityClass(int percent)
+    private double StockPercent(int quantity)
     {
-        if (percent >= 90) return "critical";
-        if (percent >= 75) return "warning";
-        return "normal";
+        const int maxQuantity = 100;
+        return Math.Clamp((double)quantity / maxQuantity * 100, 0, 100);
     }
 
-    private static string GetTrendClass(int today, int yesterday)
+    private string DeltaLabel(int today, int yesterday, string periodLabel)
     {
-        var diff = today - yesterday;
-        if (diff > 0) return "trend-up";
-        if (diff < 0) return "trend-down";
-        return "trend-neutral";
+        var delta = today - yesterday;
+        if (delta > 0)
+            return $"+{delta} {periodLabel}";
+        else if (delta < 0)
+            return $"{delta} {periodLabel}";
+        else
+            return $"No change {periodLabel}";
     }
 
-    private static string DeltaLabel(int today, int yesterday, string suffix)
-    {
-        var diff = today - yesterday;
-        if (diff == 0) return "No change";
-        var sign = diff > 0 ? "+" : "";
-        return $"{sign}{diff} {suffix}";
-    }
-
-    private string StatusClass(string status) => status.ToLowerInvariant() switch
-    {
-        "critical" => "st-critical",
-        "needs med" => "st-med",
-        "admitted" => "st-stable",
-        "stable" => "st-stable",
-        "released" => "st-contained",
-        _ => "st-stable"
-    };
-
-    private async void Refresh()
+    private async Task Refresh()
     {
         if (_loading) return;
         await LoadAsync();
@@ -868,8 +1582,14 @@
     {
         try
         {
-            await JS.InvokeVoidAsync("resqCharts.destroyAllCharts");
+            if (JS != null)
+            {
+                await JS.InvokeVoidAsync("resqCharts.destroyAllCharts");
+            }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error disposing charts: {ex.Message}");
+        }
     }
 }

@@ -29,6 +29,7 @@ public partial class AppDbContext : DbContext
     public DbSet<Volunteer> Volunteers => Set<Volunteer>();
     public DbSet<ProcurementRequest> ProcurementRequests => Set<ProcurementRequest>();
     public DbSet<ProcurementRequestItem> ProcurementRequestItems => Set<ProcurementRequestItem>();
+    public DbSet<BarangayBudget> BudgetAllocations { get; set; } // Add this property to fix CS1061
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 

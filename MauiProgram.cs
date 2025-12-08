@@ -78,6 +78,7 @@ namespace ResQLink
             builder.Services.AddScoped<ProcurementService>();
             // Add these service registrations in your existing Program.cs
             builder.Services.AddScoped<AuditService>();
+            builder.Services.AddScoped<IOperationsReportService, OperationsReportService>();
 
             // Register Global Validation & Error Handling Services
             builder.Services.AddScoped<IValidationService, ValidationService>();
