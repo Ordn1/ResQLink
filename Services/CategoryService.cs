@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using ResQLink.Data;
 using ResQLink.Data.Entities;
 
@@ -27,6 +27,7 @@ public class CategoryService
     public async Task<Category?> GetByIdAsync(int id)
     {
         return await _db.Categories
+            .Include(c => c.CategoryType)
             .Include(c => c.ReliefGoods)
             .AsNoTracking()
             .FirstOrDefaultAsync(c => c.CategoryId == id);
@@ -40,6 +41,7 @@ public class CategoryService
         return category;
     }
 
+    // ✅ FIX: Add CategoryTypeId update support
     public async Task<Category?> UpdateAsync(int id, Category category)
     {
         var existing = await _db.Categories.FindAsync(id);
@@ -48,29 +50,43 @@ public class CategoryService
         existing.CategoryName = category.CategoryName;
         existing.Description = category.Description;
         existing.IsActive = category.IsActive;
+        
+        // ✅ NEW: Allow updating category type
+        existing.CategoryTypeId = category.CategoryTypeId;
 
         await _db.SaveChangesAsync();
         return existing;
     }
 
-    public async Task<bool> DeleteAsync(int id)
+    // ✅ FIX: Improved delete with confirmation check and proper error handling
+    public async Task<(bool success, string? error)> DeleteAsync(int id)
     {
-        var category = await _db.Categories.FindAsync(id);
-        if (category == null) return false;
+        var category = await _db.Categories
+            .Include(c => c.ReliefGoods)
+            .FirstOrDefaultAsync(c => c.CategoryId == id);
+            
+        if (category == null) 
+            return (false, "Category not found");
 
         // Check if category is in use
-        var inUse = await _db.ReliefGoodCategories.AnyAsync(rc => rc.CategoryId == id);
-        if (inUse)
+        var itemCount = category.ReliefGoods.Count;
+        if (itemCount > 0)
         {
-            // Soft delete by setting IsActive = false
-            category.IsActive = false;
-            await _db.SaveChangesAsync();
-            return true;
+            // ✅ FIX: Better error message with item count
+            return (false, $"Cannot delete '{category.CategoryName}' because it is assigned to {itemCount} item(s). Please reassign these items first.");
         }
 
-        _db.Categories.Remove(category);
-        await _db.SaveChangesAsync();
-        return true;
+        try
+        {
+            // Hard delete if not in use
+            _db.Categories.Remove(category);
+            await _db.SaveChangesAsync();
+            return (true, null);
+        }
+        catch (Exception ex)
+        {
+            return (false, $"Database error: {ex.InnerException?.Message ?? ex.Message}");
+        }
     }
 
     public async Task<int> GetReliefGoodsCountAsync(int categoryId)

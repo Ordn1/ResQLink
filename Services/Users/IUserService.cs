@@ -1,10 +1,11 @@
-using ResQLink.Data.Entities;
+﻿using ResQLink.Data.Entities;
 
 namespace ResQLink.Services.Users;
 
 public interface IUserService
 {
     Task<User?> AuthenticateAsync(string username, string password, CancellationToken ct = default);
+    Task LogLogoutAsync(int userId, string username, string email, string? role); // 🔥 FIXED: Added email parameter
     Task EnsureCreatedAndSeedAdminAsync(CancellationToken ct = default);
     Task<(User? user, string? error)> RegisterUserAsync(string username, string password, string email, int roleId, int registeredByUserId, CancellationToken ct = default);
     Task<List<UserRole>> GetAllRolesAsync(CancellationToken ct = default);

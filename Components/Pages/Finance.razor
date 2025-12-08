@@ -536,7 +536,7 @@ else
         </div>
     }
 
-    @* Request Items modal - SAME AS BEFORE *@
+    @* Request Items modal - WITH LIMIT INDICATOR *@
     @if (showRequestItems)
     {
         <div class="modal-overlay" @onclick="CloseRequestItems" @onclick:stopPropagation="false">
@@ -546,6 +546,46 @@ else
                     <button class="modal-close" @onclick="CloseRequestItems">&times;</button>
                 </div>
                 <div class="modal-body">
+
+                    @* NEW: Procurement Limit Indicator *@
+                    @{
+                        var currentRequestTotal = requestItems.Sum(i => i.UnitPrice * i.Quantity);
+                        var percentUsed = PROCUREMENT_LIMIT > 0 ? (currentRequestTotal / PROCUREMENT_LIMIT * 100) : 0;
+                        var remaining = PROCUREMENT_LIMIT - currentRequestTotal;
+                        var limitColor = percentUsed >= 100 ? "#dc2626" : percentUsed >= 90 ? "#f59e0b" : "#16a34a";
+                    }
+                    
+                    <div style="padding: 12px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 16px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <div>
+                                <strong style="color: #374151;">Procurement Limit Status</strong>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-size: 0.9rem; color: @limitColor; font-weight: 600;">
+                                    @percentUsed.ToString("F1")% Used
+                                </div>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 20px; font-size: 0.85rem;">
+                            <div>
+                                <span style="color: #6b7280;">Current Total:</span>
+                                <strong style="color: @limitColor; margin-left: 4px;">₱@currentRequestTotal.ToString("N2")</strong>
+                            </div>
+                            <div>
+                                <span style="color: #6b7280;">Limit:</span>
+                                <strong style="margin-left: 4px;">₱@PROCUREMENT_LIMIT.ToString("N2")</strong>
+                            </div>
+                            <div>
+                                <span style="color: #6b7280;">Remaining:</span>
+                                <strong style="color: @(remaining >= 0 ? "#16a34a" : "#dc2626"); margin-left: 4px;">
+                                    ₱@remaining.ToString("N2")
+                                </strong>
+                            </div>
+                        </div>
+                        <div style="width: 100%; height: 8px; background: #e5e7eb; border-radius: 4px; margin-top: 8px; overflow: hidden;">
+                            <div style="width: @Math.Min(percentUsed, 100)%; height: 100%; background: @limitColor; transition: width 0.3s ease;"></div>
+                        </div>
+                    </div>
 
                     <div class="form-row">
                         <div class="form-group">
@@ -569,7 +609,11 @@ else
                     </div>
 
                     <div class="modal-actions">
-                        <button class="btn-primary" @onclick="AddRequestItem" disabled="@saving">Add Item</button>
+                        <button class="btn-primary" 
+                                @onclick="AddRequestItem" 
+                                disabled="@(saving || remaining <= 0)">
+                            Add Item
+                        </button>
                     </div>
 
                     <div class="table-wrap" style="margin-top:10px;">
@@ -610,7 +654,7 @@ else
                     </div>
 
                     <div class="panel-foot">
-                        <div>Total of items: <strong>@requestItems.Sum(i => i.UnitPrice * i.Quantity).ToString("N2")</strong></div>
+                        <div>Total of items: <strong style="color: @limitColor;">₱@currentRequestTotal.ToString("N2")</strong></div>
                     </div>
 
                     @if (editReqItem != null)
@@ -661,6 +705,9 @@ else
     // NEW: Selected procurement request ID for dropdown
     private int selectedProcurementRequestId = 0;
     private int? linkedProcurementRequestId = null;
+
+    // NEW: Procurement request limit constant
+    private const decimal PROCUREMENT_LIMIT = 50000m;
 
     // Filters
     private string budgetSearch = string.Empty;
@@ -738,7 +785,7 @@ else
         {
             var spent = await db.BarangayBudgetItems
                 .Where(i => i.BudgetId == budget.BudgetId)
-                .SumAsync(i => i.Amount);
+                .SumAsync(i => (decimal?)i.Amount) ?? 0m;  // Use nullable sum to handle empty results
             budgetSpent[budget.BudgetId] = spent;
         }
         
@@ -948,7 +995,12 @@ else
         try
         {
             var (it, err) = await BudgetSvc.AddItemAsync(activeBudget.BudgetId, newItem);
-            if (it != null) budgetItems.Add(it);
+            if (it != null)
+            {
+                budgetItems.Add(it);
+                // Reload spent amounts to update the Available column
+                await LoadBudgetSpentAsync();
+            }
             newItem = new();
         }
         finally { saving = false; }
@@ -976,6 +1028,8 @@ else
                 var idx = budgetItems.FindIndex(x => x.BudgetItemId == it.BudgetItemId);
                 if (idx >= 0) budgetItems[idx] = it;
                 editItem = null;
+                // Reload spent amounts to update the Available column
+                await LoadBudgetSpentAsync();
             }
         }
         finally { saving = false; }
@@ -988,7 +1042,12 @@ else
         try
         {
             var (ok, err) = await BudgetSvc.DeleteItemAsync(id);
-            if (ok) budgetItems.RemoveAll(i => i.BudgetItemId == id);
+            if (ok)
+            {
+                budgetItems.RemoveAll(i => i.BudgetItemId == id);
+                // Reload spent amounts to update the Available column
+                await LoadBudgetSpentAsync();
+            }
         }
         finally { saving = false; }
     }
@@ -1032,6 +1091,13 @@ else
             if (string.IsNullOrWhiteSpace(requestModel.BarangayName))
             {
                 requestError = "Barangay is required.";
+                return;
+            }
+
+            // NEW: Validate procurement request limit
+            if (requestModel.TotalAmount > PROCUREMENT_LIMIT)
+            {
+                requestError = $"Procurement request amount cannot exceed ₱{PROCUREMENT_LIMIT:N2}. Current amount: ₱{requestModel.TotalAmount:N2}";
                 return;
             }
 
@@ -1103,11 +1169,40 @@ else
         saving = true;
         try
         {
+            // NEW: Calculate new total with the item to be added
+            var newItemTotal = newReqItem.UnitPrice * newReqItem.Quantity;
+            var currentTotal = requestItems.Sum(i => i.UnitPrice * i.Quantity);
+            var projectedTotal = currentTotal + newItemTotal;
+
+            // NEW: Validate against procurement limit
+            if (projectedTotal > PROCUREMENT_LIMIT)
+            {
+                await JS.InvokeVoidAsync("alert", 
+                    $"Cannot add item. Total would exceed limit of ₱{PROCUREMENT_LIMIT:N2}.\n\n" +
+                    $"Current total: ₱{currentTotal:N2}\n" +
+                    $"New item cost: ₱{newItemTotal:N2}\n" +
+                    $"Projected total: ₱{projectedTotal:N2}\n" +
+                    $"Over limit by: ₱{(projectedTotal - PROCUREMENT_LIMIT):N2}");
+                return;
+            }
+
             var (it, err) = await ProcSvc.AddItemAsync(activeRequest.RequestId, newReqItem);
             if (it != null)
             {
                 requestItems.Add(it);
                 await ProcSvc.RecalculateTotalAsync(activeRequest.RequestId);
+                
+                // Reload the request to get updated total
+                await LoadAll();
+                
+                // Check if we're close to the limit
+                var updatedTotal = requestItems.Sum(i => i.UnitPrice * i.Quantity) + newItemTotal;
+                if (updatedTotal > PROCUREMENT_LIMIT * 0.9m) // 90% threshold
+                {
+                    await JS.InvokeVoidAsync("alert", 
+                        $"⚠️ Warning: Request total is at ₱{updatedTotal:N2} " +
+                        $"({(updatedTotal / PROCUREMENT_LIMIT * 100):F1}% of ₱{PROCUREMENT_LIMIT:N2} limit)");
+                }
             }
             newReqItem = new ProcurementRequestItem { Quantity = 1, Unit = "pcs", UnitPrice = 0m };
         }
@@ -1130,6 +1225,24 @@ else
         saving = true;
         try
         {
+            // NEW: Calculate new total with the updated item
+            var editedItemTotal = editReqItem.UnitPrice * editReqItem.Quantity;
+            var currentTotal = requestItems.Where(i => i.RequestItemId != editReqItem.RequestItemId)
+                                          .Sum(i => i.UnitPrice * i.Quantity);
+            var projectedTotal = currentTotal + editedItemTotal;
+
+            // NEW: Validate against procurement limit
+            if (projectedTotal > PROCUREMENT_LIMIT)
+            {
+                await JS.InvokeVoidAsync("alert", 
+                    $"Cannot update item. Total would exceed limit of ₱{PROCUREMENT_LIMIT:N2}.\n\n" +
+                    $"Other items total: ₱{currentTotal:N2}\n" +
+                    $"Updated item cost: ₱{editedItemTotal:N2}\n" +
+                    $"Projected total: ₱{projectedTotal:N2}\n" +
+                    $"Over limit by: ₱{(projectedTotal - PROCUREMENT_LIMIT):N2}");
+                return;
+            }
+
             var (it, err) = await ProcSvc.UpdateItemAsync(editReqItem);
             if (it != null)
             {
@@ -1137,6 +1250,7 @@ else
                 if (idx >= 0) requestItems[idx] = it;
                 editReqItem = null;
                 await ProcSvc.RecalculateTotalAsync(activeRequest.RequestId);
+                await LoadAll();
             }
         }
         finally { saving = false; }
@@ -1153,6 +1267,7 @@ else
             {
                 requestItems.RemoveAll(i => i.RequestItemId == id);
                 await ProcSvc.RecalculateTotalAsync(activeRequest.RequestId);
+                await LoadAll();
             }
         }
         finally { saving = false; }

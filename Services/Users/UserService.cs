@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using ResQLink.Data;
 using ResQLink.Data.Entities;
 using System.Security.Cryptography;
@@ -9,8 +9,13 @@ namespace ResQLink.Services.Users;
 public class UserService : IUserService
 {
     private readonly AppDbContext _db;
+    private readonly AuditService? _auditService;
 
-    public UserService(AppDbContext db) => _db = db;
+    public UserService(AppDbContext db, AuditService? auditService = null)
+    {
+        _db = db;
+        _auditService = auditService;
+    }
 
     public async Task EnsureCreatedAndSeedAdminAsync(CancellationToken ct = default)
     {
@@ -49,6 +54,15 @@ public class UserService : IUserService
         {
             volunteerRole = new UserRole { RoleName = "Volunteer", Description = "Assists with operations and distributions" };
             _db.UserRoles.Add(volunteerRole);
+            await _db.SaveChangesAsync(ct);
+        }
+
+        // Seed Operation Officer role
+        var opOfficerRole = await _db.UserRoles.FirstOrDefaultAsync(r => r.RoleName == "Operation Officer", ct);
+        if (opOfficerRole is null)
+        {
+            opOfficerRole = new UserRole { RoleName = "Operation Officer", Description = "Manages disaster operations and response" };
+            _db.UserRoles.Add(opOfficerRole);
             await _db.SaveChangesAsync(ct);
         }
 
@@ -92,8 +106,67 @@ public class UserService : IUserService
             .AsNoTracking()
             .FirstOrDefaultAsync(u => u.Username == username && u.IsActive, ct);
         
-        if (user is null) return null;
-        return VerifyPassword(password, user.PasswordHash) ? user : null;
+        if (user is null)
+        {
+            // Log failed login attempt
+            if (_auditService != null)
+            {
+                await _auditService.LogAsync(
+                    action: "LOGIN",
+                    entityType: "User",
+                    entityId: null,
+                    userId: null,
+                    userType: null,
+                    userName: username,
+                    description: $"Failed login attempt for username '{username}': User not found or inactive",
+                    severity: "Warning",
+                    isSuccessful: false,
+                    errorMessage: "Invalid credentials"
+                );
+            }
+            return null;
+        }
+
+        var isValid = VerifyPassword(password, user.PasswordHash);
+        
+        // Log login attempt (success or failure)
+        if (_auditService != null)
+        {
+            await _auditService.LogAsync(
+                action: "LOGIN",
+                entityType: "User",
+                entityId: user.UserId,
+                userId: user.UserId,
+                userType: user.Role?.RoleName,
+                userName: $"{user.Username} ({user.Email})",
+                description: isValid 
+                    ? $"User {user.Username} logged in successfully" 
+                    : $"Failed login attempt for user '{user.Username}': Invalid password",
+                severity: isValid ? "Info" : "Warning",
+                isSuccessful: isValid,
+                errorMessage: isValid ? null : "Invalid password"
+            );
+        }
+        
+        return isValid ? user : null;
+    }
+
+    // Log logout
+    public async Task LogLogoutAsync(int userId, string username, string email, string? role)
+    {
+        if (_auditService == null) return;
+        
+        await _auditService.LogAsync(
+            action: "LOGOUT",
+            entityType: "User",
+            entityId: userId,
+            userId: userId,
+            userType: role,
+            userName: $"{username} ({email})",
+            description: $"User {username} logged out",
+            severity: "Info",
+            isSuccessful: true
+        );
     }
 
     public async Task<(User? user, string? error)> RegisterUserAsync(
@@ -120,7 +193,7 @@ public class UserService : IUserService
             if (await EmailExistsAsync(email, ct))
                 return (null, "Email already registered");
 
-            // Validate password strength - Updated to require 12 characters
+            // Validate password strength
             if (string.IsNullOrWhiteSpace(password) || password.Length < 12)
                 return (null, "Password must be at least 12 characters");
 
@@ -164,10 +237,54 @@ public class UserService : IUserService
             // Reload with role
             await _db.Entry(newUser).Reference(u => u.Role).LoadAsync(ct);
 
+            // Log user registration
+            if (_auditService != null)
+            {
+                var registeredBy = await _db.Users
+                    .Include(u => u.Role)
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(u => u.UserId == registeredByUserId, ct);
+
+                await _auditService.LogAsync(
+                    action: "USER_REGISTER",
+                    entityType: "User",
+                    entityId: newUser.UserId,
+                    userId: registeredByUserId,
+                    userType: registeredBy?.Role?.RoleName,
+                    userName: registeredBy?.Username,
+                    newValues: new
+                    {
+                        newUser.UserId,
+                        newUser.Username,
+                        newUser.Email,
+                        Role = newUser.Role?.RoleName
+                    },
+                    description: $"New user '{newUser.Username}' registered by {registeredBy?.Username} with role {newUser.Role?.RoleName}",
+                    severity: "Info",
+                    isSuccessful: true
+                );
+            }
+
             return (newUser, null);
         }
         catch (DbUpdateException ex)
         {
+            // Log registration error
+            if (_auditService != null)
+            {
+                await _auditService.LogAsync(
+                    action: "USER_REGISTER",
+                    entityType: "User",
+                    entityId: null,
+                    userId: registeredByUserId,
+                    userType: null,
+                    userName: username,
+                    description: $"Failed to register user '{username}'",
+                    severity: "Error",
+                    isSuccessful: false,
+                    errorMessage: ex.InnerException?.Message ?? ex.Message
+                );
+            }
             return (null, $"Database error: {ex.InnerException?.Message ?? ex.Message}");
         }
         catch (Exception ex)
@@ -204,19 +321,23 @@ public class UserService : IUserService
         int userId, 
         string? email, 
         int? roleId, 
-        bool? isActive, 
+        bool? isActive,
+        int? updatedByUserId = null,
         CancellationToken ct = default)
     {
         try
         {
-            // Use AsNoTracking for the initial query, then attach with explicit state
             var user = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.UserId == userId, ct);
             if (user is null)
                 return (false, "User not found");
 
-            // Ensure all required fields are set
             if (string.IsNullOrWhiteSpace(user.Username))
                 return (false, "User data is invalid");
+
+            // Capture old values for audit
+            var oldEmail = user.Email;
+            var oldRoleId = user.RoleId;
+            var oldIsActive = user.IsActive;
 
             if (!string.IsNullOrWhiteSpace(email))
             {
@@ -247,11 +368,45 @@ public class UserService : IUserService
 
             user.UpdatedAt = DateTime.UtcNow;
             
-            // Attach and mark as modified
             _db.Users.Attach(user);
             _db.Entry(user).State = EntityState.Modified;
             
             await _db.SaveChangesAsync(ct);
+
+            // Log user update
+            if (_auditService != null && (email != null || roleId.HasValue || isActive.HasValue))
+            {
+                var oldRole = await _db.UserRoles.AsNoTracking().FirstOrDefaultAsync(r => r.RoleId == oldRoleId, ct);
+                var newRole = await _db.UserRoles.AsNoTracking().FirstOrDefaultAsync(r => r.RoleId == user.RoleId, ct);
+                
+                var updatedBy = updatedByUserId.HasValue 
+                    ? await _db.Users.Include(u => u.Role).AsNoTracking().FirstOrDefaultAsync(u => u.UserId == updatedByUserId.Value, ct)
+                    : null;
+
+                await _auditService.LogAsync(
+                    action: "USER_UPDATE",
+                    entityType: "User",
+                    entityId: userId,
+                    userId: updatedByUserId,
+                    userType: updatedBy?.Role?.RoleName ?? "Admin",
+                    userName: updatedBy != null ? $"{updatedBy.Username} ({updatedBy.Email})" : "System",
+                    oldValues: new
+                    {
+                        Email = oldEmail,
+                        Role = oldRole?.RoleName,
+                        IsActive = oldIsActive
+                    },
+                    newValues: new
+                    {
+                        user.Email,
+                        Role = newRole?.RoleName,
+                        user.IsActive
+                    },
+                    description: $"User '{user.Username}' updated by {updatedBy?.Username ?? "System"}",
+                    severity: "Info",
+                    isSuccessful: true
+                );
+            }
 
             return (true, null);
         }
@@ -267,16 +422,20 @@ public class UserService : IUserService
 
     public async Task<(bool success, string? error)> ResetPasswordAsync(
         int userId, 
-        string newPassword, 
+        string newPassword,
+        int? resetByUserId = null,
         CancellationToken ct = default)
     {
         try
         {
-            var user = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.UserId == userId, ct);
+            var user = await _db.Users
+                .Include(u => u.Role)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.UserId == userId, ct);
+            
             if (user is null)
                 return (false, "User not found");
 
-            // Validate password strength
             if (string.IsNullOrWhiteSpace(newPassword) || newPassword.Length < 12)
                 return (false, "Password must be at least 12 characters");
 
@@ -286,11 +445,30 @@ public class UserService : IUserService
             user.PasswordHash = HashPassword(newPassword);
             user.UpdatedAt = DateTime.UtcNow;
             
-            // Attach and mark as modified
             _db.Users.Attach(user);
             _db.Entry(user).State = EntityState.Modified;
             
             await _db.SaveChangesAsync(ct);
+
+            // Log password reset
+            if (_auditService != null)
+            {
+                var resetBy = resetByUserId.HasValue 
+                    ? await _db.Users.Include(u => u.Role).AsNoTracking().FirstOrDefaultAsync(u => u.UserId == resetByUserId.Value, ct)
+                    : null;
+
+                await _auditService.LogAsync(
+                    action: "PASSWORD_RESET",
+                    entityType: "User",
+                    entityId: userId,
+                    userId: resetByUserId,
+                    userType: resetBy?.Role?.RoleName ?? "Admin",
+                    userName: resetBy != null ? $"{resetBy.Username} ({resetBy.Email})" : "System",
+                    description: $"Password reset for user '{user.Username}' by {resetBy?.Username ?? "System"}",
+                    severity: "Warning",
+                    isSuccessful: true
+                );
+            }
 
             return (true, null);
         }
@@ -304,7 +482,7 @@ public class UserService : IUserService
         }
     }
 
-    public async Task<(bool success, string? error)> DeleteUserAsync(int userId, CancellationToken ct = default)
+    public async Task<(bool success, string? error)> DeleteUserAsync(int userId, int? deletedByUserId = null, CancellationToken ct = default)
     {
         try
         {
@@ -312,13 +490,11 @@ public class UserService : IUserService
             if (user is null)
                 return (false, "User not found");
 
-            // Load role information to check if admin
             var userWithRole = await _db.Users
                 .Include(u => u.Role)
                 .AsNoTracking()
                 .FirstOrDefaultAsync(u => u.UserId == userId, ct);
 
-            // Prevent deleting the last admin user
             if (userWithRole?.Role?.RoleName == "Admin" && userWithRole.IsActive)
             {
                 var activeAdminCount = await _db.Users
@@ -329,7 +505,16 @@ public class UserService : IUserService
                     return (false, "Cannot delete the last active admin user");
             }
 
-            // Delete associated UserProfile first (if exists)
+            // Capture user details before deletion
+            var userDetails = new
+            {
+                user.UserId,
+                user.Username,
+                user.Email,
+                Role = userWithRole?.Role?.RoleName,
+                user.IsActive
+            };
+
             var userProfile = await _db.UserProfiles.AsNoTracking().FirstOrDefaultAsync(p => p.UserId == userId, ct);
             if (userProfile is not null)
             {
@@ -337,11 +522,31 @@ public class UserService : IUserService
                 _db.UserProfiles.Remove(userProfile);
             }
 
-            // Delete user
             _db.Users.Attach(user);
             _db.Users.Remove(user);
             
             await _db.SaveChangesAsync(ct);
+
+            // Log user deletion
+            if (_auditService != null)
+            {
+                var deletedBy = deletedByUserId.HasValue 
+                    ? await _db.Users.Include(u => u.Role).AsNoTracking().FirstOrDefaultAsync(u => u.UserId == deletedByUserId.Value, ct)
+                    : null;
+
+                await _auditService.LogAsync(
+                    action: "USER_DELETE",
+                    entityType: "User",
+                    entityId: userId,
+                    userId: deletedByUserId,
+                    userType: deletedBy?.Role?.RoleName ?? "Admin",
+                    userName: deletedBy != null ? $"{deletedBy.Username} ({deletedBy.Email})" : "System",
+                    oldValues: userDetails,
+                    description: $"User '{user.Username}' deleted by {deletedBy?.Username ?? "System"}",
+                    severity: "Warning",
+                    isSuccessful: true
+                );
+            }
 
             return (true, null);
         }
@@ -353,6 +558,122 @@ public class UserService : IUserService
         {
             return (false, $"Delete failed: {ex.Message}");
         }
+    }
+
+    // NEW: Track user profile updates
+    public async Task<(bool success, string? error)> UpdateUserProfileAsync(
+        int userId,
+        string firstName,
+        string lastName,
+        string contactNumber,
+        string address,
+        int? updatedByUserId = null,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            var profile = await _db.UserProfiles
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.UserId == userId, ct);
+
+            if (profile is null)
+                return (false, "User profile not found");
+
+            var user = await _db.Users
+                .Include(u => u.Role)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.UserId == userId, ct);
+
+            // Capture old values
+            var oldValues = new
+            {
+                profile.FirstName,
+                profile.LastName,
+                profile.ContactNumber,
+                profile.Address
+            };
+
+            profile.FirstName = firstName;
+            profile.LastName = lastName;
+            profile.ContactNumber = contactNumber;
+            profile.Address = address;
+
+            _db.UserProfiles.Attach(profile);
+            _db.Entry(profile).State = EntityState.Modified;
+            await _db.SaveChangesAsync(ct);
+
+            // Log profile update
+            if (_auditService != null)
+            {
+                var updatedBy = updatedByUserId.HasValue 
+                    ? await _db.Users.Include(u => u.Role).AsNoTracking().FirstOrDefaultAsync(u => u.UserId == updatedByUserId.Value, ct)
+                    : null;
+
+                await _auditService.LogAsync(
+                    action: "USER_PROFILE_UPDATE",
+                    entityType: "UserProfile",
+                    entityId: profile.UserProfileId,
+                    userId: updatedByUserId ?? userId,
+                    userType: updatedBy?.Role?.RoleName ?? user?.Role?.RoleName,
+                    userName: updatedBy != null ? $"{updatedBy.Username} ({updatedBy.Email})" : user?.Username,
+                    oldValues: oldValues,
+                    newValues: new
+                    {
+                        firstName,
+                        lastName,
+                        contactNumber,
+                        address
+                    },
+                    description: $"Profile updated for user '{user?.Username}'",
+                    severity: "Info",
+                    isSuccessful: true
+                );
+            }
+
+            return (true, null);
+        }
+        catch (DbUpdateException ex)
+        {
+            return (false, $"Database error: {ex.InnerException?.Message ?? ex.Message}");
+        }
+        catch (Exception ex)
+        {
+            return (false, $"Profile update failed: {ex.Message}");
+        }
+    }
+
+    // NEW: Track user session activity
+    public async Task LogUserActivityAsync(int userId, string action, string description, CancellationToken ct = default)
+    {
+        if (_auditService == null) return;
+
+        var user = await _db.Users
+            .Include(u => u.Role)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.UserId == userId, ct);
+
+        if (user != null)
+        {
+            await _auditService.LogAsync(
+                action: action,
+                entityType: "UserActivity",
+                entityId: userId,
+                userId: userId,
+                userType: user.Role?.RoleName,
+                userName: $"{user.Username} ({user.Email})",
+                description: description,
+                severity: "Info",
+                isSuccessful: true
+            );
+        }
+    }
+
+    // NEW: Get user transaction history
+    public async Task<List<AuditLog>> GetUserTransactionHistoryAsync(int userId, DateTime? startDate = null, DateTime? endDate = null, CancellationToken ct = default)
+    {
+        if (_auditService == null) return new List<AuditLog>();
+
+        return await _auditService.GetUserActivityAsync(userId, limit: 1000);
     }
 
     public async Task<bool> ValidateAdminAccessAsync(int userId, CancellationToken ct = default)
@@ -377,7 +698,6 @@ public class UserService : IUserService
 
     private static string HashPassword(string password)
     {
-        // Using SHA256 for now - consider upgrading to PBKDF2 or Argon2 for production
         using var sha = SHA256.Create();
         var bytes = sha.ComputeHash(Encoding.UTF8.GetBytes(password));
         return Convert.ToHexString(bytes);
@@ -387,5 +707,35 @@ public class UserService : IUserService
     {
         var hash = HashPassword(password);
         return string.Equals(hash, storedHash, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // Explicit interface implementations for missing IUserService members
+
+    public async Task<(bool success, string? error)> UpdateUserAsync(
+        int userId,
+        string? email,
+        int? roleId,
+        bool? isActive,
+        CancellationToken ct = default)
+    {
+        // Call the main UpdateUserAsync with default updatedByUserId
+        return await UpdateUserAsync(userId, email, roleId, isActive, null, ct);
+    }
+
+    public async Task<(bool success, string? error)> ResetPasswordAsync(
+        int userId,
+        string newPassword,
+        CancellationToken ct = default)
+    {
+        // Call the main ResetPasswordAsync with default resetByUserId
+        return await ResetPasswordAsync(userId, newPassword, null, ct);
+    }
+
+    public async Task<(bool success, string? error)> DeleteUserAsync(
+        int userId,
+        CancellationToken ct = default)
+    {
+        // Call the main DeleteUserAsync with default deletedByUserId
+        return await DeleteUserAsync(userId, null, ct);
     }
 }

@@ -67,7 +67,13 @@ namespace ResQLink
 #endif
 
             // Register Business Services
-            builder.Services.AddScoped<IUserService, UserService>();
+            builder.Services.AddSingleton<AuditService>();
+            builder.Services.AddScoped<IUserService>(sp =>
+            {
+                var db = sp.GetRequiredService<AppDbContext>();
+                var auditService = sp.GetRequiredService<AuditService>();
+                return new UserService(db, auditService);
+            });
             builder.Services.AddScoped<IDisasterService, DisasterService>();
             builder.Services.AddScoped<CategoryService>();
             builder.Services.AddScoped<SupplierService>();
@@ -77,8 +83,25 @@ namespace ResQLink
             builder.Services.AddScoped<BudgetService>();
             builder.Services.AddScoped<ProcurementService>();
             // Add these service registrations in your existing Program.cs
-            builder.Services.AddScoped<AuditService>();
             builder.Services.AddScoped<IOperationsReportService, OperationsReportService>();
+
+            // Budget Service with Audit
+            builder.Services.AddScoped<BudgetService>(sp =>
+            {
+                var db = sp.GetRequiredService<AppDbContext>();
+                var audit = sp.GetService<AuditService>();
+                var auth = sp.GetService<AuthState>();
+                return new BudgetService(db, audit, auth);
+            });
+
+            // Procurement Service with Audit
+            builder.Services.AddScoped<ProcurementService>(sp =>
+            {
+                var db = sp.GetRequiredService<AppDbContext>();
+                var audit = sp.GetService<AuditService>();
+                var auth = sp.GetService<AuthState>();
+                return new ProcurementService(db, audit, auth);
+            });
 
             // Register Global Validation & Error Handling Services
             builder.Services.AddScoped<IValidationService, ValidationService>();
