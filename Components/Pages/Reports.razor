@@ -27,62 +27,8 @@
         </header>
     </section>
 
-    <!-- Modern Modal Popup -->
-    @if (showModal)
-    {
-        <div class="modal-overlay" @onclick="CloseModal">
-            <div class="modal-container" @onclick:stopPropagation="true">
-                <div class="modal-header" style="background: @(modalType == "success" ? "linear-gradient(135deg, #10b981, #059669)" : modalType == "error" ? "linear-gradient(135deg, #ef4444, #dc2626)" : "linear-gradient(135deg, #3b82f6, #2563eb)");">
-                    <div class="modal-icon">
-                        @if (modalType == "success")
-                        {
-                            <i class="bi bi-check-circle-fill"></i>
-                        }
-                        else if (modalType == "error")
-                        {
-                            <i class="bi bi-exclamation-circle-fill"></i>
-                        }
-                        else
-                        {
-                            <i class="bi bi-info-circle-fill"></i>
-                        }
-                    </div>
-                    <h3 class="modal-title">@modalTitle</h3>
-                </div>
-                <div class="modal-body">
-                    <p>@modalMessage</p>
-                </div>
-                <div class="modal-footer">
-                    <button class="modal-btn modal-btn-primary" @onclick="CloseModal">
-                        <i class="bi bi-check-lg"></i> OK
-                    </button>
-                </div>
-            </div>
-        </div>
-    }
-
     @if (_reportData != null)
     {
-        <!-- Page Navigation Header -->
-        <div class="panel" style="margin-bottom: 20px;">
-            <div style="padding: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
-                <div>
-                    <h3 style="margin: 0; font-size: 1.2rem; color: #333;">📄 Page @currentPage of @totalPages</h3>
-                    <p style="margin: 4px 0 0 0; color: #666; font-size: 0.9rem;">@GetCurrentPageTitle()</p>
-                </div>
-                <div style="display: flex; gap: 12px;">
-                    <button class="mini-btn" @onclick="PreviousPage" disabled="@(currentPage == 1)" style="@(currentPage == 1 ? "opacity: 0.5; cursor: not-allowed;" : "")">
-                        <i class="bi bi-chevron-left"></i> Previous
-                    </button>
-                    <button class="mini-btn btn-primary" @onclick="NextPage" disabled="@(currentPage == totalPages)" style="@(currentPage == totalPages ? "opacity: 0.5; cursor: not-allowed;" : "")">
-                        Next <i class="bi bi-chevron-right"></i>
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        @if (currentPage == 1)
-        {
         <!-- Executive Summary -->
         <section class="panel" id="executive-summary">
             <header class="panel-head">
@@ -119,10 +65,20 @@
                 </div>
             }
         </section>
-        }
 
-        @if (currentPage == 2)
-        {
+        <!-- Pagination Controls -->
+        <div class="pagination-break" style="padding: 20px; text-align: center; border-top: 2px solid #e5e7eb; border-bottom: 2px solid #e5e7eb; background: #f9fafb; margin: 20px 0;">
+            <div style="display: flex; justify-content: space-between; align-items: center; max-width: 700px; margin: 0 auto;">
+                <button class="mini-btn" onclick="window.scrollTo({top: 0, behavior: 'smooth'})" style="background: transparent; border: 1px solid #d1d5db;">
+                    <i class="bi bi-arrow-up"></i> Top
+                </button>
+                <span style="color: #666; font-size: 0.85rem; font-weight: 600;">📋 End of Executive Summary</span>
+                <button class="mini-btn btn-primary" onclick="document.querySelector('[id=disaster-overview]')?.scrollIntoView({behavior: 'smooth'})">
+                    Next Section <i class="bi bi-arrow-right"></i>
+                </button>
+            </div>
+        </div>
+
         <!-- Disaster Overview -->
         <section class="panel" id="disaster-overview">
             <header class="panel-head">
@@ -160,10 +116,20 @@
                 </table>
             </div>
         </section>
-        }
 
-        @if (currentPage == 3)
-        {
+        <!-- Pagination Controls -->
+        <div class="pagination-break" style="padding: 20px; text-align: center; border-top: 2px solid #e5e7eb; border-bottom: 2px solid #e5e7eb; background: #f9fafb; margin: 20px 0;">
+            <div style="display: flex; justify-content: space-between; align-items: center; max-width: 700px; margin: 0 auto;">
+                <button class="mini-btn" onclick="document.querySelector('[id=executive-summary]')?.scrollIntoView({behavior: 'smooth'})" style="background: transparent; border: 1px solid #d1d5db;">
+                    <i class="bi bi-arrow-left"></i> Previous
+                </button>
+                <span style="color: #666; font-size: 0.85rem; font-weight: 600;">📊 End of Disaster Overview Table</span>
+                <button class="mini-btn btn-primary" onclick="document.querySelector('[id=evacuee-stats]')?.scrollIntoView({behavior: 'smooth'})">
+                    Next Section <i class="bi bi-arrow-right"></i>
+                </button>
+            </div>
+        </div>
+
         <!-- Evacuee Demographics -->
         <section class="panel" id="evacuee-stats">
             <header class="panel-head">
@@ -208,10 +174,20 @@
                 </div>
             }
         </section>
-        }
 
-        @if (currentPage == 4)
-        {
+        <!-- Pagination Controls -->
+        <div class="pagination-break" style="padding: 20px; text-align: center; border-top: 2px solid #e5e7eb; border-bottom: 2px solid #e5e7eb; background: #f9fafb; margin: 20px 0;">
+            <div style="display: flex; justify-content: space-between; align-items: center; max-width: 700px; margin: 0 auto;">
+                <button class="mini-btn" onclick="document.querySelector('[id=disaster-overview]')?.scrollIntoView({behavior: 'smooth'})" style="background: transparent; border: 1px solid #d1d5db;">
+                    <i class="bi bi-arrow-left"></i> Previous
+                </button>
+                <span style="color: #666; font-size: 0.85rem; font-weight: 600;">👥 End of Evacuee Statistics</span>
+                <button class="mini-btn btn-primary" onclick="document.querySelector('[id=shelter-ops]')?.scrollIntoView({behavior: 'smooth'})">
+                    Next Section <i class="bi bi-arrow-right"></i>
+                </button>
+            </div>
+        </div>
+
         <!-- Shelter Operations -->
         <section class="panel" id="shelter-ops">
             <header class="panel-head">
@@ -259,10 +235,20 @@
                 </div>
             }
         </section>
-        }
 
-        @if (currentPage == 5)
-        {
+        <!-- Pagination Controls -->
+        <div class="pagination-break" style="padding: 20px; text-align: center; border-top: 2px solid #e5e7eb; border-bottom: 2px solid #e5e7eb; background: #f9fafb; margin: 20px 0;">
+            <div style="display: flex; justify-content: space-between; align-items: center; max-width: 700px; margin: 0 auto;">
+                <button class="mini-btn" onclick="document.querySelector('[id=evacuee-stats]')?.scrollIntoView({behavior: 'smooth'})" style="background: transparent; border: 1px solid #d1d5db;">
+                    <i class="bi bi-arrow-left"></i> Previous
+                </button>
+                <span style="color: #666; font-size: 0.85rem; font-weight: 600;">🏠 End of Shelter Operations Table</span>
+                <button class="mini-btn btn-primary" onclick="document.querySelector('[id=financial-summary]')?.scrollIntoView({behavior: 'smooth'})">
+                    Next Section <i class="bi bi-arrow-right"></i>
+                </button>
+            </div>
+        </div>
+
         <!-- Financial Summary Section - RENUMBERED from 4.5 to 5 -->
         <section class="panel" id="financial-summary">
             <header class="panel-head">
@@ -413,10 +399,20 @@
                 </div>
             }
         </section>
-        }
 
-        @if (currentPage == 6)
-        {
+        <!-- Pagination Controls -->
+        <div class="pagination-break" style="padding: 20px; text-align: center; border-top: 2px solid #e5e7eb; border-bottom: 2px solid #e5e7eb; background: #f9fafb; margin: 20px 0;">
+            <div style="display: flex; justify-content: space-between; align-items: center; max-width: 700px; margin: 0 auto;">
+                <button class="mini-btn" onclick="document.querySelector('[id=shelter-ops]')?.scrollIntoView({behavior: 'smooth'})" style="background: transparent; border: 1px solid #d1d5db;">
+                    <i class="bi bi-arrow-left"></i> Previous
+                </button>
+                <span style="color: #666; font-size: 0.85rem; font-weight: 600;">💰 End of Financial Summary Tables</span>
+                <button class="mini-btn btn-primary" onclick="document.querySelector('[id=volunteer-deployment]')?.scrollIntoView({behavior: 'smooth'})">
+                    Next Section <i class="bi bi-arrow-right"></i>
+                </button>
+            </div>
+        </div>
+
         <!-- Volunteer Deployment - RENUMBERED from 5 to 6 -->
         <section class="panel" id="volunteer-deployment">
             <header class="panel-head">
@@ -445,10 +441,20 @@
                 </table>
             </div>
         </section>
-        }
 
-        @if (currentPage == 7)
-        {
+        <!-- Pagination Controls -->
+        <div class="pagination-break" style="padding: 20px; text-align: center; border-top: 2px solid #e5e7eb; border-bottom: 2px solid #e5e7eb; background: #f9fafb; margin: 20px 0;">
+            <div style="display: flex; justify-content: space-between; align-items: center; max-width: 700px; margin: 0 auto;">
+                <button class="mini-btn" onclick="document.querySelector('[id=financial-summary]')?.scrollIntoView({behavior: 'smooth'})" style="background: transparent; border: 1px solid #d1d5db;">
+                    <i class="bi bi-arrow-left"></i> Previous
+                </button>
+                <span style="color: #666; font-size: 0.85rem; font-weight: 600;">👷 End of Volunteer Deployment Table</span>
+                <button class="mini-btn btn-primary" onclick="document.querySelector('[id=inventory-report]')?.scrollIntoView({behavior: 'smooth'})">
+                    Next Section <i class="bi bi-arrow-right"></i>
+                </button>
+            </div>
+        </div>
+
         <!-- Inventory Report - RENUMBERED from 6 to 7 -->
         <section class="panel" id="inventory-report">
             <header class="panel-head">
@@ -698,10 +704,20 @@
                 }
             </div>
         </section>
-        }
 
-        @if (currentPage == 8)
-        {
+        <!-- Pagination Controls -->
+        <div class="pagination-break" style="padding: 20px; text-align: center; border-top: 2px solid #e5e7eb; border-bottom: 2px solid #e5e7eb; background: #f9fafb; margin: 20px 0;">
+            <div style="display: flex; justify-content: space-between; align-items: center; max-width: 700px; margin: 0 auto;">
+                <button class="mini-btn" onclick="document.querySelector('[id=volunteer-deployment]')?.scrollIntoView({behavior: 'smooth'})" style="background: transparent; border: 1px solid #d1d5db;">
+                    <i class="bi bi-arrow-left"></i> Previous
+                </button>
+                <span style="color: #666; font-size: 0.85rem; font-weight: 600;">📦 End of Inventory Report Tables</span>
+                <button class="mini-btn btn-primary" onclick="document.querySelector('[id=operational-issues]')?.scrollIntoView({behavior: 'smooth'})">
+                    Next Section <i class="bi bi-arrow-right"></i>
+                </button>
+            </div>
+        </div>
+
         <!-- Operational Issues - RENUMBERED from 7 to 8 -->
         <section class="panel" id="operational-issues">
             <header class="panel-head">
@@ -763,7 +779,6 @@
                 }
             </div>
         </section>
-        }
     }
     else if (!_loading)
     {
@@ -781,69 +796,10 @@
     private OperationsReportData? _reportData;
     private bool _loading = false;
     private bool isEditingIssues = false;
-    private int currentPage = 1;
-    private const int totalPages = 8;
-
-    // Modal state
-    private bool showModal = false;
-    private string modalTitle = "";
-    private string modalMessage = "";
-    private string modalType = "info"; // success, error, info
 
     protected override async Task OnInitializedAsync()
     {
         await RefreshDataAsync();
-    }
-
-    private void NextPage()
-    {
-        if (currentPage < totalPages)
-        {
-            currentPage++;
-            StateHasChanged();
-            _ = JS.InvokeVoidAsync("window.scrollTo", 0, 0);
-        }
-    }
-
-    private void PreviousPage()
-    {
-        if (currentPage > 1)
-        {
-            currentPage--;
-            StateHasChanged();
-            _ = JS.InvokeVoidAsync("window.scrollTo", 0, 0);
-        }
-    }
-
-    private string GetCurrentPageTitle()
-    {
-        return currentPage switch
-        {
-            1 => "1. Executive Summary",
-            2 => "2. Disaster Overview",
-            3 => "3. Evacuee Statistics",
-            4 => "4. Shelter Operations Report",
-            5 => "5. Financial Summary",
-            6 => "6. Volunteer Deployment Report",
-            7 => "7. Inventory Report",
-            8 => "8. Operational Issues & Recommendations",
-            _ => ""
-        };
-    }
-
-    private void ShowModal(string title, string message, string type = "info")
-    {
-        modalTitle = title;
-        modalMessage = message;
-        modalType = type;
-        showModal = true;
-        StateHasChanged();
-    }
-
-    private void CloseModal()
-    {
-        showModal = false;
-        StateHasChanged();
     }
 
     private async Task RefreshDataAsync()
@@ -858,7 +814,7 @@
         }
         catch (Exception ex)
         {
-            ShowModal("Error", $"Error loading report data: {ex.Message}", "error");
+            await JS.InvokeVoidAsync("alert", $"Error loading report data: {ex.Message}");
         }
         finally
         {
@@ -891,11 +847,11 @@
                 link.click();
             ");
 
-            ShowModal("Success", "Operations Report PDF generated successfully!", "success");
+            await JS.InvokeVoidAsync("alert", "Operations Report PDF generated successfully!");
         }
         catch (Exception ex)
         {
-            ShowModal("Error", $"Error generating PDF: {ex.Message}", "error");
+            await JS.InvokeVoidAsync("alert", $"Error generating PDF: {ex.Message}");
         }
         finally
         {
@@ -916,12 +872,12 @@
         try
         {
             await ReportService.SaveOperationalIssuesAsync(_reportData.Issues);
-            ShowModal("Success", "Operational issues saved successfully!", "success");
+            await JS.InvokeVoidAsync("alert", "Operational issues saved successfully!");
             isEditingIssues = false;
         }
         catch (Exception ex)
         {
-            ShowModal("Error", $"Error saving issues: {ex.Message}", "error");
+            await JS.InvokeVoidAsync("alert", $"Error saving issues: {ex.Message}");
         }
     }
 
