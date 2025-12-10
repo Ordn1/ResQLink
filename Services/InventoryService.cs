@@ -50,6 +50,30 @@ public class InventoryService
         using var tx = await _db.Database.BeginTransactionAsync();
         try
         {
+            // Check for duplicate relief good name (case-insensitive)
+            var duplicate = await _db.ReliefGoods
+                .AnyAsync(r => r.Name.ToLower() == input.Name.ToLower());
+            
+            if (duplicate)
+            {
+                await tx.RollbackAsync();
+                
+                await _auditService.LogAsync(
+                    action: "CREATE",
+                    entityType: "ReliefGood",
+                    entityId: null,
+                    userId: _authState.UserId,
+                    userType: _authState.CurrentRole,
+                    userName: _authState.CurrentUser?.Username,
+                    description: $"Failed to create relief good '{input.Name}': Duplicate name",
+                    severity: "Warning",
+                    isSuccessful: false,
+                    errorMessage: "A relief good with this name already exists"
+                );
+                
+                return (null, "A relief good with this name already exists");
+            }
+
             input.CreatedAt = DateTime.UtcNow;
             _db.ReliefGoods.Add(input);
             await _db.SaveChangesAsync();
@@ -283,6 +307,30 @@ public class InventoryService
                 );
                 
                 return (null, "Item not found");
+            }
+
+            // Check for duplicate relief good name (excluding current item)
+            var duplicate = await _db.ReliefGoods
+                .AnyAsync(r => r.RgId != id && r.Name.ToLower() == input.Name.ToLower());
+            
+            if (duplicate)
+            {
+                await tx.RollbackAsync();
+                
+                await _auditService.LogAsync(
+                    action: "UPDATE",
+                    entityType: "ReliefGood",
+                    entityId: id,
+                    userId: _authState.UserId,
+                    userType: _authState.CurrentRole,
+                    userName: _authState.CurrentUser?.Username,
+                    description: $"Failed to update relief good #{id}: Duplicate name '{input.Name}'",
+                    severity: "Warning",
+                    isSuccessful: false,
+                    errorMessage: "A relief good with this name already exists"
+                );
+                
+                return (null, "A relief good with this name already exists");
             }
 
             // 🔥 NEW: Capture old values for audit
@@ -637,13 +685,13 @@ public class InventoryService
             {
                 // 🔥 NEW: Log not found error
                 await _auditService.LogAsync(
-                    action: "DELETE",
+                    action: "ARCHIVE",
                     entityType: "ReliefGood",
                     entityId: id,
                     userId: _authState.UserId,
                     userType: _authState.CurrentRole,
                     userName: _authState.CurrentUser?.Username,
-                    description: $"Failed to delete relief good #{id}: Item not found",
+                    description: $"Failed to archive relief good #{id}: Item not found",
                     severity: "Warning",
                     isSuccessful: false,
                     errorMessage: "Item not found"
@@ -652,7 +700,7 @@ public class InventoryService
                 return (false, "Item not found");
             }
 
-            // 🔥 NEW: Capture item details before deletion
+            // 🔥 NEW: Capture item details before archiving
             var itemDetails = new
             {
                 item.RgId,
@@ -663,47 +711,30 @@ public class InventoryService
                 TotalQuantity = item.Stocks.Sum(s => s.Quantity)
             };
 
-            if (softIfStock && item.Stocks.Any())
-            {
-                item.IsActive = false; // soft delete
-                await _db.SaveChangesAsync();
-                
-                // 🔥 NEW: Log soft delete
-                await _auditService.LogAsync(
-                    action: "DELETE",
-                    entityType: "ReliefGood",
-                    entityId: id,
-                    userId: _authState.UserId,
-                    userType: _authState.CurrentRole,
-                    userName: _authState.CurrentUser?.Username,
-                    oldValues: itemDetails,
-                    description: $"Relief good '{item.Name}' (ID: {id}) soft deleted (has {item.Stocks.Count} stock entries)",
-                    severity: "Info",
-                    isSuccessful: true
-                );
-            }
-            else
-            {
-                // remove pivots first
-                var pivots = await _db.ReliefGoodCategories.Where(rc => rc.RgId == id).ToListAsync();
-                _db.ReliefGoodCategories.RemoveRange(pivots);
-                _db.ReliefGoods.Remove(item);
-                await _db.SaveChangesAsync();
-                
-                // 🔥 NEW: Log hard delete
-                await _auditService.LogAsync(
-                    action: "DELETE",
-                    entityType: "ReliefGood",
-                    entityId: id,
-                    userId: _authState.UserId,
-                    userType: _authState.CurrentRole,
-                    userName: _authState.CurrentUser?.Username,
-                    oldValues: itemDetails,
-                    description: $"Relief good '{item.Name}' (ID: {id}) permanently deleted",
-                    severity: "Warning",
-                    isSuccessful: true
-                );
-            }
+            // Archive the item instead of deleting
+            item.IsArchived = true;
+            item.ArchivedAt = DateTime.UtcNow;
+            item.ArchivedBy = _authState.UserId;
+            item.ArchiveReason = item.Stocks.Any() 
+                ? $"Archived with {item.Stocks.Count} stock entries" 
+                : "Archived by user";
+            item.IsActive = false; // Also mark as inactive
+            
+            await _db.SaveChangesAsync();
+            
+            // 🔥 NEW: Log archival
+            await _auditService.LogAsync(
+                action: "ARCHIVE",
+                entityType: "ReliefGood",
+                entityId: id,
+                userId: _authState.UserId,
+                userType: _authState.CurrentRole,
+                userName: _authState.CurrentUser?.Username,
+                oldValues: itemDetails,
+                description: $"Relief good '{item.Name}' (ID: {id}) archived (has {item.Stocks.Count} stock entries)",
+                severity: "Info",
+                isSuccessful: true
+            );
 
             await tx.CommitAsync();
             return (true, null);

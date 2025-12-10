@@ -64,8 +64,13 @@
                             <option value="CREATE">Create</option>
                             <option value="UPDATE">Update</option>
                             <option value="DELETE">Delete</option>
+                            <option value="ARCHIVE">Archive</option>
+                            <option value="RESTORE">Restore</option>
                             <option value="STOCK_IN">Stock In</option>
                             <option value="STOCK_OUT">Stock Out</option>
+                            <option value="APPROVE">Approve</option>
+                            <option value="REJECT">Reject</option>
+                            <option value="ALLOCATE">Allocate</option>
                         </select>
                     </div>
 
@@ -75,10 +80,14 @@
                             <option value="">All Entities</option>
                             <option value="User">User</option>
                             <option value="ReliefGood">Relief Good</option>
+                            <option value="Category">Category</option>
                             <option value="Stock">Stock</option>
                             <option value="Shelter">Shelter</option>
                             <option value="Disaster">Disaster</option>
                             <option value="Evacuee">Evacuee</option>
+                            <option value="Supplier">Supplier</option>
+                            <option value="ProcurementRequest">Procurement</option>
+                            <option value="BarangayBudget">Budget</option>
                         </select>
                     </div>
 
@@ -361,7 +370,6 @@
     private string filterEntityType = "";
     private string filterSeverity = "";
     private int? filterUserId;
-    private string filterTransactionType = "";
 
     // Pagination
     private int _pageIndex = 0;
@@ -423,7 +431,6 @@
         filterEntityType = "";
         filterSeverity = "";
         filterUserId = null;
-        filterTransactionType = "";
         _pageIndex = 0;
         await LoadLogs();
     }

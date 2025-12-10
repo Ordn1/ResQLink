@@ -152,21 +152,22 @@
     @* Add/Edit Category modal *@
     @if (showModal)
     {
-        <div class="modal-overlay" @onclick="CloseModal" @onclick:stopPropagation="false">
+        <div class="modal-overlay" @onclick="async () => await CloseModal()" @onclick:stopPropagation="false">
             <div class="modal-dialog" @onclick="PreventClose" @onclick:stopPropagation="true">
                 <div class="modal-header">
                     <h3>@(isEditMode ? $"Edit Category #{editModel.CategoryId}" : "Add Category")</h3>
-                    <button class="modal-close" @onclick="CloseModal" @onclick:stopPropagation="true">&times;</button>
+                    <button class="modal-close" @onclick="async () => await CloseModal()" @onclick:stopPropagation="true">&times;</button>
                 </div>
                 <div class="modal-body">
                     <div class="form-row">
                         <div class="form-group">
                             <label for="catName">Category Name *</label>
                             <input id="catName"
+                                   key="@(editModel.CategoryId)"
                                    class="form-control @(fieldErrors.ContainsKey("Name") ? "is-invalid" : "")"
                                    placeholder="e.g., Canned Goods, First Aid"
-                                   @bind="editModel.CategoryName"
-                                   @bind:event="oninput"
+                                   value="@editModel.CategoryName"
+                                   @oninput="@((e) => editModel.CategoryName = e.Value?.ToString() ?? string.Empty)"
                                    @onblur="() => ValidateField(nameof(editModel.CategoryName))" />
                             @if (fieldErrors.ContainsKey("Name"))
                             {
@@ -230,7 +231,7 @@
                     <div class="modal-actions">
                         <button type="button"
                                 class="btn-cancel"
-                                @onclick="CloseModal"
+                                @onclick="async () => await CloseModal()"
                                 disabled="@saving"
                                 @onclick:stopPropagation="true">
                             Cancel
@@ -376,11 +377,24 @@
 
     private void OpenAddModal()
     {
+        // Force complete reset
+        showModal = false;
         isEditMode = false;
-        editModel = new Category { IsActive = true };
-        modalError = "";
+        editModel = null!;
+        modalError = string.Empty;
         fieldErrors.Clear();
+        
+        // Create fresh instance
+        editModel = new Category 
+        { 
+            IsActive = true,
+            CategoryName = string.Empty,
+            Description = null,
+            CategoryTypeId = null
+        };
+        
         showModal = true;
+        StateHasChanged();
     }
 
     private void OpenEditModal(Category category)
@@ -397,15 +411,22 @@
         modalError = "";
         fieldErrors.Clear();
         showModal = true;
+        StateHasChanged();
     }
 
-    private void CloseModal()
+    private async Task CloseModal()
     {
         if (saving) return;
+        
+        // Ask for confirmation before closing
+        var confirmed = await JS.InvokeAsync<bool>("confirm", "Are you sure you want to close this form? Any unsaved changes will be lost.");
+        if (!confirmed) return;
+        
         showModal = false;
         editModel = new();
         modalError = "";
         fieldErrors.Clear();
+        StateHasChanged();
     }
 
     // ✅ FIX: Use @bind:after instead of @onchange to avoid conflict
@@ -461,36 +482,56 @@
 
         saving = true;
         modalError = "";
+        StateHasChanged();
 
         try
         {
             if (isEditMode)
             {
-                var result = await CategorySvc.UpdateAsync(editModel.CategoryId, editModel);
-                if (result == null)
+                var (result, error) = await CategorySvc.UpdateAsync(editModel.CategoryId, editModel);
+                if (error != null)
                 {
-                    modalError = "Failed to update category";
+                    modalError = error;
+                    saving = false;
+                    StateHasChanged();
                     return;
                 }
-                await JS.InvokeVoidAsync("alert", $"Category '{editModel.CategoryName}' updated successfully!");
+                
+                var categoryName = editModel.CategoryName;
+                await CloseModal();
+                await LoadDataAsync();
+                await JS.InvokeVoidAsync("showToast", $"Category '{categoryName}' updated successfully!", "success");
             }
             else
             {
-                var result = await CategorySvc.CreateAsync(editModel);
-                await JS.InvokeVoidAsync("alert", $"Category '{editModel.CategoryName}' created successfully!");
+                var categoryName = editModel.CategoryName;
+                var (result, error) = await CategorySvc.CreateAsync(editModel);
+                
+                if (error != null)
+                {
+                    modalError = error;
+                    saving = false;
+                    StateHasChanged();
+                    return;
+                }
+                
+                await CloseModal();
+                await LoadDataAsync();
+                await JS.InvokeVoidAsync("showToast", $"Category '{categoryName}' created successfully!", "success");
             }
-
-            CloseModal();
-            await LoadDataAsync();
         }
         catch (Exception ex)
         {
-            modalError = $"Error: {ex.Message}";
+            var errorMsg = ex.InnerException != null 
+                ? $"{ex.Message} - {ex.InnerException.Message}"
+                : ex.Message;
+            modalError = $"Error: {errorMsg}";
+            System.Diagnostics.Debug.WriteLine($"❌ Category Save Error: {ex}");
         }
         finally
         {
             saving = false;
-            await InvokeAsync(StateHasChanged);
+            StateHasChanged();
         }
     }
 
@@ -520,23 +561,24 @@
             
             if (!success)
             {
-                errorMessage = error ?? "Failed to delete category";
+                await JS.InvokeVoidAsync("showToast", error ?? "Failed to delete category", "error");
                 CloseDeleteModal();
+                isDeleting = false;
                 return;
             }
 
-            await JS.InvokeVoidAsync("alert", $"Category '{categoryToDelete.CategoryName}' deleted successfully!");
+            var categoryName = categoryToDelete.CategoryName;
             await LoadDataAsync();
             CloseDeleteModal();
+            await JS.InvokeVoidAsync("showToast", $"Category '{categoryName}' archived successfully!", "success");
         }
         catch (Exception ex)
         {
-            errorMessage = $"Error deleting category: {ex.Message}";
+            await JS.InvokeVoidAsync("showToast", $"Error: {ex.Message}", "error");
         }
         finally
         {
             isDeleting = false;
-            await InvokeAsync(StateHasChanged);
         }
     }
 

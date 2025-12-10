@@ -40,7 +40,7 @@
             <h2 class="panel-title">Suppliers Management</h2>
             <div class="panel-actions">
                 <input class="mini-input"
-                       placeholder="Search name, contact, email…"
+                       placeholder="Search name, contact, emailï¿½"
                        @bind="_search"
                        @bind:event="oninput" />
                 <select class="mini-input" @bind="_statusFilter">
@@ -55,7 +55,7 @@
         <div class="panel-body">
             @if (_loading)
             {
-                <p class="t-center text-muted">Loading…</p>
+                <p class="t-center text-muted">Loadingï¿½</p>
             }
             else if (!FilteredSuppliers.Any())
             {
@@ -83,10 +83,10 @@
                                 <tr>
                                     <td class="t-center col-id">@sup.SupplierId</td>
                                     <td class="col-name"><strong>@sup.SupplierName</strong></td>
-                                    <td class="col-contact">@(sup.ContactPerson ?? "—")</td>
-                                    <td class="col-email">@(sup.Email ?? "—")</td>
-                                    <td class="col-phone">@(sup.PhoneNumber ?? "—")</td>
-                                    <td class="col-address">@(sup.Address ?? "—")</td>
+                                    <td class="col-contact">@(sup.ContactPerson ?? "ï¿½")</td>
+                                    <td class="col-email">@(sup.Email ?? "ï¿½")</td>
+                                    <td class="col-phone">@(sup.PhoneNumber ?? "ï¿½")</td>
+                                    <td class="col-address">@(sup.Address ?? "ï¿½")</td>
                                     <td class="t-center col-status">
                                         <span class="status-chip @(sup.IsActive ? "st-active" : "st-contained")">
                                             @(sup.IsActive ? "Active" : "Inactive")
@@ -126,7 +126,7 @@
 
         <footer class="panel-foot">
             <div class="foot-left">
-                Showing @StartIndex–@EndIndex of @FilteredSuppliers.Count() suppliers
+                Showing @StartIndexï¿½@EndIndex of @FilteredSuppliers.Count() suppliers
             </div>
             <div class="foot-right">
                 <label class="foot-label">Rows</label>
@@ -142,14 +142,14 @@
         </footer>
     </section>
 
-    @* Create/Edit Supplier Modal – consistent with other pages *@
+    @* Create/Edit Supplier Modal ï¿½ consistent with other pages *@
     @if (_showModal)
     {
-        <div class="modal-overlay" @onclick="CloseModal" @onclick:stopPropagation="false">
+        <div class="modal-overlay" @onclick="async () => await CloseModal()" @onclick:stopPropagation="false">
             <div class="modal-dialog" @onclick:stopPropagation="true">
                 <div class="modal-header">
                     <h3>@(_editMode ? "Edit Supplier" : "Add Supplier")</h3>
-                    <button class="modal-close" @onclick="CloseModal">&times;</button>
+                    <button class="modal-close" @onclick="async () => await CloseModal()">&times;</button>
                 </div>
                 <div class="modal-body">
                     <div class="form-row">
@@ -170,7 +170,13 @@
                         </div>
                         <div class="form-group">
                             <label for="phone">Phone Number</label>
-                            <input id="phone" class="form-control" @bind="_editModel.PhoneNumber" />
+                            <input id="phone" 
+                                   type="tel" 
+                                   class="form-control" 
+                                   @bind="_editModel.PhoneNumber" 
+                                   placeholder="09XXXXXXXXX" 
+                                   maxlength="11" />
+                            <small class="hint">Must be exactly 11 digits (e.g., 09171234567)</small>
                         </div>
                     </div>
 
@@ -219,7 +225,7 @@
                         }
                         <button type="button"
                                 class="btn-cancel"
-                                @onclick="CloseModal"
+                                @onclick="async () => await CloseModal()"
                                 disabled="@_saving"
                                 @onclick:stopPropagation="true">
                             Cancel
@@ -337,9 +343,20 @@
         _showModal = true;
     }
 
-    private void CloseModal()
+    private async Task CloseModal()
     {
         if (_saving) return;
+
+        // Ask for confirmation if form has data
+        if (!string.IsNullOrWhiteSpace(_editModel.SupplierName) || 
+            !string.IsNullOrWhiteSpace(_editModel.ContactPerson) ||
+            !string.IsNullOrWhiteSpace(_editModel.Email) ||
+            !string.IsNullOrWhiteSpace(_editModel.PhoneNumber))
+        {
+            var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "Close without saving? All changes will be lost.");
+            if (!confirmed) return;
+        }
+
         _showModal = false;
         _editModel = new();
         _error = string.Empty;
@@ -356,16 +373,37 @@
             return;
         }
 
+        // Validate phone number - must be exactly 11 digits
+        if (!string.IsNullOrWhiteSpace(_editModel.PhoneNumber))
+        {
+            var digitsOnly = new string(_editModel.PhoneNumber.Where(char.IsDigit).ToArray());
+            if (digitsOnly.Length != 11)
+            {
+                _error = "Phone number must be exactly 11 digits.";
+                return;
+            }
+        }
+
         _saving = true;
         try
         {
             if (_editMode)
             {
-                await SupplierSvc.UpdateAsync(_editModel.SupplierId, _editModel);
+                var (result, error) = await SupplierSvc.UpdateAsync(_editModel.SupplierId, _editModel);
+                if (error != null)
+                {
+                    _error = error;
+                    return;
+                }
             }
             else
             {
-                await SupplierSvc.CreateAsync(_editModel);
+                var (result, error) = await SupplierSvc.CreateAsync(_editModel);
+                if (error != null)
+                {
+                    _error = error;
+                    return;
+                }
             }
 
             _showModal = false;

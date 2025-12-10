@@ -1,0 +1,904 @@
+@page "/reports/enhanced"
+@inject ResQLink.Services.IOperationsReportService ReportService
+@inject ResQLink.Services.AuthState Auth
+@inject IJSRuntime JS
+@using ResQLink.Models.Reports
+
+<div class="reports-root">
+    <!-- Header -->
+    <section class="panel">
+        <header class="panel-head">
+            <h2 class="panel-title">Operations Report</h2>
+            <div class="panel-actions">
+                <button class="text-size-btn" @onclick="IncreaseTextSize" title="Increase text size">
+                    <i class="bi bi-zoom-in"></i>
+                </button>
+                <button class="text-size-btn" @onclick="DecreaseTextSize" title="Decrease text size">
+                    <i class="bi bi-zoom-out"></i>
+                </button>
+                <button class="mini-btn btn-primary"
+                        @onclick="GenerateOperationsReportAsync"
+                        disabled="@_loading">
+                    @if (_loading)
+                    {
+                        <span class="spinner"></span>
+                    }
+                    <i class="bi bi-file-earmark-pdf"></i>
+                    <span class="btn-label">Generate PDF</span>
+                </button>
+                <button class="mini-btn" @onclick="RefreshDataAsync" disabled="@_loading">
+                    <i class="bi bi-arrow-clockwise"></i>
+                    <span>Refresh</span>
+                </button>
+            </div>
+        </header>
+    </section>
+
+    @if (_reportData != null)
+    {
+        <!-- Pagination Navigation -->
+        <div class="pagination-nav">
+            <h3 class="nav-title">📊 Report Sections</h3>
+            <div class="nav-buttons">
+                <button class="nav-btn @(currentSection == 1 ? "active" : "")" @onclick="() => NavigateToSection(1)">
+                    <i class="bi bi-clipboard-data"></i>
+                    <span>1. Summary</span>
+                </button>
+                <button class="nav-btn @(currentSection == 2 ? "active" : "")" @onclick="() => NavigateToSection(2)">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <span>2. Disasters</span>
+                </button>
+                <button class="nav-btn @(currentSection == 3 ? "active" : "")" @onclick="() => NavigateToSection(3)">
+                    <i class="bi bi-people"></i>
+                    <span>3. Evacuees</span>
+                </button>
+                <button class="nav-btn @(currentSection == 4 ? "active" : "")" @onclick="() => NavigateToSection(4)">
+                    <i class="bi bi-house-heart"></i>
+                    <span>4. Shelters</span>
+                </button>
+                <button class="nav-btn @(currentSection == 5 ? "active" : "")" @onclick="() => NavigateToSection(5)">
+                    <i class="bi bi-wallet2"></i>
+                    <span>5. Finance</span>
+                </button>
+                <button class="nav-btn @(currentSection == 6 ? "active" : "")" @onclick="() => NavigateToSection(6)">
+                    <i class="bi bi-person-badge"></i>
+                    <span>6. Volunteers</span>
+                </button>
+                <button class="nav-btn @(currentSection == 7 ? "active" : "")" @onclick="() => NavigateToSection(7)">
+                    <i class="bi bi-box-seam"></i>
+                    <span>7. Inventory</span>
+                </button>
+                <button class="nav-btn @(currentSection == 8 ? "active" : "")" @onclick="() => NavigateToSection(8)">
+                    <i class="bi bi-flag"></i>
+                    <span>8. Issues</span>
+                </button>
+            </div>
+            <div class="page-indicator">
+                <span>Page @currentSection of 8</span>
+            </div>
+        </div>
+
+        <div style="font-size: @(textSize)px;">
+
+            <!-- Section 1: Executive Summary -->
+            @if (currentSection == 1)
+            {
+                <section class="panel section-content fade-in">
+                    <header class="panel-head-large">
+                        <h3 class="section-title-large">📋 1. Executive Summary</h3>
+                        <span class="section-badge-large">Overview</span>
+                    </header>
+                    <div class="kpi-grid-large">
+                        <div class="kpi-card-large disaster-card">
+                            <div class="kpi-icon-large disaster-icon">
+                                <i class="bi bi-exclamation-triangle-fill"></i>
+                            </div>
+                            <div class="kpi-content-large">
+                                <div class="kpi-label-large">Active Disasters</div>
+                                <div class="kpi-value-large text-danger">@_reportData.Summary.ActiveDisasters</div>
+                                <div class="kpi-desc-large">Emergency situations requiring response</div>
+                            </div>
+                        </div>
+                        <div class="kpi-card-large evacuee-card">
+                            <div class="kpi-icon-large evacuee-icon">
+                                <i class="bi bi-people-fill"></i>
+                            </div>
+                            <div class="kpi-content-large">
+                                <div class="kpi-label-large">Total Evacuees</div>
+                                <div class="kpi-value-large text-primary">@_reportData.Summary.TotalEvacuees</div>
+                                <div class="kpi-desc-large">People registered in the system</div>
+                            </div>
+                        </div>
+                        <div class="kpi-card-large shelter-card">
+                            <div class="kpi-icon-large shelter-icon">
+                                <i class="bi bi-house-heart-fill"></i>
+                            </div>
+                            <div class="kpi-content-large">
+                                <div class="kpi-label-large">Active Shelters</div>
+                                <div class="kpi-value-large text-success">@_reportData.Summary.ActiveShelters</div>
+                                <div class="kpi-desc-large">Operational evacuation centers</div>
+                            </div>
+                        </div>
+                        <div class="kpi-card-large volunteer-card">
+                            <div class="kpi-icon-large volunteer-icon">
+                                <i class="bi bi-person-badge-fill"></i>
+                            </div>
+                            <div class="kpi-content-large">
+                                <div class="kpi-label-large">Volunteers</div>
+                                <div class="kpi-value-large text-info">@_reportData.Summary.TotalVolunteers</div>
+                                <div class="kpi-desc-large">Active volunteers deployed</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(_reportData.Summary.CurrentDisasterOverview))
+                    {
+                        <div class="summary-overview-large">
+                            <h4 class="overview-title-large">
+                                <i class="bi bi-info-circle-fill"></i>
+                                Current Situation
+                            </h4>
+                            <p class="overview-text-large">@_reportData.Summary.CurrentDisasterOverview</p>
+                            <div class="interpretation-box-large">
+                                <i class="bi bi-lightbulb-fill"></i>
+                                <div>
+                                    <strong>Key Insight:</strong>
+                                    <p>@GetExecutiveSummaryInterpretation()</p>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    <div class="section-nav-large">
+                        <button class="nav-btn-large" @onclick="() => NavigateToSection(2)">
+                            <span>Next: Disaster Overview →</span>
+                            <i class="bi bi-arrow-right"></i>
+                        </button>
+                    </div>
+                </section>
+            }
+
+            <!-- Section 2: Disaster Overview -->
+            @if (currentSection == 2)
+            {
+                <section class="panel section-content fade-in">
+                    <header class="panel-head-large">
+                        <h3 class="section-title-large">🚨 2. Disaster Situation Overview</h3>
+                        <span class="section-badge-large">@_reportData.ActiveDisasters.Count Active</span>
+                    </header>
+
+                    @if (_reportData.ActiveDisasters.Any())
+                    {
+                        @foreach (var disaster in _reportData.ActiveDisasters)
+                        {
+                            <div class="disaster-card-large">
+                                <div class="disaster-header-large">
+                                    <h4 class="disaster-title-large">@disaster.Title</h4>
+                                    <span class="severity-badge-large severity-@disaster.Severity.ToLower()">
+                                        @disaster.Severity
+                                    </span>
+                                </div>
+                                <div class="disaster-details-large">
+                                    <div class="detail-item-large">
+                                        <i class="bi bi-geo-alt-fill"></i>
+                                        <div>
+                                            <strong>Location:</strong>
+                                            <span>@disaster.Location</span>
+                                        </div>
+                                    </div>
+                                    <div class="detail-item-large">
+                                        <i class="bi bi-calendar-event"></i>
+                                        <div>
+                                            <strong>Started:</strong>
+                                            <span>@disaster.StartDate.ToString("MMMM dd, yyyy")</span>
+                                        </div>
+                                    </div>
+                                    <div class="detail-item-large">
+                                        <i class="bi bi-clock-history"></i>
+                                        <div>
+                                            <strong>Duration:</strong>
+                                            <span>@disaster.DaysActive days</span>
+                                        </div>
+                                    </div>
+                                    <div class="detail-item-large">
+                                        <i class="bi bi-exclamation-circle"></i>
+                                        <div>
+                                            <strong>Type:</strong>
+                                            <span>@disaster.DisasterType</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                @if (disaster.AffectedBarangays.Any())
+                                {
+                                    <div class="affected-areas-large">
+                                        <strong>Affected Areas:</strong>
+                                        <div class="barangay-tags-large">
+                                            @foreach (var barangay in disaster.AffectedBarangays)
+                                            {
+                                                <span class="barangay-tag-large">@barangay</span>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="empty-state-large">
+                            <i class="bi bi-check-circle-fill"></i>
+                            <h4>No Active Disasters</h4>
+                            <p>There are currently no active disaster situations requiring response.</p>
+                        </div>
+                    }
+
+                    <div class="interpretation-box-large">
+                        <i class="bi bi-lightbulb-fill"></i>
+                        <div>
+                            <strong>Analysis:</strong>
+                            <p>@GetDisasterInterpretation()</p>
+                        </div>
+                    </div>
+
+                    <div class="section-nav-large">
+                        <button class="nav-btn-large secondary" @onclick="() => NavigateToSection(1)">
+                            <i class="bi bi-arrow-left"></i>
+                            <span>← Previous Section</span>
+                        </button>
+                        <button class="nav-btn-large" @onclick="() => NavigateToSection(3)">
+                            <span>Next: Evacuees →</span>
+                            <i class="bi bi-arrow-right"></i>
+                        </button>
+                    </div>
+                </section>
+            }
+
+            <!-- Section 3: Evacuees -->
+            @if (currentSection == 3)
+            {
+                <section class="panel section-content fade-in">
+                    <header class="panel-head-large">
+                        <h3 class="section-title-large">👥 3. Evacuee Statistics</h3>
+                        <span class="section-badge-large">@_reportData.Summary.TotalEvacuees Total</span>
+                    </header>
+
+                    <div class="stats-grid-large">
+                        <h4 class="stats-subtitle-large">By Status</h4>
+                        @foreach (var status in _reportData.EvacueeStats.ByStatus)
+                        {
+                            <div class="stat-card-large">
+                                <div class="stat-label-large">@status.Key</div>
+                                <div class="stat-value-large">@status.Value</div>
+                                <div class="stat-bar-large">
+                                    <div class="stat-bar-fill-large" style="width: @CalculatePercentage(status.Value, _reportData.Summary.TotalEvacuees)%;"></div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+
+                    <div class="stats-grid-large">
+                        <h4 class="stats-subtitle-large">By Shelter</h4>
+                        @foreach (var shelter in _reportData.EvacueeStats.ByShelter)
+                        {
+                            <div class="stat-card-large">
+                                <div class="stat-label-large">@shelter.Key</div>
+                                <div class="stat-value-large">@shelter.Value</div>
+                                <div class="stat-bar-large">
+                                    <div class="stat-bar-fill-large" style="width: @CalculatePercentage(shelter.Value, _reportData.Summary.TotalEvacuees)%;"></div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+
+                    <div class="interpretation-box-large">
+                        <i class="bi bi-lightbulb-fill"></i>
+                        <div>
+                            <strong>Analysis:</strong>
+                            <p>@GetEvacueeInterpretation()</p>
+                        </div>
+                    </div>
+
+                    <div class="section-nav-large">
+                        <button class="nav-btn-large secondary" @onclick="() => NavigateToSection(2)">
+                            <i class="bi bi-arrow-left"></i>
+                            <span>← Previous Section</span>
+                        </button>
+                        <button class="nav-btn-large" @onclick="() => NavigateToSection(4)">
+                            <span>Next: Shelters →</span>
+                            <i class="bi bi-arrow-right"></i>
+                        </button>
+                    </div>
+                </section>
+            }
+
+            <!-- Section 4: Shelters -->
+            @if (currentSection == 4)
+            {
+                <section class="panel section-content fade-in">
+                    <header class="panel-head-large">
+                        <h3 class="section-title-large">🏠 4. Shelter Operations</h3>
+                        <span class="section-badge-large">@_reportData.Summary.ActiveShelters Centers</span>
+                    </header>
+
+                    @if (_reportData.ShelterOps.ActiveShelters.Any())
+                    {
+                        @foreach (var shelter in _reportData.ShelterOps.ActiveShelters)
+                        {
+                            var occupancyPercent = shelter.Capacity > 0 ? (shelter.CurrentOccupancy * 100.0 / shelter.Capacity) : 0;
+                            var statusClass = occupancyPercent >= 90 ? "critical" : occupancyPercent >= 70 ? "warning" : "normal";
+
+                            <div class="shelter-card-large @statusClass">
+                                <div class="shelter-header-large">
+                                    <h4 class="shelter-name-large">@shelter.Name</h4>
+                                    <span class="capacity-badge-large">
+                                        @shelter.CurrentOccupancy / @shelter.Capacity
+                                    </span>
+                                </div>
+                                <div class="shelter-stats-large">
+                                    <div class="stat-box-large">
+                                        <i class="bi bi-people-fill"></i>
+                                        <div>
+                                            <div class="stat-label">Current Occupants</div>
+                                            <div class="stat-value">@shelter.CurrentOccupancy</div>
+                                        </div>
+                                    </div>
+                                    <div class="stat-box-large">
+                                        <i class="bi bi-door-open"></i>
+                                        <div>
+                                            <div class="stat-label">Total Capacity</div>
+                                            <div class="stat-value">@shelter.Capacity</div>
+                                        </div>
+                                    </div>
+                                    <div class="stat-box-large">
+                                        <i class="bi bi-percent"></i>
+                                        <div>
+                                            <div class="stat-label">Occupancy Rate</div>
+                                            <div class="stat-value">@occupancyPercent.ToString("F1")%</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="occupancy-bar-large">
+                                    <div class="occupancy-fill-large @statusClass" style="width: @occupancyPercent%;"></div>
+                                </div>
+                                <div class="occupancy-status-large">
+                                    @if (occupancyPercent >= 90)
+                                    {
+                                        <span class="status-critical">⚠️ CRITICAL: Near full capacity</span>
+                                    }
+                                    else if (occupancyPercent >= 70)
+                                    {
+                                        <span class="status-warning">⚡ WARNING: High occupancy</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="status-normal">✓ NORMAL: Capacity available</span>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="empty-state-large">
+                            <i class="bi bi-house-slash"></i>
+                            <h4>No Active Shelters</h4>
+                            <p>There are currently no evacuation centers in operation.</p>
+                        </div>
+                    }
+
+                    <div class="interpretation-box-large">
+                        <i class="bi bi-lightbulb-fill"></i>
+                        <div>
+                            <strong>Analysis:</strong>
+                            <p>@GetShelterInterpretation()</p>
+                        </div>
+                    </div>
+
+                    <div class="section-nav-large">
+                        <button class="nav-btn-large secondary" @onclick="() => NavigateToSection(3)">
+                            <i class="bi bi-arrow-left"></i>
+                            <span>← Previous Section</span>
+                        </button>
+                        <button class="nav-btn-large" @onclick="() => NavigateToSection(5)">
+                            <span>Next: Finance →</span>
+                            <i class="bi bi-arrow-right"></i>
+                        </button>
+                    </div>
+                </section>
+            }
+
+            <!-- Section 5: Financial Summary -->
+            @if (currentSection == 5)
+            {
+                <section class="panel section-content fade-in">
+                    <header class="panel-head-large">
+                        <h3 class="section-title-large">💰 5. Financial Summary</h3>
+                        <span class="section-badge-large">Budget Status</span>
+                    </header>
+
+                    <div class="financial-overview-large">
+                        <div class="financial-card-large income">
+                            <i class="bi bi-arrow-down-circle-fill"></i>
+                            <div>
+                                <div class="financial-label">Total Funds Received</div>
+                                <div class="financial-value">₱@_reportData.FinancialInfo.TotalFundsReceived.ToString("N2")</div>
+                            </div>
+                        </div>
+                        <div class="financial-card-large expense">
+                            <i class="bi bi-arrow-up-circle-fill"></i>
+                            <div>
+                                <div class="financial-label">Total Expenditures</div>
+                                <div class="financial-value">₱@_reportData.FinancialInfo.TotalExpenditures.ToString("N2")</div>
+                            </div>
+                        </div>
+                        <div class="financial-card-large balance @(_reportData.FinancialInfo.Balance >= 0 ? "positive" : "negative")">
+                            <i class="bi bi-wallet2"></i>
+                            <div>
+                                <div class="financial-label">Current Balance</div>
+                                <div class="financial-value">₱@_reportData.FinancialInfo.Balance.ToString("N2")</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="interpretation-box-large">
+                        <i class="bi bi-lightbulb-fill"></i>
+                        <div>
+                            <strong>Financial Status:</strong>
+                            <p>@GetFinancialInterpretation()</p>
+                        </div>
+                    </div>
+
+                    <div class="section-nav-large">
+                        <button class="nav-btn-large secondary" @onclick="() => NavigateToSection(4)">
+                            <i class="bi bi-arrow-left"></i>
+                            <span>← Previous Section</span>
+                        </button>
+                        <button class="nav-btn-large" @onclick="() => NavigateToSection(6)">
+                            <span>Next: Volunteers →</span>
+                            <i class="bi bi-arrow-right"></i>
+                        </button>
+                    </div>
+                </section>
+            }
+
+            <!-- Section 6: Volunteers -->
+            @if (currentSection == 6)
+            {
+                <section class="panel section-content fade-in">
+                    <header class="panel-head-large">
+                        <h3 class="section-title-large">👷 6. Volunteer Deployment</h3>
+                        <span class="section-badge-large">@_reportData.VolunteerInfo.TotalActiveVolunteers Active</span>
+                    </header>
+
+                    @if (_reportData.VolunteerInfo.Assignments.Any())
+                    {
+                        <div class="volunteer-grid-large">
+                            @foreach (var volunteer in _reportData.VolunteerInfo.Assignments)
+                            {
+                                <div class="volunteer-card-large">
+                                    <div class="volunteer-avatar-large">
+                                        <i class="bi bi-person-circle"></i>
+                                    </div>
+                                    <div class="volunteer-info-large">
+                                        <h4 class="volunteer-name-large">@volunteer.VolunteerName</h4>
+                                        <div class="volunteer-detail-large">
+                                            <i class="bi bi-house-door"></i>
+                                            <span>@volunteer.AssignedShelter</span>
+                                        </div>
+                                        @if (!string.IsNullOrEmpty(volunteer.Skills))
+                                        {
+                                            <div class="volunteer-skills-large">
+                                                @foreach (var skill in volunteer.Skills.Split(',').Select(s => s.Trim()))
+                                                {
+                                                    <span class="skill-tag-large">@skill</span>
+                                                }
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="empty-state-large">
+                            <i class="bi bi-person-x"></i>
+                            <h4>No Volunteers Deployed</h4>
+                            <p>There are currently no volunteers assigned to operations.</p>
+                        </div>
+                    }
+
+                    <div class="interpretation-box-large">
+                        <i class="bi bi-lightbulb-fill"></i>
+                        <div>
+                            <strong>Volunteer Analysis:</strong>
+                            <p>@GetVolunteerInterpretation()</p>
+                        </div>
+                    </div>
+
+                    <div class="section-nav-large">
+                        <button class="nav-btn-large secondary" @onclick="() => NavigateToSection(5)">
+                            <i class="bi bi-arrow-left"></i>
+                            <span>← Previous Section</span>
+                        </button>
+                        <button class="nav-btn-large" @onclick="() => NavigateToSection(7)">
+                            <span>Next: Inventory →</span>
+                            <i class="bi bi-arrow-right"></i>
+                        </button>
+                    </div>
+                </section>
+            }
+
+            <!-- Section 7: Inventory -->
+            @if (currentSection == 7)
+            {
+                <section class="panel section-content fade-in">
+                    <header class="panel-head-large">
+                        <h3 class="section-title-large">📦 7. Inventory Report</h3>
+                        <span class="section-badge-large">@_reportData.InventoryInfo.ExecutiveSummary.OverallCondition</span>
+                    </header>
+
+                    <div class="inventory-summary-large">
+                        <div class="inventory-stat-large">
+                            <i class="bi bi-box-seam"></i>
+                            <div>
+                                <div class="label">Total Items</div>
+                                <div class="value">@_reportData.InventoryInfo.ExecutiveSummary.TotalItemsInStock</div>
+                            </div>
+                        </div>
+                        <div class="inventory-stat-large critical">
+                            <i class="bi bi-exclamation-triangle-fill"></i>
+                            <div>
+                                <div class="label">Critical Items</div>
+                                <div class="value">@_reportData.InventoryInfo.ExecutiveSummary.CriticallyLowItems</div>
+                            </div>
+                        </div>
+                        <div class="inventory-stat-large warning">
+                            <i class="bi bi-exclamation-circle-fill"></i>
+                            <div>
+                                <div class="label">Low Stock Items</div>
+                                <div class="value">@_reportData.InventoryInfo.ExecutiveSummary.LowStockItems</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (_reportData.InventoryInfo.ExecutiveSummary.ImmediateProcurementNeeds.Any())
+                    {
+                        <div class="alert-box-large critical">
+                            <i class="bi bi-cart-plus-fill"></i>
+                            <div>
+                                <strong>⚠️ URGENT: Immediate Procurement Required</strong>
+                                <div class="procurement-list-large">
+                                    @foreach (var item in _reportData.InventoryInfo.ExecutiveSummary.ImmediateProcurementNeeds)
+                                    {
+                                        <span class="procurement-item-large">@item</span>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    <div class="interpretation-box-large">
+                        <i class="bi bi-lightbulb-fill"></i>
+                        <div>
+                            <strong>Inventory Status:</strong>
+                            <p>@GetInventoryInterpretation()</p>
+                        </div>
+                    </div>
+
+                    <div class="section-nav-large">
+                        <button class="nav-btn-large secondary" @onclick="() => NavigateToSection(6)">
+                            <i class="bi bi-arrow-left"></i>
+                            <span>← Previous Section</span>
+                        </button>
+                        <button class="nav-btn-large" @onclick="() => NavigateToSection(8)">
+                            <span>Next: Issues →</span>
+                            <i class="bi bi-arrow-right"></i>
+                        </button>
+                    </div>
+                </section>
+            }
+
+            <!-- Section 8: Issues & Concerns -->
+            @if (currentSection == 8)
+            {
+                <section class="panel section-content fade-in">
+                    <header class="panel-head-large">
+                        <h3 class="section-title-large">🚩 8. Operational Issues & Concerns</h3>
+                        @if (Auth.IsAdmin() || Auth.IsOperationOfficer())
+                        {
+                            <button class="edit-btn-large" @onclick="ToggleEditMode">
+                                <i class="bi bi-@(isEditingIssues ? "x-circle" : "pencil-square")"></i>
+                                <span>@(isEditingIssues ? "Cancel" : "Edit")</span>
+                            </button>
+                        }
+                    </header>
+
+                    @if (isEditingIssues)
+                    {
+                        <div class="issues-form-large">
+                            <div class="form-group-large">
+                                <label>Needed Support</label>
+                                <textarea class="form-control-large" rows="4" @bind="_reportData.Issues.NeededSupport"></textarea>
+                            </div>
+                            <div class="form-group-large">
+                                <label>Urgent Supplies</label>
+                                <textarea class="form-control-large" rows="4" @bind="_reportData.Issues.UrgentSupplies"></textarea>
+                            </div>
+                            <div class="form-group-large">
+                                <label>Funding Requests</label>
+                                <textarea class="form-control-large" rows="4" @bind="_reportData.Issues.FundingRequests"></textarea>
+                            </div>
+                            <div class="form-group-large">
+                                <label>Concerns</label>
+                                <textarea class="form-control-large" rows="4" @bind="_reportData.Issues.Concerns"></textarea>
+                            </div>
+                            <button class="btn-save-large" @onclick="SaveIssuesAsync">
+                                <i class="bi bi-check-circle"></i> Save Changes
+                            </button>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="issues-display-large">
+                            @if (!string.IsNullOrEmpty(_reportData.Issues.NeededSupport))
+                            {
+                                <div class="issue-item-large">
+                                    <strong>Needed Support:</strong>
+                                    <p>@_reportData.Issues.NeededSupport</p>
+                                </div>
+                            }
+                            @if (!string.IsNullOrEmpty(_reportData.Issues.UrgentSupplies))
+                            {
+                                <div class="issue-item-large">
+                                    <strong>Urgent Supplies:</strong>
+                                    <p>@_reportData.Issues.UrgentSupplies</p>
+                                </div>
+                            }
+                            @if (!string.IsNullOrEmpty(_reportData.Issues.FundingRequests))
+                            {
+                                <div class="issue-item-large">
+                                    <strong>Funding Requests:</strong>
+                                    <p>@_reportData.Issues.FundingRequests</p>
+                                </div>
+                            }
+                            @if (!string.IsNullOrEmpty(_reportData.Issues.Concerns))
+                            {
+                                <div class="issue-item-large">
+                                    <strong>Concerns:</strong>
+                                    <p>@_reportData.Issues.Concerns</p>
+                                </div>
+                            }
+
+                            @if (string.IsNullOrEmpty(_reportData.Issues.NeededSupport) &&
+                                string.IsNullOrEmpty(_reportData.Issues.UrgentSupplies) &&
+                                string.IsNullOrEmpty(_reportData.Issues.FundingRequests) &&
+                                string.IsNullOrEmpty(_reportData.Issues.Concerns))
+                            {
+                                <div class="empty-state-large success">
+                                    <i class="bi bi-check-circle-fill"></i>
+                                    <h4>No Issues Reported</h4>
+                                    <p>All operations are running smoothly with no reported concerns at this time.</p>
+                                </div>
+                            }
+                        </div>
+                    }
+
+                    <div class="section-nav-large">
+                        <button class="nav-btn-large secondary" @onclick="() => NavigateToSection(7)">
+                            <i class="bi bi-arrow-left"></i>
+                            <span>← Previous Section</span>
+                        </button>
+                        <button class="nav-btn-large" @onclick="() => NavigateToSection(1)">
+                            <i class="bi bi-arrow-repeat"></i>
+                            <span>↻ Back to Summary</span>
+                        </button>
+                    </div>
+                </section>
+            }
+        </div>
+    }
+    else if (!_loading)
+    {
+        <section class="panel panel-empty">
+            <div class="empty-state-large">
+                <i class="bi bi-file-text" aria-hidden="true"></i>
+                <h3>No Report Generated</h3>
+                <p>Click <strong>Refresh</strong> to load report data or <strong>Generate PDF</strong> to create a comprehensive operations report.</p>
+            </div>
+        </section>
+    }
+</div>
+
+@code {
+    private OperationsReportData? _reportData;
+    private bool _loading = false;
+    private bool isEditingIssues = false;
+    private int currentSection = 1;
+    private int textSize = 16;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshDataAsync();
+    }
+
+    private void NavigateToSection(int section)
+    {
+        currentSection = section;
+        StateHasChanged();
+        _ = JS.InvokeVoidAsync("window.scrollTo", 0, 0);
+    }
+
+    private void IncreaseTextSize()
+    {
+        if (textSize < 24) textSize += 2;
+    }
+
+    private void DecreaseTextSize()
+    {
+        if (textSize > 12) textSize -= 2;
+    }
+
+    private double CalculatePercentage(int value, int total)
+    {
+        return total > 0 ? (value * 100.0 / total) : 0;
+    }
+
+    // Interpretation methods
+    private string GetExecutiveSummaryInterpretation()
+    {
+        if (_reportData?.Summary == null) return "Loading...";
+        if (_reportData.Summary.ActiveDisasters == 0)
+            return "✅ No active disasters. System is on standby for any emergency response needs.";
+        if (_reportData.Summary.ActiveDisasters >= 3)
+            return "⚠️ CRITICAL: Multiple disasters require coordinated response. Ensure adequate resources are distributed across all affected areas.";
+        return $"📊 Currently managing {_reportData.Summary.ActiveDisasters} disaster(s) with {_reportData.Summary.TotalEvacuees} evacuees across {_reportData.Summary.ActiveShelters} shelter(s). Response operations are active.";
+    }
+
+    private string GetDisasterInterpretation()
+    {
+        if (_reportData?.ActiveDisasters == null || !_reportData.ActiveDisasters.Any())
+            return "No active disasters at this time. Continue monitoring for potential emergency situations.";
+        
+        var criticalCount = _reportData.ActiveDisasters.Count(d => d.Severity == "Critical");
+        if (criticalCount > 0)
+            return $"⚠️ URGENT: {criticalCount} critical severity disaster(s) detected. Immediate action and resource allocation required.";
+        
+        return $"Monitoring {_reportData.ActiveDisasters.Count} active disaster(s). Continue coordinated response and regular situation updates.";
+    }
+
+    private string GetEvacueeInterpretation()
+    {
+        if (_reportData?.Summary == null || _reportData.Summary.TotalEvacuees == 0)
+            return "No evacuees currently registered in the system.";
+        
+        return $"Total of {_reportData.Summary.TotalEvacuees} evacuees registered. Ensure adequate shelter capacity, food supplies, and medical support for all individuals.";
+    }
+
+    private string GetShelterInterpretation()
+    {
+        if (_reportData?.ShelterOps?.ActiveShelters == null || !_reportData.ShelterOps.ActiveShelters.Any())
+            return "No active shelters. Standby facilities should be prepared for potential evacuations.";
+        
+        var overcrowded = _reportData.ShelterOps.ActiveShelters.Count(s => s.Capacity > 0 && (s.CurrentOccupancy * 100.0 / s.Capacity) >= 90);
+        if (overcrowded > 0)
+            return $"⚠️ ALERT: {overcrowded} shelter(s) at or near capacity. Prepare additional evacuation centers or expand current facilities immediately.";
+        
+        return $"{_reportData.Summary.ActiveShelters} shelter(s) operational with adequate capacity. Continue monitoring occupancy levels.";
+    }
+
+    private string GetFinancialInterpretation()
+    {
+        if (_reportData?.FinancialInfo == null) return "Loading financial data...";
+        if (_reportData.FinancialInfo.Balance < 0)
+            return $"⚠️ DEFICIT: Current balance is negative (₱{Math.Abs(_reportData.FinancialInfo.Balance):N2}). Additional funding required urgently.";
+        
+        if (_reportData.FinancialInfo.Balance < 50000)
+            return $"⚡ LOW FUNDS: Current balance (₱{_reportData.FinancialInfo.Balance:N2}) is running low. Plan for additional budget allocation.";
+        
+        return $"✅ HEALTHY: Sufficient funds available (₱{_reportData.FinancialInfo.Balance:N2}). Continue monitoring expenditures.";
+    }
+
+    private string GetVolunteerInterpretation()
+    {
+        if (_reportData?.VolunteerInfo == null || _reportData.VolunteerInfo.TotalActiveVolunteers == 0)
+            return "No volunteers currently deployed. Consider recruitment for future operations.";
+        
+        return $"{_reportData.VolunteerInfo.TotalActiveVolunteers} volunteer(s) actively supporting operations. Ensure proper coordination and support for all volunteers.";
+    }
+
+    private string GetInventoryInterpretation()
+    {
+        if (_reportData?.InventoryInfo?.ExecutiveSummary == null) return "Loading inventory data...";
+        var critical = _reportData.InventoryInfo.ExecutiveSummary.CriticallyLowItems;
+        var low = _reportData.InventoryInfo.ExecutiveSummary.LowStockItems;
+        
+        if (critical > 0)
+            return $"🚨 CRITICAL: {critical} item(s) at critically low levels. IMMEDIATE procurement required to prevent stockouts.";
+        
+        if (low > 0)
+            return $"⚠️ WARNING: {low} item(s) have low stock levels. Schedule procurement within 48 hours.";
+        
+        return "✅ GOOD: Inventory levels are adequate. Continue regular monitoring and restocking.";
+    }
+
+    private async Task RefreshDataAsync()
+    {
+        _loading = true;
+        StateHasChanged();
+
+        try
+        {
+            _reportData = await ReportService.GenerateReportDataAsync();
+            _reportData.GeneratedBy = Auth.CurrentUser?.Username ?? "System";
+            currentSection = 1; // Reset to first section
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Error loading report data: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task GenerateOperationsReportAsync()
+    {
+        if (_reportData == null)
+        {
+            await RefreshDataAsync();
+            if (_reportData == null) return;
+        }
+
+        _loading = true;
+        StateHasChanged();
+
+        try
+        {
+            var pdfBytes = await ReportService.GeneratePdfReportAsync(_reportData);
+            var fileName = $"Operations_Report_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+
+            var base64 = Convert.ToBase64String(pdfBytes);
+            await JS.InvokeVoidAsync("eval", $@"
+                const link = document.createElement('a');
+                link.download = '{fileName}';
+                link.href = 'data:application/pdf;base64,{base64}';
+                link.click();
+            ");
+
+            await JS.InvokeVoidAsync("alert", "Operations Report PDF generated successfully!");
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Error generating PDF: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ToggleEditMode()
+    {
+        isEditingIssues = !isEditingIssues;
+    }
+
+    private async Task SaveIssuesAsync()
+    {
+        if (_reportData == null) return;
+
+        try
+        {
+            await ReportService.SaveOperationalIssuesAsync(_reportData.Issues);
+            await JS.InvokeVoidAsync("alert", "Operational issues saved successfully!");
+            isEditingIssues = false;
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Error saving issues: {ex.Message}");
+        }
+    }
+}

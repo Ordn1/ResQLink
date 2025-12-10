@@ -393,7 +393,7 @@
                             <span class="trend-badge @GetTrendClass(_lowStockToday, _lowStockYesterday)">
                                 @LowStockDeltaText
                             </span>
-                            <span class="kpi-detail">items ≤ @LowStockThreshold units</span>
+                            <span class="kpi-detail">items ≤ 25% of capacity</span>
                         </div>
                     </div>
                 </div>
@@ -475,7 +475,7 @@
                             <span class="trend-badge @GetTrendClass(_lowStockToday, _lowStockYesterday)">
                                 @LowStockDeltaText
                             </span>
-                            <span class="kpi-detail">items ≤ @LowStockThreshold units</span>
+                            <span class="kpi-detail">items ≤ 25% of capacity</span>
                         </div>
                     </div>
                 </div>
@@ -711,7 +711,7 @@
                         }
                     </div>
                     <div class="card-footer">
-                        <i class="bi bi-info-circle"></i> Threshold: ≤ @LowStockThreshold items
+                        <i class="bi bi-info-circle"></i> Threshold: ≤ 25% capacity
                     </div>
                 </div>
             </div>
@@ -771,7 +771,7 @@
                         }
                     </div>
                     <div class="card-footer">
-                        <i class="bi bi-info-circle"></i> Threshold: ≤ @LowStockThreshold items
+                        <i class="bi bi-info-circle"></i> Threshold: ≤ 25% capacity
                     </div>
                 </div>
             </div>
@@ -1075,13 +1075,12 @@
             var today = DateTime.UtcNow.Date;
             var yesterday = today.AddDays(-1);
 
-            // Load budget data for Finance Manager or other roles
+            // Load budget data first - runs to completion before next query
             var budgets = await db.BarangayBudgets.AsNoTracking().ToListAsync();
             _totalBudgetAllocation = budgets.Sum(b => b.TotalAmount);
             _barangayCount = budgets.Count;
             _averageBudgetPerBarangay = _barangayCount > 0 ? _totalBudgetAllocation / _barangayCount : 0;
 
-            // Initialize allocated/remaining to defaults
             _totalAllocated = 0;
             _totalRemaining = _totalBudgetAllocation;
 
@@ -1108,22 +1107,25 @@
                 _evacueesYesterday = evacuees.Count(e => e.RegisteredAt.Date == yesterday);
                 _evacueeGrowthRate = _evacueesYesterday > 0 ? (int)Math.Round((_evacueesToday - _evacueesYesterday) / (double)_evacueesYesterday * 100) : 0;
 
-                // Disasters
-                AllDisasters = await db.Disasters.AsNoTracking()
+                // Disasters - sequential
+                var disasters = await db.Disasters.AsNoTracking()
                     .OrderByDescending(d => d.StartDate)
                     .Take(100)
                     .ToListAsync();
 
+                AllDisasters = disasters;
+
                 _activeToday = AllDisasters.Count(d => IsActiveStatus(d.Status) && d.StartDate.Date <= today);
                 _activeYesterday = AllDisasters.Count(d => IsActiveStatus(d.Status) && d.StartDate.Date <= yesterday);
 
-                // Set the ActiveDisasters property
-                ActiveDisasters = AllDisasters.Where(d => IsActiveStatus(d.Status)).ToList();
+                ActiveDisasters = AllDisasters.Where(d => IsActiveStatus(d.Status) || d.Status == "Open").ToList();
 
                 _criticalSeverities = ActiveDisasters.Where(d => d.Severity == "Critical" || d.Severity == "High").Select(d => d.Severity).ToList();
 
-                // Shelters
-                _shelterSnapshot = await db.Shelters.AsNoTracking().ToListAsync();
+                // Shelters - sequential
+                var shelters = await db.Shelters.AsNoTracking().ToListAsync();
+                _shelterSnapshot = shelters;
+                
                 if (_shelterSnapshot.Count > 0)
                 {
                     _averageOccupancyRate = _shelterSnapshot.Average(s => s.Capacity > 0 ? (s.CurrentOccupancy / (double)s.Capacity * 100) : 0);
@@ -1133,16 +1135,22 @@
             // Stocks (low) - Load for Inventory Manager and other roles (not Finance Manager)
             if (!AuthState.IsFinanceManager())
             {
-                // Get all stocks for percentage calculation
                 var allStocks = await db.Stocks
                     .Include(s => s.ReliefGood)
                     .AsNoTracking()
                     .ToListAsync();
-                
-                // Filter low stocks
-                var lowStocks = allStocks
-                    .Where(s => s.Quantity <= LowStockThreshold)
-                    .OrderBy(s => s.Quantity)
+
+                var latestStocks = allStocks
+                    .GroupBy(s => s.RgId)
+                    .Select(g => g.OrderByDescending(x => x.LastUpdated).First())
+                    .ToList();
+
+                static decimal CapPct(int qty, int cap) => cap > 0 ? Math.Round(((decimal)qty * 100m) / cap, 2) : 0m;
+
+                var lowStocks = latestStocks
+                    .Where(s => s.Quantity == 0 || CapPct(s.Quantity, s.MaxCapacity) <= 25m)
+                    .OrderBy(s => CapPct(s.Quantity, s.MaxCapacity))
+                    .ThenBy(s => s.Quantity)
                     .ToList();
 
                 LowStockItems = lowStocks.Select(s => new StockRow(
@@ -1153,13 +1161,10 @@
 
                 _lowStockToday = lowStocks.Count(s => s.LastUpdated.Date == today);
                 _lowStockYesterday = lowStocks.Count(s => s.LastUpdated.Date == yesterday);
-                _lowStockPercentage = allStocks.Count > 0 ? (int)Math.Round(lowStocks.Count / (double)allStocks.Count * 100) : 0;
-                
-                // Debug logging
-                Console.WriteLine($"Total Stocks: {allStocks.Count}, Low Stock Items: {lowStocks.Count}, Percentage: {_lowStockPercentage}%");
+                _lowStockPercentage = latestStocks.Count > 0 ? (int)Math.Round(lowStocks.Count / (double)latestStocks.Count * 100) : 0;
             }
 
-            // Procurement requests data for Finance Manager
+            // Procurement requests data for Finance Manager - sequential, separate DbContext query
             if (AuthState.IsFinanceManager())
             {
                 var requests = await db.ProcurementRequests
@@ -1170,15 +1175,19 @@
 
                 _procurementRequestCount = requests.Count;
                 _approvedRequestCount = requests.Count(r => r.Status == "Approved");
-                _pendingRequestCount = requests.Count(r => r.Status == "Pending");
+                _pendingRequestCount = requests.Count(r => r.Status == "Draft" || r.Status == "Submitted");
                 _totalProcurementAmount = requests.Sum(r => r.TotalAmount);
                 _approvedAmount = requests.Where(r => r.Status == "Approved").Sum(r => r.TotalAmount);
-                _pendingAmount = requests.Where(r => r.Status == "Pending").Sum(r => r.TotalAmount);
+                _pendingAmount = requests.Where(r => r.Status == "Draft" || r.Status == "Submitted").Sum(r => r.TotalAmount);
 
-                // Calculate allocated based on approved procurement requests
                 _totalAllocated = _approvedAmount;
                 _totalRemaining = _totalBudgetAllocation - _totalAllocated;
             }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error loading dashboard data: {ex}");
+            Console.WriteLine($"Error loading dashboard data: {ex.Message}");
         }
         finally
         {
@@ -1453,15 +1462,19 @@
     {
         try
         {
-            // Force a fresh query to get the latest stock data
+            // Use the latest stock per item (RgId) and percent-of-capacity buckets
             var stocks = await db.Stocks
                 .Include(s => s.ReliefGood)
                 .AsNoTracking()
                 .ToListAsync();
 
-            if (!stocks.Any())
+            var latest = stocks
+                .GroupBy(s => s.RgId)
+                .Select(g => g.OrderByDescending(x => x.LastUpdated).First())
+                .ToList();
+
+            if (!latest.Any())
             {
-                // Create empty chart if no stock data exists
                 var emptyLabels = new[] { "No Data" };
                 var emptyData = new[] { 1 };
                 var emptyColors = new[] { "#e5e7eb" };
@@ -1469,15 +1482,16 @@
                 return;
             }
 
-            var lowStock = stocks.Count(s => s.Quantity <= LowStockThreshold);
-            var mediumStock = stocks.Count(s => s.Quantity > LowStockThreshold && s.Quantity <= 50);
-            var healthyStock = stocks.Count(s => s.Quantity > 50);
+            static decimal Pct(int q, int cap) => cap > 0 ? ((decimal)q * 100m) / cap : 0m;
 
-            // Debug logging to verify counts
-            Console.WriteLine($"Stock Distribution - Low: {lowStock}, Medium: {mediumStock}, Healthy: {healthyStock}");
+            var low = latest.Count(s => s.Quantity == 0 || Pct(s.Quantity, s.MaxCapacity) <= 25m);
+            var medium = latest.Count(s => Pct(s.Quantity, s.MaxCapacity) > 25m && Pct(s.Quantity, s.MaxCapacity) <= 75m);
+            var healthy = latest.Count - low - medium;
 
-            var labels = new[] { $"Low (≤{LowStockThreshold})", "Medium ({LowStockThreshold + 1}-50)", "Healthy (>50)" };
-            var data = new[] { lowStock, mediumStock, healthyStock };
+            Console.WriteLine($"Stock Distribution (pct) - Low: {low}, Medium: {medium}, Healthy: {healthy}");
+
+            var labels = new[] { "Low (≤25% cap)", "Medium (26–75%)", "Healthy (>75%)" };
+            var data = new[] { low, medium, healthy };
             var colors = new[] { "#ef4444", "#f59e0b", "#10b981" };
 
             await JS.InvokeVoidAsync("resqCharts.createDoughnutChart", "stockDistributionChart", labels, data, colors, new { });

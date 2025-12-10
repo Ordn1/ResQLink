@@ -1,8 +1,7 @@
 ﻿@page "/reports"
-@inject ResQLink.Services.IOperationsReportService ReportService
-@inject ResQLink.Services.AuthState Auth
+@inject IOperationsReportService ReportService
+@inject AuthState Auth
 @inject IJSRuntime JS
-@using ResQLink.Models.Reports
 
 <div class="reports-root">
     <!-- Header -->
@@ -28,14 +27,68 @@
         </header>
     </section>
 
+    <!-- Modern Modal Popup -->
+    @if (showModal)
+    {
+        <div class="modal-overlay" @onclick="CloseModal">
+            <div class="modal-container" @onclick:stopPropagation="true">
+                <div class="modal-header" style="background: @(modalType == "success" ? "linear-gradient(135deg, #10b981, #059669)" : modalType == "error" ? "linear-gradient(135deg, #ef4444, #dc2626)" : "linear-gradient(135deg, #3b82f6, #2563eb)");">
+                    <div class="modal-icon">
+                        @if (modalType == "success")
+                        {
+                            <i class="bi bi-check-circle-fill"></i>
+                        }
+                        else if (modalType == "error")
+                        {
+                            <i class="bi bi-exclamation-circle-fill"></i>
+                        }
+                        else
+                        {
+                            <i class="bi bi-info-circle-fill"></i>
+                        }
+                    </div>
+                    <h3 class="modal-title">@modalTitle</h3>
+                </div>
+                <div class="modal-body">
+                    <p>@modalMessage</p>
+                </div>
+                <div class="modal-footer">
+                    <button class="modal-btn modal-btn-primary" @onclick="CloseModal">
+                        <i class="bi bi-check-lg"></i> OK
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+
     @if (_reportData != null)
     {
+        <!-- Page Navigation Header -->
+        <div class="panel" style="margin-bottom: 20px;">
+            <div style="padding: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+                <div>
+                    <h3 style="margin: 0; font-size: 1.2rem; color: #333;">📄 Page @currentPage of @totalPages</h3>
+                    <p style="margin: 4px 0 0 0; color: #666; font-size: 0.9rem;">@GetCurrentPageTitle()</p>
+                </div>
+                <div style="display: flex; gap: 12px;">
+                    <button class="mini-btn" @onclick="PreviousPage" disabled="@(currentPage == 1)" style="@(currentPage == 1 ? "opacity: 0.5; cursor: not-allowed;" : "")">
+                        <i class="bi bi-chevron-left"></i> Previous
+                    </button>
+                    <button class="mini-btn btn-primary" @onclick="NextPage" disabled="@(currentPage == totalPages)" style="@(currentPage == totalPages ? "opacity: 0.5; cursor: not-allowed;" : "")">
+                        Next <i class="bi bi-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        @if (currentPage == 1)
+        {
         <!-- Executive Summary -->
-        <section class="panel">
+        <section class="panel" id="executive-summary">
             <header class="panel-head">
                 <h3 class="panel-title">1. Executive Summary</h3>
             </header>
-            <div class="kpi-grid">
+            <div class="kpi-grid" style="padding: 16px;">
                 <div class="kpi-card">
                     <div class="kpi-label">Active Disasters</div>
                     <div class="kpi-value text-accent">@_reportData.Summary.ActiveDisasters</div>
@@ -49,26 +102,42 @@
                     <div class="kpi-value">@_reportData.Summary.ActiveShelters</div>
                 </div>
                 <div class="kpi-card">
-                    <div class="kpi-label">Volunteers Deployed</div>
+                    <div class="kpi-label">Total Volunteers</div>
                     <div class="kpi-value">@_reportData.Summary.TotalVolunteers</div>
                 </div>
             </div>
+            @if (!string.IsNullOrEmpty(_reportData.Summary.CurrentDisasterOverview))
+            {
+                <div style="padding: 16px; border-top: 1px solid #e5e7eb; background: #f0f9ff;">
+                    <h4 style="font-size: 0.9rem; margin-bottom: 8px;">
+                        <i class="bi bi-info-circle" style="margin-right: 6px;"></i>
+                        Current Disaster Overview
+                    </h4>
+                    <p style="margin: 0; font-size: 0.85rem; line-height: 1.6;">
+                        @_reportData.Summary.CurrentDisasterOverview
+                    </p>
+                </div>
+            }
         </section>
+        }
 
+        @if (currentPage == 2)
+        {
         <!-- Disaster Overview -->
-        <section class="panel">
+        <section class="panel" id="disaster-overview">
             <header class="panel-head">
-                <h3 class="panel-title">2. Disaster Situation Overview</h3>
+                <h3 class="panel-title">2. Disaster Overview</h3>
             </header>
             <div class="table-wrap">
                 <table class="rep-table">
                     <thead>
                         <tr>
-                            <th>Disaster</th>
+                            <th>Disaster Name</th>
                             <th>Type</th>
                             <th>Severity</th>
-                            <th>Location</th>
+                            <th>Affected Barangays</th>
                             <th>Days Active</th>
+                            <th>Start Date</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -77,37 +146,74 @@
                             <tr>
                                 <td><strong>@disaster.Title</strong></td>
                                 <td>@disaster.DisasterType</td>
-                                <td><span class="status-chip">@disaster.Severity</span></td>
-                                <td>@disaster.Location</td>
-                                <td>@disaster.DaysActive days</td>
+                                <td>
+                                    <span class="severity-@disaster.Severity.ToLower()">
+                                        @disaster.Severity
+                                    </span>
+                                </td>
+                                <td>@string.Join(", ", disaster.AffectedBarangays)</td>
+                                <td>@disaster.DaysActive</td>
+                                <td>@disaster.StartDate.ToString("MMM dd, yyyy")</td>
                             </tr>
                         }
                     </tbody>
                 </table>
             </div>
         </section>
+        }
 
-        <!-- Evacuee Statistics -->
-        <section class="panel">
+        @if (currentPage == 3)
+        {
+        <!-- Evacuee Demographics -->
+        <section class="panel" id="evacuee-stats">
             <header class="panel-head">
                 <h3 class="panel-title">3. Evacuee Statistics</h3>
             </header>
-            <div style="padding: 16px;">
-                <h4 style="font-size: 0.9rem; margin-bottom: 10px;">Status Breakdown</h4>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
-                    @foreach (var status in _reportData.EvacueeStats.ByStatus)
-                    {
-                        <div style="padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px;">
-                            <div style="font-size: 0.75rem; color: #666; margin-bottom: 4px;">@status.Key</div>
-                            <div style="font-size: 1.5rem; font-weight: 700;">@status.Value</div>
-                        </div>
-                    }
+            <div class="kpi-grid" style="padding: 16px;">
+                <div class="kpi-card">
+                    <div class="kpi-label">Total Evacuees</div>
+                    <div class="kpi-value">@_reportData.EvacueeStats.TotalEvacuees</div>
                 </div>
             </div>
-        </section>
 
+            @if (_reportData.EvacueeStats.ByStatus.Any())
+            {
+                <div style="padding: 16px; border-top: 1px solid #e5e7eb;">
+                    <h4 style="font-size: 0.9rem; margin-bottom: 10px;">Distribution by Status</h4>
+                    <div style="display: flex; gap: 16px; flex-wrap: wrap;">
+                        @foreach (var status in _reportData.EvacueeStats.ByStatus)
+                        {
+                            <div style="padding: 12px 20px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;">
+                                <div style="font-size: 0.75rem; color: #666; margin-bottom: 4px;">@status.Key</div>
+                                <div style="font-size: 1.5rem; font-weight: 700;">@status.Value</div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            @if (_reportData.EvacueeStats.ByShelter.Any())
+            {
+                <div style="padding: 16px; border-top: 1px solid #e5e7eb;">
+                    <h4 style="font-size: 0.9rem; margin-bottom: 10px;">Distribution by Shelter</h4>
+                    <div style="display: flex; gap: 16px; flex-wrap: wrap;">
+                        @foreach (var shelter in _reportData.EvacueeStats.ByShelter)
+                        {
+                            <div style="padding: 12px 20px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;">
+                                <div style="font-size: 0.75rem; color: #666; margin-bottom: 4px;">@shelter.Key</div>
+                                <div style="font-size: 1.5rem; font-weight: 700;">@shelter.Value</div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </section>
+        }
+
+        @if (currentPage == 4)
+        {
         <!-- Shelter Operations -->
-        <section class="panel">
+        <section class="panel" id="shelter-ops">
             <header class="panel-head">
                 <h3 class="panel-title">4. Shelter Operations Report</h3>
             </header>
@@ -153,9 +259,12 @@
                 </div>
             }
         </section>
+        }
 
+        @if (currentPage == 5)
+        {
         <!-- Financial Summary Section - RENUMBERED from 4.5 to 5 -->
-        <section class="panel">
+        <section class="panel" id="financial-summary">
             <header class="panel-head">
                 <h3 class="panel-title">5. Financial Summary</h3>
             </header>
@@ -304,9 +413,12 @@
                 </div>
             }
         </section>
+        }
 
+        @if (currentPage == 6)
+        {
         <!-- Volunteer Deployment - RENUMBERED from 5 to 6 -->
-        <section class="panel">
+        <section class="panel" id="volunteer-deployment">
             <header class="panel-head">
                 <h3 class="panel-title">6. Volunteer Deployment Report</h3>
                 <span class="card-badge">@_reportData.VolunteerInfo.TotalActiveVolunteers active</span>
@@ -333,9 +445,12 @@
                 </table>
             </div>
         </section>
+        }
 
+        @if (currentPage == 7)
+        {
         <!-- Inventory Report - RENUMBERED from 6 to 7 -->
-        <section class="panel">
+        <section class="panel" id="inventory-report">
             <header class="panel-head">
                 <h3 class="panel-title">7. Inventory Report</h3>
             </header>
@@ -583,9 +698,12 @@
                 }
             </div>
         </section>
+        }
 
+        @if (currentPage == 8)
+        {
         <!-- Operational Issues - RENUMBERED from 7 to 8 -->
-        <section class="panel">
+        <section class="panel" id="operational-issues">
             <header class="panel-head">
                 <h3 class="panel-title">8. Operational Issues & Recommendations</h3>
                 <button class="mini-btn" @onclick="ToggleEditMode">
@@ -645,6 +763,7 @@
                 }
             </div>
         </section>
+        }
     }
     else if (!_loading)
     {
@@ -662,10 +781,69 @@
     private OperationsReportData? _reportData;
     private bool _loading = false;
     private bool isEditingIssues = false;
+    private int currentPage = 1;
+    private const int totalPages = 8;
+
+    // Modal state
+    private bool showModal = false;
+    private string modalTitle = "";
+    private string modalMessage = "";
+    private string modalType = "info"; // success, error, info
 
     protected override async Task OnInitializedAsync()
     {
         await RefreshDataAsync();
+    }
+
+    private void NextPage()
+    {
+        if (currentPage < totalPages)
+        {
+            currentPage++;
+            StateHasChanged();
+            _ = JS.InvokeVoidAsync("window.scrollTo", 0, 0);
+        }
+    }
+
+    private void PreviousPage()
+    {
+        if (currentPage > 1)
+        {
+            currentPage--;
+            StateHasChanged();
+            _ = JS.InvokeVoidAsync("window.scrollTo", 0, 0);
+        }
+    }
+
+    private string GetCurrentPageTitle()
+    {
+        return currentPage switch
+        {
+            1 => "1. Executive Summary",
+            2 => "2. Disaster Overview",
+            3 => "3. Evacuee Statistics",
+            4 => "4. Shelter Operations Report",
+            5 => "5. Financial Summary",
+            6 => "6. Volunteer Deployment Report",
+            7 => "7. Inventory Report",
+            8 => "8. Operational Issues & Recommendations",
+            _ => ""
+        };
+    }
+
+    private void ShowModal(string title, string message, string type = "info")
+    {
+        modalTitle = title;
+        modalMessage = message;
+        modalType = type;
+        showModal = true;
+        StateHasChanged();
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+        StateHasChanged();
     }
 
     private async Task RefreshDataAsync()
@@ -680,7 +858,7 @@
         }
         catch (Exception ex)
         {
-            await JS.InvokeVoidAsync("alert", $"Error loading report data: {ex.Message}");
+            ShowModal("Error", $"Error loading report data: {ex.Message}", "error");
         }
         finally
         {
@@ -713,11 +891,11 @@
                 link.click();
             ");
 
-            await JS.InvokeVoidAsync("alert", "Operations Report PDF generated successfully!");
+            ShowModal("Success", "Operations Report PDF generated successfully!", "success");
         }
         catch (Exception ex)
         {
-            await JS.InvokeVoidAsync("alert", $"Error generating PDF: {ex.Message}");
+            ShowModal("Error", $"Error generating PDF: {ex.Message}", "error");
         }
         finally
         {
@@ -738,12 +916,12 @@
         try
         {
             await ReportService.SaveOperationalIssuesAsync(_reportData.Issues);
-            await JS.InvokeVoidAsync("alert", "Operational issues saved successfully!");
+            ShowModal("Success", "Operational issues saved successfully!", "success");
             isEditingIssues = false;
         }
         catch (Exception ex)
         {
-            await JS.InvokeVoidAsync("alert", $"Error saving issues: {ex.Message}");
+            ShowModal("Error", $"Error saving issues: {ex.Message}", "error");
         }
     }
 

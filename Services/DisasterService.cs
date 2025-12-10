@@ -8,8 +8,8 @@ public interface IDisasterService
 {
     Task<List<Disaster>> GetAllAsync();
     Task<Disaster?> GetByIdAsync(int id);
-    Task<Disaster> CreateAsync(Disaster disaster);
-    Task<Disaster> UpdateAsync(Disaster disaster);
+    Task<(Disaster? disaster, string? error)> CreateAsync(Disaster disaster);
+    Task<(Disaster? disaster, string? error)> UpdateAsync(Disaster disaster);
     Task<bool> DeleteAsync(int id);
     Task<List<Disaster>> GetActiveDisastersAsync();
     Task<int> GetActiveCountAsync();
@@ -18,10 +18,14 @@ public interface IDisasterService
 public class DisasterService : IDisasterService
 {
     private readonly AppDbContext _context;
+    private readonly AuthState? _authState;
+    private readonly AuditService _auditService;
 
-    public DisasterService(AppDbContext context)
+    public DisasterService(AppDbContext context, AuditService auditService, AuthState? authState = null)
     {
         _context = context;
+        _auditService = auditService;
+        _authState = authState;
     }
 
     public async Task<List<Disaster>> GetAllAsync()
@@ -42,33 +46,200 @@ public class DisasterService : IDisasterService
             .FirstOrDefaultAsync(d => d.DisasterId == id);
     
 
-    public async Task<Disaster> CreateAsync(Disaster disaster)
+    public async Task<(Disaster? disaster, string? error)> CreateAsync(Disaster disaster)
     {
-        disaster.CreatedAt = DateTime.UtcNow;
-        _context.Disasters.Add(disaster);
-        await _context.SaveChangesAsync();
-        return disaster;
+        try
+        {
+            // Check for duplicate disaster title (case-insensitive)
+            var duplicate = await _context.Disasters
+                .AnyAsync(d => d.Title.ToLower() == disaster.Title.ToLower());
+            
+            if (duplicate)
+            {
+                await _auditService.LogAsync(
+                    action: "CREATE",
+                    entityType: "Disaster",
+                    entityId: null,
+                    userId: _authState?.UserId,
+                    userType: _authState?.CurrentRole,
+                    userName: _authState?.CurrentUser?.Username,
+                    description: $"Failed to create disaster '{disaster.Title}': Duplicate title",
+                    severity: "Warning",
+                    isSuccessful: false,
+                    errorMessage: "A disaster with this title already exists"
+                );
+                return (null, "A disaster with this title already exists");
+            }
+
+            disaster.CreatedAt = DateTime.UtcNow;
+            _context.Disasters.Add(disaster);
+            await _context.SaveChangesAsync();
+            
+            // Log disaster creation
+            await _auditService.LogAsync(
+                action: "CREATE",
+                entityType: "Disaster",
+                entityId: disaster.DisasterId,
+                userId: _authState?.UserId,
+                userType: _authState?.CurrentRole,
+                userName: _authState?.CurrentUser?.Username,
+                newValues: new { disaster.Title, disaster.DisasterType, disaster.Severity, disaster.Status, disaster.Location, disaster.StartDate },
+                description: $"Created disaster '{disaster.Title}' ({disaster.DisasterType})",
+                severity: "Info",
+                isSuccessful: true
+            );
+            
+            return (disaster, null);
+        }
+        catch (DbUpdateException ex)
+        {
+            await _auditService.LogAsync(
+                action: "CREATE",
+                entityType: "Disaster",
+                entityId: null,
+                userId: _authState?.UserId,
+                userType: _authState?.CurrentRole,
+                userName: _authState?.CurrentUser?.Username,
+                description: $"Database error while creating disaster '{disaster.Title}'",
+                severity: "Error",
+                isSuccessful: false,
+                errorMessage: ex.InnerException?.Message ?? ex.Message
+            );
+            return (null, ex.InnerException?.Message ?? ex.Message);
+        }
+        catch (Exception ex)
+        {
+            await _auditService.LogAsync(
+                action: "CREATE",
+                entityType: "Disaster",
+                entityId: null,
+                userId: _authState?.UserId,
+                userType: _authState?.CurrentRole,
+                userName: _authState?.CurrentUser?.Username,
+                description: $"Error while creating disaster '{disaster.Title}'",
+                severity: "Error",
+                isSuccessful: false,
+                errorMessage: ex.Message
+            );
+            return (null, ex.Message);
+        }
     }
 
-    public async Task<Disaster> UpdateAsync(Disaster disaster)
+    public async Task<(Disaster? disaster, string? error)> UpdateAsync(Disaster disaster)
     {      
-        // Load tracked original entity
-        var existing = await _context.Disasters.FirstOrDefaultAsync(d => d.DisasterId == disaster.DisasterId);
-        if (existing == null)
-            throw new InvalidOperationException("Disaster not found.");
+        try
+        {
+            // Load tracked original entity
+            var existing = await _context.Disasters.FirstOrDefaultAsync(d => d.DisasterId == disaster.DisasterId);
+            if (existing == null)
+            {
+                await _auditService.LogAsync(
+                    action: "UPDATE",
+                    entityType: "Disaster",
+                    entityId: disaster.DisasterId,
+                    userId: _authState?.UserId,
+                    userType: _authState?.CurrentRole,
+                    userName: _authState?.CurrentUser?.Username,
+                    description: $"Failed to update disaster #{disaster.DisasterId}: Not found",
+                    severity: "Warning",
+                    isSuccessful: false,
+                    errorMessage: "Disaster not found"
+                );
+                return (null, "Disaster not found");
+            }
 
-        // Apply scalar property updates (avoid overwriting nav collections unintentionally)
-        existing.Title = disaster.Title;
-        existing.DisasterType = disaster.DisasterType;
-        existing.Severity = disaster.Severity;
-        existing.Status = disaster.Status;
-        existing.StartDate = disaster.StartDate;
-        existing.EndDate = disaster.EndDate;
-        existing.Location = disaster.Location;
-        // existing.CreatedAt remains unchanged
+            // Check for duplicate disaster title (excluding current disaster)
+            var duplicate = await _context.Disasters
+                .AnyAsync(d => d.DisasterId != disaster.DisasterId && d.Title.ToLower() == disaster.Title.ToLower());
+            
+            if (duplicate)
+            {
+                await _auditService.LogAsync(
+                    action: "UPDATE",
+                    entityType: "Disaster",
+                    entityId: disaster.DisasterId,
+                    userId: _authState?.UserId,
+                    userType: _authState?.CurrentRole,
+                    userName: _authState?.CurrentUser?.Username,
+                    description: $"Failed to update disaster #{disaster.DisasterId}: Duplicate title '{disaster.Title}'",
+                    severity: "Warning",
+                    isSuccessful: false,
+                    errorMessage: "A disaster with this title already exists"
+                );
+                return (null, "A disaster with this title already exists");
+            }
 
-        await _context.SaveChangesAsync();
-        return existing;
+            var oldValues = new
+            {
+                existing.Title,
+                existing.DisasterType,
+                existing.Severity,
+                existing.Status,
+                existing.StartDate,
+                existing.EndDate,
+                existing.Location
+            };
+
+            // Apply scalar property updates (avoid overwriting nav collections unintentionally)
+            existing.Title = disaster.Title;
+            existing.DisasterType = disaster.DisasterType;
+            existing.Severity = disaster.Severity;
+            existing.Status = disaster.Status;
+            existing.StartDate = disaster.StartDate;
+            existing.EndDate = disaster.EndDate;
+            existing.Location = disaster.Location;
+
+            await _context.SaveChangesAsync();
+            
+            // Log disaster update
+            await _auditService.LogAsync(
+                action: "UPDATE",
+                entityType: "Disaster",
+                entityId: disaster.DisasterId,
+                userId: _authState?.UserId,
+                userType: _authState?.CurrentRole,
+                userName: _authState?.CurrentUser?.Username,
+                oldValues: oldValues,
+                newValues: new { existing.Title, existing.DisasterType, existing.Severity, existing.Status, existing.Location },
+                description: $"Updated disaster '{existing.Title}'",
+                severity: "Info",
+                isSuccessful: true
+            );
+            
+            return (existing, null);
+        }
+        catch (DbUpdateException ex)
+        {
+            await _auditService.LogAsync(
+                action: "UPDATE",
+                entityType: "Disaster",
+                entityId: disaster.DisasterId,
+                userId: _authState?.UserId,
+                userType: _authState?.CurrentRole,
+                userName: _authState?.CurrentUser?.Username,
+                description: $"Database error while updating disaster #{disaster.DisasterId}",
+                severity: "Error",
+                isSuccessful: false,
+                errorMessage: ex.InnerException?.Message ?? ex.Message
+            );
+            return (null, ex.InnerException?.Message ?? ex.Message);
+        }
+        catch (Exception ex)
+        {
+            await _auditService.LogAsync(
+                action: "UPDATE",
+                entityType: "Disaster",
+                entityId: disaster.DisasterId,
+                userId: _authState?.UserId,
+                userType: _authState?.CurrentRole,
+                userName: _authState?.CurrentUser?.Username,
+                description: $"Error while updating disaster #{disaster.DisasterId}",
+                severity: "Error",
+                isSuccessful: false,
+                errorMessage: ex.Message
+            );
+            return (null, ex.Message);
+        }
     }
 
     public async Task<bool> DeleteAsync(int id)
@@ -82,68 +253,45 @@ public class DisasterService : IDisasterService
             if (disaster == null)
                 return false;
 
-            // Check for related required foreign key entities that cannot be orphaned
-            var hasEvacuees = disaster.Evacuees.Any();
-            if (hasEvacuees)
-            {
-                throw new InvalidOperationException(
-                    $"Cannot delete disaster: {disaster.Evacuees.Count} evacuee(s) are linked to this disaster. " +
-                    "Please reassign or delete evacuees first.");
-            }
-
-            // Check for report summaries (required FK)
-            var hasReportSummaries = await _context.ReportDisasterSummaries
-                .AnyAsync(r => r.DisasterId == id);
-            if (hasReportSummaries)
-            {
-                throw new InvalidOperationException(
-                    "Cannot delete disaster: Report summaries are linked to this disaster. " +
-                    "Please delete reports first.");
-            }
-
-            // Check for report distributions (required FK)
-            var hasReportDistributions = await _context.ReportResourceDistributions
-                .AnyAsync(r => r.DisasterId == id);
-            if (hasReportDistributions)
-            {
-                throw new InvalidOperationException(
-                    "Cannot delete disaster: Report distributions are linked to this disaster. " +
-                    "Please delete reports first.");
-            }
-
-            // For nullable FKs, we can either set them to null or delete them
-            // Here we'll nullify them (shelters, donations, stocks can exist without a disaster)
+            // Archive the disaster instead of deleting
+            disaster.IsArchived = true;
+            disaster.ArchivedAt = DateTime.UtcNow;
+            disaster.ArchivedBy = _authState?.UserId;
             
-            // Nullify Shelter references
-            var shelters = await _context.Shelters
-                .Where(s => s.DisasterId == id)
-                .ToListAsync();
-            foreach (var shelter in shelters)
-            {
-                shelter.DisasterId = null;
-            }
-
-            // Nullify Donation references
-            var donations = await _context.Donations
-                .Where(d => d.DisasterId == id)
-                .ToListAsync();
-            foreach (var donation in donations)
-            {
-                donation.DisasterId = null;
-            }
-
-            // Nullify Stock references
-            var stocks = await _context.Stocks
-                .Where(s => s.DisasterId == id)
-                .ToListAsync();
-            foreach (var stock in stocks)
-            {
-                stock.DisasterId = null;
-            }
-
-            // Now safe to delete the disaster
-            _context.Disasters.Remove(disaster);
+            var relatedInfo = new List<string>();
+            if (disaster.Evacuees.Any())
+                relatedInfo.Add($"{disaster.Evacuees.Count} evacuees");
+            
+            var shelterCount = await _context.Shelters.CountAsync(s => s.DisasterId == id);
+            if (shelterCount > 0)
+                relatedInfo.Add($"{shelterCount} shelters");
+                
+            var stockCount = await _context.Stocks.CountAsync(s => s.DisasterId == id);
+            if (stockCount > 0)
+                relatedInfo.Add($"{stockCount} stock entries");
+            
+            disaster.ArchiveReason = relatedInfo.Any() 
+                ? $"Archived with {string.Join(", ", relatedInfo)}" 
+                : "Archived by user";
+            
+            // Change status to indicate it's closed
+            if (disaster.Status != "Closed")
+                disaster.Status = "Closed";
+                
             await _context.SaveChangesAsync();
+            
+            // Log archive action to audit trail
+            await _auditService.LogAsync(
+                action: "ARCHIVE",
+                entityType: "Disaster",
+                entityId: id,
+                userId: _authState?.UserId,
+                userType: _authState?.CurrentRole,
+                userName: _authState?.CurrentUser?.Username,
+                description: $"Archived disaster '{disaster.Title}'. {disaster.ArchiveReason}",
+                severity: "Info",
+                isSuccessful: true
+            );
             
             return true;
         }
@@ -151,7 +299,7 @@ public class DisasterService : IDisasterService
         {
             // Wrap database exceptions with more context
             throw new InvalidOperationException(
-                $"An error occurred while deleting the disaster. {ex.InnerException?.Message ?? ex.Message}", 
+                $"An error occurred while archiving the disaster. {ex.InnerException?.Message ?? ex.Message}", 
                 ex);
         }
     }

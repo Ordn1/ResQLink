@@ -8,6 +8,12 @@ using ResQLink.Services.Users;
 using ResQLink.Services.Validation;
 using ResQLink.Services.ErrorHandling;
 using ResQLink.Services.Sync;
+using ResQLink.Services.Caching;
+using ResQLink.Services.Notifications;
+using ResQLink.Services.Analytics;
+using ResQLink.Services.Export;
+using ResQLink.Services.Search;
+using ResQLink.Services.Communications;
 using System.IO;
 
 #if WINDOWS
@@ -16,10 +22,13 @@ using Microsoft.UI.Windowing;
 using WinRT.Interop;
 #endif
 
+[assembly: System.Diagnostics.CodeAnalysis.SuppressMessage("Interoperability", "CA1416:Validate platform compatibility", Justification = "Platform-specific code is properly guarded with conditional compilation")]
+
 namespace ResQLink
 {
     public static class MauiProgram
     {
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Interoperability", "CA1416:Validate platform compatibility")]
         public static MauiApp CreateMauiApp()
         {
             var builder = MauiApp.CreateBuilder();
@@ -42,10 +51,13 @@ namespace ResQLink
 
             builder.Services.AddMauiBlazorWebView();
             builder.Services.AddSingleton<AuthState>();
+            
+            // Register Memory Cache for Performance
+            builder.Services.AddMemoryCache();
 
 #if WINDOWS
             var connectionString =
-                @"Data Source=(localdb)\MSSQLLocalDB;Initial Catalog=Resqlink;Integrated Security=True;Encrypt=True;Trust Server Certificate=True";
+                @"Data Source=Karoshi\SQLEXPRESS;Initial Catalog=Resqlink;Integrated Security=True;Encrypt=True;Trust Server Certificate=True";
             builder.Services.AddDbContextFactory<AppDbContext>(opt =>
             {
                 opt.UseSqlServer(connectionString);
@@ -108,6 +120,15 @@ namespace ResQLink
             builder.Services.AddScoped<IValidationRules, ValidationRules>();
             builder.Services.AddScoped<IErrorHandlerService, ErrorHandlerService>();
             builder.Services.AddScoped<ResQLink.Services.BudgetStateService>();
+            
+            // Register Enhanced Services
+            builder.Services.AddSingleton<ICacheService, MemoryCacheService>();
+            builder.Services.AddSingleton<INotificationService, NotificationService>();
+            builder.Services.AddScoped<AnalyticsService>();
+            builder.Services.AddScoped<IExportService, ExportService>();
+            builder.Services.AddScoped<ISearchService, SearchService>();
+            builder.Services.AddScoped<ICommunicationService, CommunicationService>();
+            
             // This would require additional setup
             // builder.Services.AddSignalR();
             // Sync services - Fixed HttpClient configuration

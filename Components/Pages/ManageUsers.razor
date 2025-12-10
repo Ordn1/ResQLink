@@ -3,6 +3,7 @@
 @using ResQLink.Services.Users
 @inject IUserService UserService
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 
 <div class="manage-users-container">
     <!-- Page header, matching other admin pages -->
@@ -88,11 +89,11 @@
 @* View User Modal *@
 @if (ShowViewModal && SelectedUser is not null)
 {
-    <div class="modal-overlay" @onclick="CloseModals" @onclick:stopPropagation="false">
+    <div class="modal-overlay" @onclick="async () => await CloseModals()" @onclick:stopPropagation="false">
         <div class="modal-content" @onclick="PreventClose" @onclick:stopPropagation="true">
             <div class="modal-header">
                 <h3>User Details</h3>
-                <button class="btn-close" @onclick="CloseModals" @onclick:stopPropagation="true">×</button>
+                <button class="btn-close" @onclick="async () => await CloseModals()" @onclick:stopPropagation="true">×</button>
             </div>
             <div class="modal-body">
                 <div class="detail-row">
@@ -140,11 +141,11 @@
 @* Edit User Modal *@
 @if (ShowEditModal && SelectedUser is not null)
 {
-    <div class="modal-overlay" @onclick="CloseModals" @onclick:stopPropagation="false">
+    <div class="modal-overlay" @onclick="async () => await CloseModals()" @onclick:stopPropagation="false">
         <div class="modal-content" @onclick="PreventClose" @onclick:stopPropagation="true">
             <div class="modal-header">
                 <h3>Edit User - @SelectedUser.Username</h3>
-                <button class="btn-close" @onclick="CloseModals" @onclick:stopPropagation="true">×</button>
+                <button class="btn-close" @onclick="async () => await CloseModals()" @onclick:stopPropagation="true">×</button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
@@ -172,7 +173,7 @@
                 }
             </div>
             <div class="modal-footer">
-                <button class="btn-secondary" @onclick="CloseModals" @onclick:stopPropagation="true">Cancel</button>
+                <button class="btn-secondary" @onclick="async () => await CloseModals()" @onclick:stopPropagation="true">Cancel</button>
                 <button class="btn-primary" @onclick="SaveEdit" disabled="@Saving" @onclick:stopPropagation="true">
                     @(Saving ? "Saving..." : "Save Changes")
                 </button>
@@ -184,11 +185,11 @@
 @* Create User Modal *@
 @if (ShowCreateModal)
 {
-    <div class="modal-overlay" @onclick="CloseModals" @onclick:stopPropagation="false">
+    <div class="modal-overlay" @onclick="async () => await CloseModals()" @onclick:stopPropagation="false">
         <div class="modal-content" @onclick="PreventClose" @onclick:stopPropagation="true">
             <div class="modal-header">
                 <h3>Create New User</h3>
-                <button class="btn-close" @onclick="CloseModals" @onclick:stopPropagation="true">×</button>
+                <button class="btn-close" @onclick="async () => await CloseModals()" @onclick:stopPropagation="true">×</button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
@@ -223,7 +224,7 @@
                 }
             </div>
             <div class="modal-footer">
-                <button class="btn-secondary" @onclick="CloseModals" @onclick:stopPropagation="true">Cancel</button>
+                <button class="btn-secondary" @onclick="async () => await CloseModals()" @onclick:stopPropagation="true">Cancel</button>
                 <button class="btn-primary" @onclick="SaveCreate" disabled="@Saving" @onclick:stopPropagation="true">
                     @(Saving ? "Creating..." : "Create User")
                 </button>
@@ -235,11 +236,11 @@
 @* Reset Password Modal *@
 @if (ShowResetPasswordModal && SelectedUser is not null)
 {
-    <div class="modal-overlay" @onclick="CloseModals" @onclick:stopPropagation="false">
+    <div class="modal-overlay" @onclick="async () => await CloseModals()" @onclick:stopPropagation="false">
         <div class="modal-content" @onclick="PreventClose" @onclick:stopPropagation="true">
             <div class="modal-header">
                 <h3>Reset Password - @SelectedUser.Username</h3>
-                <button class="btn-close" @onclick="CloseModals" @onclick:stopPropagation="true">×</button>
+                <button class="btn-close" @onclick="async () => await CloseModals()" @onclick:stopPropagation="true">×</button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
@@ -256,7 +257,7 @@
                 }
             </div>
             <div class="modal-footer">
-                <button class="btn-secondary" @onclick="CloseModals" @onclick:stopPropagation="true">Cancel</button>
+                <button class="btn-secondary" @onclick="async () => await CloseModals()" @onclick:stopPropagation="true">Cancel</button>
                 <button class="btn-primary" @onclick="SaveResetPassword" disabled="@Saving" @onclick:stopPropagation="true">
                     @(Saving ? "Resetting..." : "Reset Password")
                 </button>
@@ -439,8 +440,15 @@
         isDeleting = false;
     }
 
-    private void CloseModals()
+    private async Task CloseModals()
     {
+        // Ask for confirmation before closing (except for view modal)
+        if (ShowEditModal || ShowCreateModal || ShowResetPasswordModal)
+        {
+            var confirmed = await JS.InvokeAsync<bool>("confirm", "Are you sure you want to close this form? Any unsaved changes will be lost.");
+            if (!confirmed) return;
+        }
+        
         ShowViewModal = false;
         ShowEditModal = false;
         ShowCreateModal = false;
@@ -467,7 +475,7 @@
             if (success)
             {
                 SuccessMessage = "User updated successfully";
-                CloseModals();
+                await CloseModals();
                 await LoadData();
             }
             else
@@ -508,7 +516,7 @@
             if (user is not null)
             {
                 SuccessMessage = "User created successfully";
-                CloseModals();
+                await CloseModals();
                 await LoadData();
             }
             else
@@ -548,7 +556,7 @@
             if (success)
             {
                 SuccessMessage = "Password reset successfully";
-                CloseModals();
+                await CloseModals();
             }
             else
             {

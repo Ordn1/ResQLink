@@ -36,6 +36,41 @@ public class BudgetService
     {
         try
         {
+            // Server-side validation
+            if (input.TotalAmount < 0)
+                return (null, "Total Amount cannot be negative.");
+            if (input.Year < 2000)
+                return (null, "Year must be 2000 or later.");
+            if (string.IsNullOrWhiteSpace(input.BarangayName))
+                return (null, "Barangay is required.");
+
+            input.BarangayName = input.BarangayName.Trim();
+            input.Status = string.IsNullOrWhiteSpace(input.Status) ? "Draft" : input.Status.Trim();
+
+            // Check for duplicate Barangay + Year combination
+            var duplicate = await _db.BarangayBudgets
+                .AnyAsync(b => b.BarangayName.ToLower() == input.BarangayName.ToLower() && b.Year == input.Year);
+            
+            if (duplicate)
+            {
+                if (_auditService != null)
+                {
+                    await _auditService.LogAsync(
+                        action: "BUDGET_CREATE",
+                        entityType: "BarangayBudget",
+                        entityId: null,
+                        userId: _authState?.UserId,
+                        userType: _authState?.CurrentRole,
+                        userName: _authState?.CurrentUser?.Username,
+                        description: $"Failed to create budget for {input.BarangayName} ({input.Year}): Duplicate",
+                        severity: "Warning",
+                        isSuccessful: false,
+                        errorMessage: $"A budget for {input.BarangayName} in year {input.Year} already exists"
+                    );
+                }
+                return (null, $"A budget for {input.BarangayName} in year {input.Year} already exists");
+            }
+
             input.CreatedAt = DateTime.UtcNow;
             input.UpdatedAt = DateTime.UtcNow;
             _db.BarangayBudgets.Add(input);
@@ -87,8 +122,42 @@ public class BudgetService
     {
         try
         {
+            // Server-side validation
+            if (input.TotalAmount < 0)
+                return (null, "Total Amount cannot be negative.");
+            if (input.Year < 2000)
+                return (null, "Year must be 2000 or later.");
+            if (string.IsNullOrWhiteSpace(input.BarangayName))
+                return (null, "Barangay is required.");
+
             var existing = await _db.BarangayBudgets.FindAsync(input.BudgetId);
             if (existing is null) return (null, "Budget not found.");
+
+            // Check for duplicate Barangay + Year combination (excluding current budget)
+            var duplicate = await _db.BarangayBudgets
+                .AnyAsync(b => b.BudgetId != input.BudgetId && 
+                             b.BarangayName.ToLower() == input.BarangayName.Trim().ToLower() && 
+                             b.Year == input.Year);
+            
+            if (duplicate)
+            {
+                if (_auditService != null)
+                {
+                    await _auditService.LogAsync(
+                        action: "BUDGET_UPDATE",
+                        entityType: "BarangayBudget",
+                        entityId: input.BudgetId,
+                        userId: _authState?.UserId,
+                        userType: _authState?.CurrentRole,
+                        userName: _authState?.CurrentUser?.Username,
+                        description: $"Failed to update budget #{input.BudgetId}: Duplicate Barangay+Year",
+                        severity: "Warning",
+                        isSuccessful: false,
+                        errorMessage: $"A budget for {input.BarangayName.Trim()} in year {input.Year} already exists"
+                    );
+                }
+                return (null, $"A budget for {input.BarangayName.Trim()} in year {input.Year} already exists");
+            }
 
             // 🔥 Capture old values for audit
             var oldValues = new
@@ -157,45 +226,74 @@ public class BudgetService
         try
         {
             var budget = await _db.BarangayBudgets.Include(b => b.Items).FirstOrDefaultAsync(b => b.BudgetId == id);
-            if (budget is null) return (false, "Budget not found.");
-
-            // 🔥 Capture budget details before deletion
-            var budgetDetails = new
+            if (budget is null)
             {
-                budget.BudgetId,
-                budget.BarangayName,
-                budget.Year,
-                budget.TotalAmount,
-                budget.Status,
-                ItemCount = budget.Items.Count,
-                TotalSpent = budget.Items.Sum(i => i.Amount)
-            };
+                if (_auditService != null)
+                {
+                    await _auditService.LogAsync(
+                        action: "ARCHIVE",
+                        entityType: "BarangayBudget",
+                        entityId: id,
+                        userId: _authState?.UserId,
+                    userType: _authState?.CurrentRole,
+                    userName: _authState?.CurrentUser?.Username,
+                    description: $"Failed to archive budget #{id}: Not found",
+                    severity: "Warning",
+                    isSuccessful: false,
+                    errorMessage: "Budget not found"
+                );
+                }
+                return (false, "Budget not found.");
+            }
 
-            _db.BarangayBudgetItems.RemoveRange(budget.Items);
-            _db.BarangayBudgets.Remove(budget);
+            // Archive the budget instead of deleting
+            budget.IsArchived = true;
+            budget.ArchivedAt = DateTime.UtcNow;
+            budget.ArchivedBy = _authState?.UserId;
+
+            var itemCount = budget.Items.Count;
+            var totalSpent = budget.Items.Sum(i => i.Amount);
+            budget.ArchiveReason = itemCount > 0
+                ? $"Archived with {itemCount} budget items (Total: ₱{totalSpent:N2})"
+                : "Archived by user";
+
             await _db.SaveChangesAsync();
 
-            // 🔥 Log budget deletion
+            // Log budget archive
             if (_auditService != null)
             {
                 await _auditService.LogAsync(
-                    action: "BUDGET_DELETE",
+                    action: "ARCHIVE",
                     entityType: "BarangayBudget",
                     entityId: id,
                     userId: _authState?.UserId,
                     userType: _authState?.CurrentRole,
-                    userName: _authState?.CurrentUser?.Username,
-                    oldValues: budgetDetails,
-                    description: $"Budget deleted: {budget.BarangayName} ({budget.Year}) - ₱{budget.TotalAmount:N2}",
-                    severity: "Warning",
-                    isSuccessful: true
-                );
+                userName: _authState?.CurrentUser?.Username,
+                description: $"Archived budget '{budget.BarangayName}' ({budget.Year}) - ₱{budget.TotalAmount:N2}. {budget.ArchiveReason}",
+                severity: "Info",
+                isSuccessful: true
+            );
             }
 
             return (true, null);
         }
         catch (DbUpdateException ex)
         {
+            if (_auditService != null)
+            {
+                await _auditService.LogAsync(
+                    action: "ARCHIVE",
+                    entityType: "BarangayBudget",
+                    entityId: id,
+                    userId: _authState?.UserId,
+                    userType: _authState?.CurrentRole,
+                    userName: _authState?.CurrentUser?.Username,
+                description: $"Failed to archive budget #{id}: Database error",
+                severity: "Error",
+                isSuccessful: false,
+                errorMessage: ex.InnerException?.Message ?? ex.Message
+            );
+            }
             return (false, ex.InnerException?.Message ?? ex.Message);
         }
         catch (Exception ex)
@@ -208,6 +306,12 @@ public class BudgetService
     {
         try
         {
+            // Server-side validation
+            if (item.Amount < 0)
+                return (null, "Amount cannot be negative.");
+            if (string.IsNullOrWhiteSpace(item.Category) || string.IsNullOrWhiteSpace(item.Description))
+                return (null, "Category and Description are required.");
+
             var budget = await _db.BarangayBudgets.FindAsync(budgetId);
             if (budget is null) return (null, "Budget not found.");
 
@@ -254,6 +358,12 @@ public class BudgetService
     {
         try
         {
+            // Server-side validation
+            if (item.Amount < 0)
+                return (null, "Amount cannot be negative.");
+            if (string.IsNullOrWhiteSpace(item.Category) || string.IsNullOrWhiteSpace(item.Description))
+                return (null, "Category and Description are required.");
+
             var existing = await _db.BarangayBudgetItems.FindAsync(item.BudgetItemId);
             if (existing is null) return (null, "Item not found.");
 

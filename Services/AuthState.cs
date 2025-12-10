@@ -66,10 +66,10 @@ namespace ResQLink.Services
             if (!IsAuthenticated) return false;
             path = path.ToLowerInvariant();
 
-            // Volunteers can ONLY access their dashboard
+            // Volunteers can ONLY access their dashboard and settings
             if (IsVolunteer())
             {
-                return path == "/volunteer-dashboard" || path == "/";
+                return path == "/volunteer-dashboard" || path == "/" || path == "/settings";
             }
 
             // Normalize dynamic category routes
@@ -104,8 +104,8 @@ namespace ResQLink.Services
                 "/admin/audit-logs" => IsAdmin(),
                 "/manage-users" => IsAdmin(),
                 
-                // Settings - ADMIN ONLY
-                "/settings" => IsAdmin(),
+                // Settings - allow ALL authenticated roles
+                "/settings" => IsAuthenticated,
                 
                 _ => !IsVolunteer() // default deny for volunteers
             };

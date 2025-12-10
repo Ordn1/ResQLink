@@ -258,11 +258,11 @@
     @* Add Inventory Item modal – Enhanced with cost and budget *@
     @if (showAdd)
     {
-        <div class="modal-overlay" @onclick="CloseAdd" @onclick:stopPropagation="false">
+        <div class="modal-overlay" @onclick="async () => await CloseAdd()" @onclick:stopPropagation="false">
             <div class="modal-dialog" @onclick:stopPropagation="true" style="max-width: 600px;">
                 <div class="modal-header">
                     <h3>Add Inventory Item</h3>
-                    <button class="modal-close" @onclick="CloseAdd">&times;</button>
+                    <button class="modal-close" @onclick="async () => await CloseAdd()">&times;</button>
                 </div>
                 <div class="modal-body">
                     <div class="form-row">
@@ -450,7 +450,7 @@
                     <div class="modal-actions">
                         <button type="button"
                                 class="btn-cancel"
-                                @onclick="CloseAdd"
+                                @onclick="async () => await CloseAdd()"
                                 disabled="@saving"
                                 @onclick:stopPropagation="true">
                             Cancel
@@ -475,11 +475,11 @@
     @* Edit Inventory Item modal *@
     @if (showEdit)
     {
-        <div class="modal-overlay" @onclick="CloseEdit" @onclick:stopPropagation="false">
+        <div class="modal-overlay" @onclick="async () => await CloseEdit()" @onclick:stopPropagation="false">
             <div class="modal-dialog" @onclick:stopPropagation="true" style="max-width: 600px;">
                 <div class="modal-header">
                     <h3>Edit Inventory Item</h3>
-                    <button class="modal-close" @onclick="CloseEdit">&times;</button>
+                    <button class="modal-close" @onclick="async () => await CloseEdit()">&times;</button>
                 </div>
                 <div class="modal-body">
                     <div class="form-row">
@@ -557,7 +557,7 @@
                         </button>
                         <button type="button"
                                 class="btn-cancel"
-                                @onclick="CloseEdit"
+                                @onclick="async () => await CloseEdit()"
                                 disabled="@saving"
                                 @onclick:stopPropagation="true">
                             Cancel
@@ -944,9 +944,14 @@
         return allCategories;
     }
 
-    private void CloseAdd()
+    private async Task CloseAdd()
     {
         if (saving) return;
+        
+        // Ask for confirmation before closing
+        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "Are you sure you want to close this form? Any unsaved changes will be lost.");
+        if (!confirmed) return;
+        
         showAdd = false;
     }
 
@@ -1112,28 +1117,29 @@
                                  $"Amount Deducted: ₱{totalCost:N2}\n" +
                                  $"New Balance: ₱{selectedBudgetBalance?.ToString("N2") ?? "N/A"}";
                     
-                    await JSRuntime.InvokeVoidAsync("alert", message);
+                    await JSRuntime.InvokeVoidAsync("showToast", 
+                        $"Item '{newName}' added! ₱{totalCost:N2} deducted from {budget.BarangayName} budget.", 
+                        "success");
                 }
             }
             else
             {
-                await JSRuntime.InvokeVoidAsync("alert", 
-                    $"✅ Item '{newName}' added successfully!\n(No budget selected)");
+                await JSRuntime.InvokeVoidAsync("showToast", $"Item '{newName}' added successfully!", "success");
             }
             
             await LoadItemsAsync();
             showAdd = false;
+            saving = false;
+            _loadSemaphore.Release();
+            StateHasChanged();
         }
         catch (Exception ex)
         {
             addError = $"Error: {ex.Message}";
             System.Diagnostics.Debug.WriteLine($"SaveNew error: {ex}");
-        }
-        finally
-        {
             saving = false;
             _loadSemaphore.Release();
-            await InvokeAsync(StateHasChanged);
+            StateHasChanged();
         }
     }
 
@@ -1176,9 +1182,14 @@
         StateHasChanged();
     }
 
-    private void CloseEdit()
+    private async Task CloseEdit()
     {
         if (saving) return;
+        
+        // Ask for confirmation before closing
+        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "Are you sure you want to close this form? Any unsaved changes will be lost.");
+        if (!confirmed) return;
+        
         showEdit = false;
         editError = string.Empty;
     }

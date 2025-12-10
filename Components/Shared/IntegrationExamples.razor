@@ -1,0 +1,483 @@
+@* Add this to any existing Razor page to enable export functionality *@
+
+@inject ResQLink.Services.Export.IExportService ExportService
+@inject ResQLink.Services.Analytics.AnalyticsService AnalyticsService
+@inject ResQLink.Services.AuthState AuthState
+@inject IDbContextFactory<ResQLink.Data.AppDbContext> DbFactory
+@inject IJSRuntime JS
+@using ResQLink.Services.Export
+@using ResQLink.Services.Analytics
+@using ResQLink.Data.Entities
+@using Microsoft.EntityFrameworkCore
+
+@*
+===========================================================================================
+INTEGRATION EXAMPLES - This file contains code snippets for reference only
+Copy the relevant sections to your actual pages as needed
+===========================================================================================
+*@
+
+@* Add Export Button to Panel Actions *@
+<div class="panel-actions">
+    <button class="mini-btn" @onclick="ExportData" disabled="@_exporting">
+        <i class="bi bi-download"></i>
+        @if (_exporting)
+        {
+            <span>Exporting...</span>
+        }
+        else
+        {
+            <span>Export</span>
+        }
+    </button>
+    
+    @* Optional: Export format selector *@
+    <select class="mini-input" @bind="_exportFormat">
+        <option value="0">CSV</option>
+        <option value="1">JSON</option>
+        <option value="2">PDF</option>
+    </select>
+</div>
+
+@code {
+    private bool _exporting = false;
+    private ExportFormat _exportFormat = ExportFormat.CSV;
+
+    // Example: Export Disasters
+    private async Task ExportData()
+    {
+        try
+        {
+            _exporting = true;
+            StateHasChanged();
+
+            var options = new ExportOptions
+            {
+                Format = _exportFormat,
+                StartDate = DateTime.UtcNow.AddMonths(-3), // Last 3 months
+                EndDate = DateTime.UtcNow
+            };
+
+            // Choose appropriate export method based on your data
+            ExportResult result = await ExportService.ExportDisastersAsync(options);
+            // Or: result = await ExportService.ExportEvacueesAsync(options);
+            // Or: result = await ExportService.ExportInventoryAsync(options);
+            // Or: result = await ExportService.ExportBudgetsAsync(options);
+
+            // Download file
+            await DownloadFile(result.FileName, result.Data, result.ContentType);
+            
+            // Optional: Show success notification
+            await JS.InvokeVoidAsync("alert", $"Exported {result.RecordCount} records successfully!");
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Export failed: {ex.Message}");
+        }
+        finally
+        {
+            _exporting = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task DownloadFile(string fileName, byte[] data, string contentType)
+    {
+        var base64 = Convert.ToBase64String(data);
+        await JS.InvokeVoidAsync("downloadFileFromBase64", fileName, base64, contentType);
+    }
+}
+
+@* Add this JavaScript to wwwroot/js/app.js or index.html *@
+@* 
+<script>
+    window.downloadFileFromBase64 = function (fileName, base64Content, contentType) {
+        const linkSource = `data:${contentType};base64,${base64Content}`;
+        const downloadLink = document.createElement("a");
+        downloadLink.href = linkSource;
+        downloadLink.download = fileName;
+        downloadLink.click();
+    };
+</script>
+*@
+
+@* ============================================= *@
+@* ADVANCED SEARCH INTEGRATION EXAMPLE *@
+@* ============================================= *@
+
+@inject ResQLink.Services.Search.ISearchService SearchService
+@using ResQLink.Services.Search
+
+@* Replace your existing search input with this advanced version *@
+<div class="search-panel">
+    <input class="mini-input" 
+           placeholder="Search..." 
+           @bind="_searchTerm" 
+           @bind:event="oninput"
+           @onkeyup="HandleSearchKeyUp" />
+    
+    <button class="mini-btn" @onclick="ToggleAdvancedSearch">
+        <i class="bi bi-funnel"></i> Filters
+    </button>
+</div>
+
+@if (_showAdvancedSearch)
+{
+    <div class="advanced-search-panel">
+        <div class="filter-row">
+            <select class="mini-input" @bind="_filterProperty">
+                <option value="Status">Status</option>
+                <option value="Severity">Severity</option>
+                <option value="DisasterType">Type</option>
+            </select>
+            
+            <select class="mini-input" @bind="_filterOperator">
+                <option value="0">Equals</option>
+                <option value="2">Contains</option>
+                <option value="3">Starts With</option>
+            </select>
+            
+            <input class="mini-input" @bind="_filterValue" placeholder="Value..." />
+            
+            <button class="mini-btn btn-primary" @onclick="ApplySearch">Apply</button>
+        </div>
+    </div>
+}
+
+@code {
+    // Example fields - declare these in your actual page
+    private string _searchTerm = "";
+    private bool _showAdvancedSearch = false;
+    private string _filterProperty = "Status";
+    private FilterOperator _filterOperator = FilterOperator.Equals;
+    private string _filterValue = "";
+    private List<Disaster> FilteredData = new();
+    private int TotalCount = 0;
+    
+    private async Task HandleSearchKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await ApplySearch();
+        }
+    }
+    
+    private void ToggleAdvancedSearch()
+    {
+        _showAdvancedSearch = !_showAdvancedSearch;
+    }
+    
+    private async Task ApplySearch()
+    {
+        await using var context = await DbFactory.CreateDbContextAsync();
+        var criteria = new SearchCriteria<Disaster>
+        {
+            SearchTerm = _searchTerm,
+            Filters = new List<SearchFilter>
+            {
+                new SearchFilter
+                {
+                    PropertyName = _filterProperty,
+                    Operator = _filterOperator,
+                    Value = _filterValue
+                }
+            },
+            SortBy = "StartDate",
+            SortDescending = true,
+            PageNumber = 1,
+            PageSize = 50
+        };
+        
+        // Use your existing DbContext query
+        var query = context.Disasters.AsQueryable();
+        var searchService = new ResQLink.Services.Search.SearchService();
+        var result = await searchService.SearchAsync(criteria, query);
+        
+        // Update your data list
+        FilteredData = result.Results;
+        TotalCount = result.TotalCount;
+        StateHasChanged();
+    }
+}
+
+@* ============================================= *@
+@* NOTIFICATION INTEGRATION EXAMPLE *@
+@* ============================================= *@
+
+@inject ResQLink.Services.Notifications.INotificationService NotificationService
+@using ResQLink.Services.Notifications
+
+@* Add Notification Bell to Layout *@
+<div class="notification-bell" @onclick="ToggleNotifications">
+    <i class="bi bi-bell"></i>
+    @if (_unreadCount > 0)
+    {
+        <span class="badge">@_unreadCount</span>
+    }
+</div>
+
+@code {
+    private int _unreadCount = 0;
+    private bool _showNotifications = false;
+    
+    // Note: Call this method from your page's OnInitializedAsync
+    private async Task InitializeNotifications()
+    {
+        // Subscribe to real-time notifications
+        NotificationService.NotificationReceived += OnNotificationReceived;
+        
+        // Load existing notifications
+        if (AuthState.UserId.HasValue)
+        {
+            _unreadCount = await NotificationService.GetUnreadCountAsync(AuthState.UserId.Value);
+        }
+    }
+    
+    private void OnNotificationReceived(object? sender, NotificationMessage notification)
+    {
+        if (notification.UserId == AuthState.UserId)
+        {
+            _unreadCount++;
+            InvokeAsync(StateHasChanged);
+            
+            // Optional: Show toast notification
+            JS.InvokeVoidAsync("showToast", notification.Title, notification.Message);
+        }
+    }
+    
+    private void ToggleNotifications()
+    {
+        _showNotifications = !_showNotifications;
+    }
+    
+    // Send notification example
+    private async Task SendStockAlert(int stockId, string itemName, int quantity)
+    {
+        await NotificationService.SendToRoleAsync("Admin", new NotificationMessage
+        {
+            Title = "Stock Alert",
+            Message = $"{itemName} is running low: {quantity} units remaining",
+            Type = NotificationType.Warning,
+            ActionUrl = $"/inventory?stock={stockId}",
+            ActionLabel = "View Stock",
+            Category = "Inventory"
+        });
+    }
+    
+    public void Dispose()
+    {
+        NotificationService.NotificationReceived -= OnNotificationReceived;
+    }
+}
+
+@* ============================================= *@
+@* ANALYTICS INTEGRATION EXAMPLE *@
+@* ============================================= *@
+
+@inject ResQLink.Services.Analytics.AnalyticsService AnalyticsService
+
+@* Display Key Metrics *@
+<div class="metrics-row">
+    @if (_analytics != null)
+    {
+        <div class="metric-card">
+            <h4>@_analytics.ActiveDisasters</h4>
+            <p>Active Disasters</p>
+        </div>
+        <div class="metric-card">
+            <h4>@_analytics.TotalEvacuees</h4>
+            <p>Total Evacuees</p>
+        </div>
+        <div class="metric-card">
+            <h4>@_analytics.LowStockItems</h4>
+            <p>Low Stock Items</p>
+        </div>
+    }
+</div>
+
+@code {
+    private DashboardAnalytics? _analytics;
+    
+    private async Task LoadAnalyticsData()
+    {
+        _analytics = await AnalyticsService.GetDashboardAnalyticsAsync(
+            AuthState.UserId,
+            AuthState.CurrentRole
+        );
+    }
+    
+    // Get specific metrics
+    private async Task GetDisastersByType()
+    {
+        var disasterTypes = await AnalyticsService.GetDisastersByTypeAsync();
+        // disasterTypes is Dictionary<string, int>
+        // Use for charts or statistics
+    }
+}
+
+@* ============================================= *@
+@* COMMUNICATION SERVICE INTEGRATION *@
+@* ============================================= *@
+
+@inject ResQLink.Services.Communications.ICommunicationService CommunicationService
+
+@code {
+    // Send disaster alert email
+    private async Task SendDisasterAlert(int disasterId)
+    {
+        var recipients = new List<string>
+        {
+            "admin@resqlink.com",
+            "operations@resqlink.com"
+        };
+        
+        var result = await CommunicationService.SendDisasterAlertAsync(disasterId, recipients);
+        
+        if (result.Success)
+        {
+            await JS.InvokeVoidAsync("alert", $"Alert sent to {result.SuccessCount} recipient(s)");
+        }
+        else
+        {
+            await JS.InvokeVoidAsync("alert", $"Failed to send alert: {result.ErrorMessage}");
+        }
+    }
+    
+    // Send evacuation SMS
+    private async Task SendEvacuationNotice(int shelterId)
+    {
+        var phoneNumbers = new List<string>
+        {
+            "+639171234567",
+            "+639281234567"
+        };
+        
+        var result = await CommunicationService.SendEvacuationNoticeAsync(shelterId, phoneNumbers);
+        
+        if (result.Success)
+        {
+            await JS.InvokeVoidAsync("alert", "Evacuation notices sent successfully");
+        }
+    }
+    
+    // Send custom email
+    private async Task SendCustomEmail()
+    {
+        var message = new ResQLink.Services.Communications.EmailMessage
+        {
+            To = new List<string> { "user@example.com" },
+            Subject = "Custom Notification",
+            Body = "<h2>Hello</h2><p>This is a custom email.</p>",
+            IsHtml = true
+        };
+        
+        // await CommunicationService.SendEmailAsync(message);
+    }
+}
+
+@* ============================================= *@
+@* CSS STYLES FOR COMPONENTS *@
+@* ============================================= *@
+
+<style>
+    .notification-bell {
+        position: relative;
+        cursor: pointer;
+        padding: 0.5rem;
+    }
+    
+    .notification-bell .badge {
+        position: absolute;
+        top: 0;
+        right: 0;
+        background: red;
+        color: white;
+        border-radius: 50%;
+        padding: 0.2rem 0.4rem;
+        font-size: 0.75rem;
+    }
+    
+    .metrics-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin: 1rem 0;
+    }
+    
+    .metric-card {
+        background: white;
+        padding: 1rem;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .metric-card h4 {
+        margin: 0;
+        font-size: 2rem;
+        color: #667eea;
+    }
+    
+    .metric-card p {
+        margin: 0.5rem 0 0 0;
+        color: #6b7280;
+    }
+    
+    .search-panel {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+    }
+    
+    .advanced-search-panel {
+        background: #f9fafb;
+        padding: 1rem;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+    }
+    
+    .filter-row {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+</style>
+
+@* ============================================= *@
+@* QUICK TIPS *@
+@* ============================================= *@
+
+@*
+INTEGRATION TIPS:
+
+1. EXPORT - Add to any list page:
+   - Inject IExportService
+   - Call appropriate export method
+   - Download file using JavaScript helper
+
+2. SEARCH - Replace basic search:
+   - Inject ISearchService
+   - Create SearchCriteria with filters
+   - Pass IQueryable to SearchAsync
+
+3. NOTIFICATIONS - Add to any action:
+   - Inject INotificationService
+   - Send notification after successful operation
+   - Subscribe to real-time updates in OnInitializedAsync
+
+4. ANALYTICS - Display metrics:
+   - Inject AnalyticsService
+   - Call GetDashboardAnalyticsAsync
+   - Display metrics in cards or charts
+
+5. COMMUNICATION - Send alerts:
+   - Inject ICommunicationService
+   - Call appropriate method (Email/SMS)
+   - Handle result for user feedback
+
+REMEMBER:
+- All services are already registered in MauiProgram.cs
+- Use dependency injection (@inject)
+- Handle exceptions appropriately
+- Provide user feedback
+- Log important operations
+*@

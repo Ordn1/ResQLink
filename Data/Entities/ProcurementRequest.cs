@@ -4,7 +4,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace ResQLink.Data.Entities;
 
 [Table("ProcurementRequests")]
-public class ProcurementRequest
+public class ProcurementRequest : IArchivable
 {
     [Key] public int RequestId { get; set; }
 
@@ -24,6 +24,12 @@ public class ProcurementRequest
 
     [Column(TypeName = "decimal(14,2)")]
     public decimal TotalAmount { get; set; }
+
+    // Archive tracking (IArchivable)
+    public bool IsArchived { get; set; } = false;
+    public DateTime? ArchivedAt { get; set; }
+    public int? ArchivedBy { get; set; }
+    [MaxLength(500)] public string? ArchiveReason { get; set; }
 
     public ICollection<ProcurementRequestItem> Items { get; set; } = new List<ProcurementRequestItem>();
 }

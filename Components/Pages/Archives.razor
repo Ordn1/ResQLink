@@ -1,0 +1,805 @@
+@page "/admin/archives"
+@inject AppDbContext DB
+@inject AuditService AuditService
+@inject AuthState Auth
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@using Microsoft.EntityFrameworkCore
+@using ResQLink.Data
+@using ResQLink.Data.Entities
+@using ResQLink.Services
+
+<PageTitle>Archive Management - ResQLink</PageTitle>
+
+<div class="archives-root">
+    @if (!Auth.IsAdmin())
+    {
+        <div class="access-denied">
+            <i class="bi bi-shield-x" style="font-size: 4rem; color: #dc3545;"></i>
+            <h2>Access Denied</h2>
+            <p>You must be an administrator to view archived records.</p>
+        </div>
+        return;
+    }
+
+    <!-- Page Header -->
+    <div class="page-header" style="margin-bottom: 1.5rem;">
+        <div>
+            <h1 style="font-size: 1.75rem; font-weight: 700; color: #111827; margin: 0;">
+                <i class="bi bi-archive"></i> Archive Management
+            </h1>
+            <p style="font-size: 0.875rem; color: #6b7280; margin: 0.5rem 0 0 0;">
+                View and restore archived records across the system
+            </p>
+        </div>
+
+        <div class="page-actions" style="display: flex; gap: 0.75rem;">
+            <button class="btn-secondary" @onclick="ClearFilters" title="Clear filters" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; border-radius: 0.5rem; border: 1px solid #d1d5db; background: white; cursor: pointer;">
+                <i class="bi bi-arrow-counterclockwise"></i>
+                Clear Filters
+            </button>
+
+            <button class="btn-primary" @onclick="LoadArchives" disabled="@isLoading" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; border-radius: 0.5rem; background: #059669; color: white; border: none; cursor: pointer;">
+                <i class="bi bi-arrow-clockwise"></i>
+                @(isLoading ? "Refreshing..." : "Refresh")
+            </button>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+        <div class="stat-card" style="background: white; border: 1px solid #e5e7eb; border-radius: 0.75rem; padding: 1.25rem;">
+            <div style="font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Total Archived</div>
+            <div style="font-size: 2rem; font-weight: 700; color: #3b82f6; margin-top: 0.5rem;">@TotalArchived</div>
+        </div>
+
+        <div class="stat-card" style="background: white; border: 1px solid #e5e7eb; border-radius: 0.75rem; padding: 1.25rem;">
+            <div style="font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">This Month</div>
+            <div style="font-size: 2rem; font-weight: 700; color: #f59e0b; margin-top: 0.5rem;">@ArchivedThisMonth</div>
+        </div>
+
+        <div class="stat-card" style="background: white; border: 1px solid #e5e7eb; border-radius: 0.75rem; padding: 1.25rem;">
+            <div style="font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">This Week</div>
+            <div style="font-size: 2rem; font-weight: 700; color: #10b981; margin-top: 0.5rem;">@ArchivedThisWeek</div>
+        </div>
+
+        <div class="stat-card" style="background: white; border: 1px solid #e5e7eb; border-radius: 0.75rem; padding: 1.25rem;">
+            <div style="font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Today</div>
+            <div style="font-size: 2rem; font-weight: 700; color: #8b5cf6; margin-top: 0.5rem;">@ArchivedToday</div>
+        </div>
+    </div>
+
+    <!-- Filter Panel -->
+    <div class="filter-panel" style="background: white; border: 1px solid #e5e7eb; border-radius: 0.75rem; padding: 1.5rem; margin-bottom: 1.5rem;">
+        <div style="display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-end;">
+            <div style="flex: 1; min-width: 200px;">
+                <label style="display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 0.25rem;">Entity Type</label>
+                <select @bind="filterEntityType" style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; font-size: 0.875rem;">
+                    <option value="">All Types</option>
+                    <option value="ReliefGood">Relief Goods</option>
+                    <option value="Disaster">Disasters</option>
+                    <option value="Category">Categories</option>
+                    <option value="Supplier">Suppliers</option>
+                    <option value="Stock">Stocks</option>
+                    <option value="ProcurementRequest">Procurement Requests</option>
+                    <option value="BarangayBudget">Barangay Budgets</option>
+                </select>
+            </div>
+
+            <div style="flex: 1; min-width: 200px;">
+                <label style="display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 0.25rem;">Date From</label>
+                <input type="date" @bind="filterDateFrom" style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; font-size: 0.875rem;" />
+            </div>
+
+            <div style="flex: 1; min-width: 200px;">
+                <label style="display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 0.25rem;">Date To</label>
+                <input type="date" @bind="filterDateTo" style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; font-size: 0.875rem;" />
+            </div>
+
+            <button class="btn-primary" @onclick="ApplyFilters" disabled="@isLoading" style="padding: 0.5rem 1.5rem; background: #059669; color: white; border: none; border-radius: 0.375rem; font-size: 0.875rem; font-weight: 600; cursor: pointer;">
+                <i class="bi bi-filter"></i> Apply
+            </button>
+        </div>
+    </div>
+
+    <!-- Archived Records Tabs -->
+    <div style="background: white; border: 1px solid #e5e7eb; border-radius: 0.75rem; overflow: hidden;">
+        <!-- Tab Headers -->
+        <div style="display: flex; border-bottom: 1px solid #e5e7eb; padding: 0.5rem 1rem; gap: 0.5rem; flex-wrap: wrap;">
+            <button @onclick='() => SelectTab("ReliefGood")' class="@(selectedTab == "ReliefGood" ? "tab-active" : "tab-inactive")" style="padding: 0.5rem 1rem; border: none; background: none; cursor: pointer; border-bottom: 2px solid @(selectedTab == "ReliefGood" ? "#059669" : "transparent"); color: @(selectedTab == "ReliefGood" ? "#059669" : "#6b7280"); font-weight: 500;">
+                Relief Goods (@reliefGoods.Count)
+            </button>
+            <button @onclick='() => SelectTab("Disaster")' class="@(selectedTab == "Disaster" ? "tab-active" : "tab-inactive")" style="padding: 0.5rem 1rem; border: none; background: none; cursor: pointer; border-bottom: 2px solid @(selectedTab == "Disaster" ? "#059669" : "transparent"); color: @(selectedTab == "Disaster" ? "#059669" : "#6b7280"); font-weight: 500;">
+                Disasters (@disasters.Count)
+            </button>
+            <button @onclick='() => SelectTab("Category")' class="@(selectedTab == "Category" ? "tab-active" : "tab-inactive")" style="padding: 0.5rem 1rem; border: none; background: none; cursor: pointer; border-bottom: 2px solid @(selectedTab == "Category" ? "#059669" : "transparent"); color: @(selectedTab == "Category" ? "#059669" : "#6b7280"); font-weight: 500;">
+                Categories (@categories.Count)
+            </button>
+            <button @onclick='() => SelectTab("Supplier")' class="@(selectedTab == "Supplier" ? "tab-active" : "tab-inactive")" style="padding: 0.5rem 1rem; border: none; background: none; cursor: pointer; border-bottom: 2px solid @(selectedTab == "Supplier" ? "#059669" : "transparent"); color: @(selectedTab == "Supplier" ? "#059669" : "#6b7280"); font-weight: 500;">
+                Suppliers (@suppliers.Count)
+            </button>
+            <button @onclick='() => SelectTab("Stock")' class="@(selectedTab == "Stock" ? "tab-active" : "tab-inactive")" style="padding: 0.5rem 1rem; border: none; background: none; cursor: pointer; border-bottom: 2px solid @(selectedTab == "Stock" ? "#059669" : "transparent"); color: @(selectedTab == "Stock" ? "#059669" : "#6b7280"); font-weight: 500;">
+                Stocks (@stocks.Count)
+            </button>
+            <button @onclick='() => SelectTab("ProcurementRequest")' class="@(selectedTab == "ProcurementRequest" ? "tab-active" : "tab-inactive")" style="padding: 0.5rem 1rem; border: none; background: none; cursor: pointer; border-bottom: 2px solid @(selectedTab == "ProcurementRequest" ? "#059669" : "transparent"); color: @(selectedTab == "ProcurementRequest" ? "#059669" : "#6b7280"); font-weight: 500;">
+                Procurement (@procurements.Count)
+            </button>
+            <button @onclick='() => SelectTab("BarangayBudget")' class="@(selectedTab == "BarangayBudget" ? "tab-active" : "tab-inactive")" style="padding: 0.5rem 1rem; border: none; background: none; cursor: pointer; border-bottom: 2px solid @(selectedTab == "BarangayBudget" ? "#059669" : "transparent"); color: @(selectedTab == "BarangayBudget" ? "#059669" : "#6b7280"); font-weight: 500;">
+                Budgets (@budgets.Count)
+            </button>
+        </div>
+
+        <!-- Tab Content -->
+        <div style="padding: 1.5rem;">
+            @if (isLoading)
+            {
+                <div style="text-align: center; padding: 3rem;">
+                    <div class="spinner" style="border: 3px solid #e5e7eb; border-top-color: #059669; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 1rem;"></div>
+                    <p style="color: #6b7280;">Loading archived records...</p>
+                </div>
+            }
+            else
+            {
+                @switch (selectedTab)
+                {
+                    case "ReliefGood":
+                        @if (!reliefGoods.Any())
+                        {
+                            <p style="text-align: center; color: #6b7280; padding: 2rem;">No archived relief goods found.</p>
+                        }
+                        else
+                        {
+                            <div style="overflow-x: auto;">
+                                <table style="width: 100%; border-collapse: collapse;">
+                                    <thead style="background: #f9fafb;">
+                                        <tr>
+                                            <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">ID</th>
+                                            <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Name</th>
+                                            <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Unit</th>
+                                            <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Archived Date</th>
+                                            <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Reason</th>
+                                            <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var item in reliefGoods)
+                                        {
+                                            <tr style="border-bottom: 1px solid #e5e7eb;">
+                                                <td style="padding: 0.75rem;">@item.RgId</td>
+                                                <td style="padding: 0.75rem; font-weight: 500;">@item.Name</td>
+                                                <td style="padding: 0.75rem;">@item.Unit</td>
+                                                <td style="padding: 0.75rem; font-size: 0.875rem;">@item.ArchivedAt?.ToString("MMM dd, yyyy HH:mm")</td>
+                                                <td style="padding: 0.75rem; font-size: 0.875rem; color: #6b7280;">@item.ArchiveReason</td>
+                                                <td style="padding: 0.75rem; text-align: center;">
+                                                    <button @onclick="() => RestoreReliefGood(item.RgId)" style="padding: 0.25rem 0.75rem; background: #10b981; color: white; border: none; border-radius: 0.375rem; font-size: 0.875rem; cursor: pointer;">
+                                                        <i class="bi bi-arrow-counterclockwise"></i> Restore
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                        break;
+
+                    case "Disaster":
+                        @if (!disasters.Any())
+                        {
+                            <p style="text-align: center; color: #6b7280; padding: 2rem;">No archived disasters found.</p>
+                        }
+                        else
+                        {
+                            <div style="overflow-x: auto;">
+                                <table style="width: 100%; border-collapse: collapse;">
+                                    <thead style="background: #f9fafb;">
+                                        <tr>
+                                            <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">ID</th>
+                                            <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Title</th>
+                                            <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Type</th>
+                                            <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Severity</th>
+                                            <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Archived Date</th>
+                                            <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Reason</th>
+                                            <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var item in disasters)
+                                        {
+                                            <tr style="border-bottom: 1px solid #e5e7eb;">
+                                                <td style="padding: 0.75rem;">@item.DisasterId</td>
+                                                <td style="padding: 0.75rem; font-weight: 500;">@item.Title</td>
+                                                <td style="padding: 0.75rem;">@item.DisasterType</td>
+                                                <td style="padding: 0.75rem;">@item.Severity</td>
+                                                <td style="padding: 0.75rem; font-size: 0.875rem;">@item.ArchivedAt?.ToString("MMM dd, yyyy HH:mm")</td>
+                                                <td style="padding: 0.75rem; font-size: 0.875rem; color: #6b7280;">@item.ArchiveReason</td>
+                                                <td style="padding: 0.75rem; text-align: center;">
+                                                    <button @onclick="() => RestoreDisaster(item.DisasterId)" style="padding: 0.25rem 0.75rem; background: #10b981; color: white; border: none; border-radius: 0.375rem; font-size: 0.875rem; cursor: pointer;">
+                                                        <i class="bi bi-arrow-counterclockwise"></i> Restore
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                        break;
+
+                    case "Category":
+                        @if (!categories.Any())
+                        {
+                            <p style="text-align: center; color: #6b7280; padding: 2rem;">No archived categories found.</p>
+                        }
+                        else
+                        {
+                            <div style="overflow-x: auto;">
+                                <table style="width: 100%; border-collapse: collapse;">
+                                    <thead style="background: #f9fafb;">
+                                        <tr>
+                                            <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">ID</th>
+                                            <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Name</th>
+                                            <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Description</th>
+                                            <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Archived Date</th>
+                                            <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Reason</th>
+                                            <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var item in categories)
+                                        {
+                                            <tr style="border-bottom: 1px solid #e5e7eb;">
+                                                <td style="padding: 0.75rem;">@item.CategoryId</td>
+                                                <td style="padding: 0.75rem; font-weight: 500;">@item.CategoryName</td>
+                                                <td style="padding: 0.75rem;">@item.Description</td>
+                                                <td style="padding: 0.75rem; font-size: 0.875rem;">@item.ArchivedAt?.ToString("MMM dd, yyyy HH:mm")</td>
+                                                <td style="padding: 0.75rem; font-size: 0.875rem; color: #6b7280;">@item.ArchiveReason</td>
+                                                <td style="padding: 0.75rem; text-align: center;">
+                                                    <button @onclick="() => RestoreCategory(item.CategoryId)" style="padding: 0.25rem 0.75rem; background: #10b981; color: white; border: none; border-radius: 0.375rem; font-size: 0.875rem; cursor: pointer;">
+                                                        <i class="bi bi-arrow-counterclockwise"></i> Restore
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                        break;
+
+                    case "Supplier":
+                        @if (!suppliers.Any())
+                        {
+                            <p style="text-align: center; color: #6b7280; padding: 2rem;">No archived suppliers found.</p>
+                        }
+                        else
+                        {
+                            <div style="overflow-x: auto;">
+                                <table style="width: 100%; border-collapse: collapse;">
+                                    <thead style="background: #f9fafb;">
+                                        <tr>
+                                            <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">ID</th>
+                                            <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Name</th>
+                                            <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Contact Person</th>
+                                            <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Phone</th>
+                                            <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Archived Date</th>
+                                            <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Reason</th>
+                                            <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var item in suppliers)
+                                        {
+                                            <tr style="border-bottom: 1px solid #e5e7eb;">
+                                                <td style="padding: 0.75rem;">@item.SupplierId</td>
+                                                <td style="padding: 0.75rem; font-weight: 500;">@item.SupplierName</td>
+                                                <td style="padding: 0.75rem;">@item.ContactPerson</td>
+                                                <td style="padding: 0.75rem;">@item.PhoneNumber</td>
+                                                <td style="padding: 0.75rem; font-size: 0.875rem;">@item.ArchivedAt?.ToString("MMM dd, yyyy HH:mm")</td>
+                                                <td style="padding: 0.75rem; font-size: 0.875rem; color: #6b7280;">@item.ArchiveReason</td>
+                                                <td style="padding: 0.75rem; text-align: center;">
+                                                    <button @onclick="() => RestoreSupplier(item.SupplierId)" style="padding: 0.25rem 0.75rem; background: #10b981; color: white; border: none; border-radius: 0.375rem; font-size: 0.875rem; cursor: pointer;">
+                                                        <i class="bi bi-arrow-counterclockwise"></i> Restore
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                        break;
+
+                    case "Stock":
+                        @if (!stocks.Any())
+                        {
+                            <p style="text-align: center; color: #6b7280; padding: 2rem;">No archived stocks found.</p>
+                        }
+                        else
+                        {
+                            <div style="overflow-x: auto;">
+                                <table style="width: 100%; border-collapse: collapse;">
+                                    <thead style="background: #f9fafb;">
+                                        <tr>
+                                            <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">ID</th>
+                                            <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Relief Good</th>
+                                            <th style="padding: 0.75rem; text-align: right; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Quantity</th>
+                                            <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Location</th>
+                                            <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Archived Date</th>
+                                            <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Reason</th>
+                                            <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var item in stocks)
+                                        {
+                                            <tr style="border-bottom: 1px solid #e5e7eb;">
+                                                <td style="padding: 0.75rem;">@item.StockId</td>
+                                                <td style="padding: 0.75rem; font-weight: 500;">@item.ReliefGood?.Name</td>
+                                                <td style="padding: 0.75rem; text-align: right;">@item.Quantity</td>
+                                                <td style="padding: 0.75rem;">@item.Location</td>
+                                                <td style="padding: 0.75rem; font-size: 0.875rem;">@item.ArchivedAt?.ToString("MMM dd, yyyy HH:mm")</td>
+                                                <td style="padding: 0.75rem; font-size: 0.875rem; color: #6b7280;">@item.ArchiveReason</td>
+                                                <td style="padding: 0.75rem; text-align: center;">
+                                                    <button @onclick="() => RestoreStock(item.StockId)" style="padding: 0.25rem 0.75rem; background: #10b981; color: white; border: none; border-radius: 0.375rem; font-size: 0.875rem; cursor: pointer;">
+                                                        <i class="bi bi-arrow-counterclockwise"></i> Restore
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                        break;
+
+                    case "ProcurementRequest":
+                        @if (!procurements.Any())
+                        {
+                            <p style="text-align: center; color: #6b7280; padding: 2rem;">No archived procurement requests found.</p>
+                        }
+                        else
+                        {
+                            <div style="overflow-x: auto;">
+                                <table style="width: 100%; border-collapse: collapse;">
+                                    <thead style="background: #f9fafb;">
+                                        <tr>
+                                            <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">ID</th>
+                                            <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Barangay</th>
+                                            <th style="padding: 0.75rem; text-align: right; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Total Amount</th>
+                                            <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Status</th>
+                                            <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Archived Date</th>
+                                            <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Reason</th>
+                                            <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var item in procurements)
+                                        {
+                                            <tr style="border-bottom: 1px solid #e5e7eb;">
+                                                <td style="padding: 0.75rem;">@item.RequestId</td>
+                                                <td style="padding: 0.75rem; font-weight: 500;">@item.BarangayName</td>
+                                                <td style="padding: 0.75rem; text-align: right;">₱@item.TotalAmount.ToString("N2")</td>
+                                                <td style="padding: 0.75rem;">@item.Status</td>
+                                                <td style="padding: 0.75rem; font-size: 0.875rem;">@item.ArchivedAt?.ToString("MMM dd, yyyy HH:mm")</td>
+                                                <td style="padding: 0.75rem; font-size: 0.875rem; color: #6b7280;">@item.ArchiveReason</td>
+                                                <td style="padding: 0.75rem; text-align: center;">
+                                                    <button @onclick="() => RestoreProcurement(item.RequestId)" style="padding: 0.25rem 0.75rem; background: #10b981; color: white; border: none; border-radius: 0.375rem; font-size: 0.875rem; cursor: pointer;">
+                                                        <i class="bi bi-arrow-counterclockwise"></i> Restore
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                        break;
+
+                    case "BarangayBudget":
+                        @if (!budgets.Any())
+                        {
+                            <p style="text-align: center; color: #6b7280; padding: 2rem;">No archived budgets found.</p>
+                        }
+                        else
+                        {
+                            <div style="overflow-x: auto;">
+                                <table style="width: 100%; border-collapse: collapse;">
+                                    <thead style="background: #f9fafb;">
+                                        <tr>
+                                            <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">ID</th>
+                                            <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Barangay</th>
+                                            <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Year</th>
+                                            <th style="padding: 0.75rem; text-align: right; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Total Amount</th>
+                                            <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Status</th>
+                                            <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Archived Date</th>
+                                            <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Reason</th>
+                                            <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase;">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var item in budgets)
+                                        {
+                                            <tr style="border-bottom: 1px solid #e5e7eb;">
+                                                <td style="padding: 0.75rem;">@item.BudgetId</td>
+                                                <td style="padding: 0.75rem; font-weight: 500;">@item.BarangayName</td>
+                                                <td style="padding: 0.75rem; text-align: center;">@item.Year</td>
+                                                <td style="padding: 0.75rem; text-align: right;">₱@item.TotalAmount.ToString("N2")</td>
+                                                <td style="padding: 0.75rem;">@item.Status</td>
+                                                <td style="padding: 0.75rem; font-size: 0.875rem;">@item.ArchivedAt?.ToString("MMM dd, yyyy HH:mm")</td>
+                                                <td style="padding: 0.75rem; font-size: 0.875rem; color: #6b7280;">@item.ArchiveReason</td>
+                                                <td style="padding: 0.75rem; text-align: center;">
+                                                    <button @onclick="() => RestoreBudget(item.BudgetId)" style="padding: 0.25rem 0.75rem; background: #10b981; color: white; border: none; border-radius: 0.375rem; font-size: 0.875rem; cursor: pointer;">
+                                                        <i class="bi bi-arrow-counterclockwise"></i> Restore
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                        break;
+                }
+            }
+        </div>
+    </div>
+</div>
+
+<style>
+    .spinner {
+        animation: spin 1s linear infinite;
+    }
+
+    @@keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    .stat-card:hover {
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        transform: translateY(-2px);
+        transition: all 0.2s;
+    }
+
+    button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed !important;
+    }
+
+    button:not(:disabled):hover {
+        opacity: 0.9;
+        transform: translateY(-1px);
+        transition: all 0.2s;
+    }
+</style>
+
+@code {
+    private bool isLoading = true;
+    private string selectedTab = "ReliefGood";
+    private string filterEntityType = "";
+    private DateTime? filterDateFrom;
+    private DateTime? filterDateTo;
+
+    private List<ReliefGood> reliefGoods = new();
+    private List<Disaster> disasters = new();
+    private List<Category> categories = new();
+    private List<Supplier> suppliers = new();
+    private List<Stock> stocks = new();
+    private List<ProcurementRequest> procurements = new();
+    private List<BarangayBudget> budgets = new();
+
+    private int TotalArchived => reliefGoods.Count + disasters.Count + categories.Count + suppliers.Count + stocks.Count + procurements.Count + budgets.Count;
+    private int ArchivedThisMonth => GetArchivedInPeriod(DateTime.UtcNow.AddMonths(-1));
+    private int ArchivedThisWeek => GetArchivedInPeriod(DateTime.UtcNow.AddDays(-7));
+    private int ArchivedToday => GetArchivedInPeriod(DateTime.UtcNow.Date);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadArchives();
+    }
+
+    private async Task LoadArchives()
+    {
+        isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            reliefGoods = await DB.ReliefGoods.IgnoreQueryFilters()
+                .Where(x => x.IsArchived)
+                .OrderByDescending(x => x.ArchivedAt)
+                .ToListAsync();
+
+            disasters = await DB.Disasters.IgnoreQueryFilters()
+                .Where(x => x.IsArchived)
+                .OrderByDescending(x => x.ArchivedAt)
+                .ToListAsync();
+
+            categories = await DB.Categories.IgnoreQueryFilters()
+                .Where(x => x.IsArchived)
+                .OrderByDescending(x => x.ArchivedAt)
+                .ToListAsync();
+
+            suppliers = await DB.Suppliers.IgnoreQueryFilters()
+                .Where(x => x.IsArchived)
+                .OrderByDescending(x => x.ArchivedAt)
+                .ToListAsync();
+
+            stocks = await DB.Stocks.IgnoreQueryFilters()
+                .Include(s => s.ReliefGood)
+                .Where(x => x.IsArchived)
+                .OrderByDescending(x => x.ArchivedAt)
+                .ToListAsync();
+
+            procurements = await DB.ProcurementRequests.IgnoreQueryFilters()
+                .Where(x => x.IsArchived)
+                .OrderByDescending(x => x.ArchivedAt)
+                .ToListAsync();
+
+            budgets = await DB.BarangayBudgets.IgnoreQueryFilters()
+                .Where(x => x.IsArchived)
+                .OrderByDescending(x => x.ArchivedAt)
+                .ToListAsync();
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void SelectTab(string tab)
+    {
+        selectedTab = tab;
+        StateHasChanged();
+    }
+
+    private void ClearFilters()
+    {
+        filterEntityType = "";
+        filterDateFrom = null;
+        filterDateTo = null;
+        StateHasChanged();
+    }
+
+    private async Task ApplyFilters()
+    {
+        await LoadArchives();
+        // Apply additional filtering based on filterEntityType, filterDateFrom, filterDateTo
+        // Implementation can be enhanced based on requirements
+    }
+
+    private int GetArchivedInPeriod(DateTime since)
+    {
+        return reliefGoods.Count(x => x.ArchivedAt >= since)
+            + disasters.Count(x => x.ArchivedAt >= since)
+            + categories.Count(x => x.ArchivedAt >= since)
+            + suppliers.Count(x => x.ArchivedAt >= since)
+            + stocks.Count(x => x.ArchivedAt >= since)
+            + procurements.Count(x => x.ArchivedAt >= since)
+            + budgets.Count(x => x.ArchivedAt >= since);
+    }
+
+    private async Task RestoreReliefGood(int id)
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm", "Are you sure you want to restore this relief good?");
+        if (!confirmed) return;
+
+        var item = await DB.ReliefGoods.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.RgId == id);
+        if (item != null && item.IsArchived)
+        {
+            item.IsArchived = false;
+            item.ArchivedAt = null;
+            item.ArchivedBy = null;
+            item.ArchiveReason = null;
+            item.IsActive = true;
+
+            await DB.SaveChangesAsync();
+
+            await AuditService.LogAsync(
+                action: "RESTORE",
+                entityType: "ReliefGood",
+                entityId: id,
+                userId: Auth.UserId,
+                userType: Auth.CurrentRole,
+                userName: Auth.CurrentUser?.Username,
+                description: $"Restored archived relief good '{item.Name}'",
+                severity: "Info",
+                isSuccessful: true
+            );
+
+            await LoadArchives();
+        }
+    }
+
+    private async Task RestoreDisaster(int id)
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm", "Are you sure you want to restore this disaster?");
+        if (!confirmed) return;
+
+        var item = await DB.Disasters.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.DisasterId == id);
+        if (item != null && item.IsArchived)
+        {
+            item.IsArchived = false;
+            item.ArchivedAt = null;
+            item.ArchivedBy = null;
+            item.ArchiveReason = null;
+            item.Status = "Active";
+
+            await DB.SaveChangesAsync();
+
+            await AuditService.LogAsync(
+                action: "RESTORE",
+                entityType: "Disaster",
+                entityId: id,
+                userId: Auth.UserId,
+                userType: Auth.CurrentRole,
+                userName: Auth.CurrentUser?.Username,
+                description: $"Restored archived disaster '{item.Title}'",
+                severity: "Info",
+                isSuccessful: true
+            );
+
+            await LoadArchives();
+        }
+    }
+
+    private async Task RestoreCategory(int id)
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm", "Are you sure you want to restore this category?");
+        if (!confirmed) return;
+
+        var item = await DB.Categories.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.CategoryId == id);
+        if (item != null && item.IsArchived)
+        {
+            item.IsArchived = false;
+            item.ArchivedAt = null;
+            item.ArchivedBy = null;
+            item.ArchiveReason = null;
+            item.IsActive = true;
+
+            await DB.SaveChangesAsync();
+
+            await AuditService.LogAsync(
+                action: "RESTORE",
+                entityType: "Category",
+                entityId: id,
+                userId: Auth.UserId,
+                userType: Auth.CurrentRole,
+                userName: Auth.CurrentUser?.Username,
+                description: $"Restored archived category '{item.CategoryName}'",
+                severity: "Info",
+                isSuccessful: true
+            );
+
+            await LoadArchives();
+        }
+    }
+
+    private async Task RestoreSupplier(int id)
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm", "Are you sure you want to restore this supplier?");
+        if (!confirmed) return;
+
+        var item = await DB.Suppliers.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.SupplierId == id);
+        if (item != null && item.IsArchived)
+        {
+            item.IsArchived = false;
+            item.ArchivedAt = null;
+            item.ArchivedBy = null;
+            item.ArchiveReason = null;
+            item.IsActive = true;
+
+            await DB.SaveChangesAsync();
+
+            await AuditService.LogAsync(
+                action: "RESTORE",
+                entityType: "Supplier",
+                entityId: id,
+                userId: Auth.UserId,
+                userType: Auth.CurrentRole,
+                userName: Auth.CurrentUser?.Username,
+                description: $"Restored archived supplier '{item.SupplierName}'",
+                severity: "Info",
+                isSuccessful: true
+            );
+
+            await LoadArchives();
+        }
+    }
+
+    private async Task RestoreStock(int id)
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm", "Are you sure you want to restore this stock?");
+        if (!confirmed) return;
+
+        var item = await DB.Stocks.IgnoreQueryFilters().Include(s => s.ReliefGood).FirstOrDefaultAsync(x => x.StockId == id);
+        if (item != null && item.IsArchived)
+        {
+            item.IsArchived = false;
+            item.ArchivedAt = null;
+            item.ArchivedBy = null;
+            item.ArchiveReason = null;
+            item.IsActive = true;
+
+            await DB.SaveChangesAsync();
+
+            await AuditService.LogAsync(
+                action: "RESTORE",
+                entityType: "Stock",
+                entityId: id,
+                userId: Auth.UserId,
+                userType: Auth.CurrentRole,
+                userName: Auth.CurrentUser?.Username,
+                description: $"Restored archived stock '{item.ReliefGood?.Name}' (Qty: {item.Quantity})",
+                severity: "Info",
+                isSuccessful: true
+            );
+
+            await LoadArchives();
+        }
+    }
+
+    private async Task RestoreProcurement(int id)
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm", "Are you sure you want to restore this procurement request?");
+        if (!confirmed) return;
+
+        var item = await DB.ProcurementRequests.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.RequestId == id);
+        if (item != null && item.IsArchived)
+        {
+            item.IsArchived = false;
+            item.ArchivedAt = null;
+            item.ArchivedBy = null;
+            item.ArchiveReason = null;
+
+            await DB.SaveChangesAsync();
+
+            await AuditService.LogAsync(
+                action: "RESTORE",
+                entityType: "ProcurementRequest",
+                entityId: id,
+                userId: Auth.UserId,
+                userType: Auth.CurrentRole,
+                userName: Auth.CurrentUser?.Username,
+                description: $"Restored archived procurement request for '{item.BarangayName}' (₱{item.TotalAmount:N2})",
+                severity: "Info",
+                isSuccessful: true
+            );
+
+            await LoadArchives();
+        }
+    }
+
+    private async Task RestoreBudget(int id)
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm", "Are you sure you want to restore this budget?");
+        if (!confirmed) return;
+
+        var item = await DB.BarangayBudgets.IgnoreQueryFilters().FirstOrDefaultAsync(x => x.BudgetId == id);
+        if (item != null && item.IsArchived)
+        {
+            item.IsArchived = false;
+            item.ArchivedAt = null;
+            item.ArchivedBy = null;
+            item.ArchiveReason = null;
+
+            await DB.SaveChangesAsync();
+
+            await AuditService.LogAsync(
+                action: "RESTORE",
+                entityType: "BarangayBudget",
+                entityId: id,
+                userId: Auth.UserId,
+                userType: Auth.CurrentRole,
+                userName: Auth.CurrentUser?.Username,
+                description: $"Restored archived budget '{item.BarangayName}' ({item.Year}) - ₱{item.TotalAmount:N2}",
+                severity: "Info",
+                isSuccessful: true
+            );
+
+            await LoadArchives();
+        }
+    }
+}

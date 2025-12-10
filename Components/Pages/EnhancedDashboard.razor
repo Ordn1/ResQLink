@@ -1,0 +1,264 @@
+@page "/enhanced-dashboard"
+@inject ResQLink.Services.Analytics.AnalyticsService AnalyticsService
+@inject ResQLink.Services.Notifications.INotificationService NotificationService
+@inject ResQLink.Services.AuthState AuthState
+@inject IJSRuntime JS
+@using ResQLink.Services.Analytics
+@using ResQLink.Services.Notifications
+
+<PageTitle>Enhanced Dashboard - ResQLink</PageTitle>
+
+<div class="enhanced-dashboard">
+    <!-- Notification Bell -->
+    <div class="notification-bell" @onclick="ToggleNotifications">
+        <i class="bi bi-bell-fill"></i>
+        @if (unreadCount > 0)
+        {
+            <span class="notification-badge">@unreadCount</span>
+        }
+    </div>
+
+    @if (showNotifications)
+    {
+        <div class="notification-panel">
+            <div class="notification-header">
+                <h4>Notifications</h4>
+                <button class="btn-link" @onclick="MarkAllAsRead">Mark all as read</button>
+            </div>
+            <div class="notification-list">
+                @if (notifications.Any())
+                {
+                    @foreach (var notification in notifications.Take(10))
+                    {
+                        <div class="notification-item @(notification.IsRead ? "read" : "unread")" @onclick="() => MarkAsRead(notification.Id)">
+                            <div class="notification-icon @notification.Type.ToString().ToLower()">
+                                <i class="bi @GetNotificationIcon(notification.Type)"></i>
+                            </div>
+                            <div class="notification-content">
+                                <strong>@notification.Title</strong>
+                                <p>@notification.Message</p>
+                                <small>@notification.Timestamp.ToString("MMM dd, HH:mm")</small>
+                            </div>
+                        </div>
+                    }
+                }
+                else
+                {
+                    <p class="no-notifications">No notifications</p>
+                }
+            </div>
+        </div>
+    }
+
+    @if (analytics == null)
+    {
+        <div class="loading-spinner">
+            <div class="spinner"></div>
+            <p>Loading analytics...</p>
+        </div>
+    }
+    else
+    {
+        <!-- KPI Cards -->
+        <div class="kpi-grid">
+            <div class="kpi-card disaster">
+                <div class="kpi-icon">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                </div>
+                <div class="kpi-content">
+                    <h3>@analytics.ActiveDisasters</h3>
+                    <p>Active Disasters</p>
+                    <span class="kpi-trend @(analytics.DisasterGrowthRate >= 0 ? "up" : "down")">
+                        <i class="bi bi-arrow-@(analytics.DisasterGrowthRate >= 0 ? "up" : "down")"></i>
+                        @Math.Abs(analytics.DisasterGrowthRate).ToString("F1")%
+                    </span>
+                </div>
+            </div>
+
+            <div class="kpi-card evacuees">
+                <div class="kpi-icon">
+                    <i class="bi bi-people-fill"></i>
+                </div>
+                <div class="kpi-content">
+                    <h3>@analytics.TotalEvacuees</h3>
+                    <p>Total Evacuees</p>
+                    <span class="kpi-detail">@analytics.ActiveEvacuees active</span>
+                </div>
+            </div>
+
+            <div class="kpi-card shelters">
+                <div class="kpi-icon">
+                    <i class="bi bi-house-fill"></i>
+                </div>
+                <div class="kpi-content">
+                    <h3>@analytics.ActiveShelters</h3>
+                    <p>Active Shelters</p>
+                    <span class="kpi-detail">@analytics.OccupancyRate.ToString("F1")% occupied</span>
+                </div>
+            </div>
+
+            <div class="kpi-card inventory">
+                <div class="kpi-icon">
+                    <i class="bi bi-box-seam-fill"></i>
+                </div>
+                <div class="kpi-content">
+                    <h3>@analytics.TotalReliefGoods</h3>
+                    <p>Relief Items</p>
+                    <span class="kpi-alert">@analytics.LowStockItems low stock</span>
+                </div>
+            </div>
+
+            <div class="kpi-card budget">
+                <div class="kpi-icon">
+                    <i class="bi bi-wallet2"></i>
+                </div>
+                <div class="kpi-content">
+                    <h3>₱@analytics.TotalBudget.ToString("N0")</h3>
+                    <p>Total Budget</p>
+                    <span class="kpi-detail">@analytics.BudgetUtilizationRate.ToString("F1")% utilized</span>
+                </div>
+            </div>
+
+            <div class="kpi-card volunteers">
+                <div class="kpi-icon">
+                    <i class="bi bi-person-badge-fill"></i>
+                </div>
+                <div class="kpi-content">
+                    <h3>@analytics.ActiveVolunteers</h3>
+                    <p>Active Volunteers</p>
+                    <span class="kpi-detail">@analytics.TotalVolunteers total</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stock Alerts -->
+        @if (analytics.StockAlerts.Any())
+        {
+            <div class="panel alert-panel">
+                <div class="panel-head">
+                    <h3><i class="bi bi-exclamation-circle"></i> Stock Alerts</h3>
+                </div>
+                <div class="alert-grid">
+                    @foreach (var alert in analytics.StockAlerts)
+                    {
+                        <div class="alert-item @alert.AlertLevel.ToLower()">
+                            <div class="alert-icon">
+                                <i class="bi bi-@(alert.AlertLevel == "Critical" ? "x-circle-fill" : "exclamation-triangle-fill")"></i>
+                            </div>
+                            <div class="alert-content">
+                                <strong>@alert.ItemName</strong>
+                                <p>@alert.CurrentQuantity / @alert.MaxCapacity units</p>
+                                <span class="alert-badge">@alert.AlertLevel</span>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        <!-- Recent Activities -->
+        <div class="panel">
+            <div class="panel-head">
+                <h3><i class="bi bi-clock-history"></i> Recent Activities</h3>
+            </div>
+            <div class="activity-timeline">
+                @foreach (var activity in analytics.RecentActivities.Take(15))
+                {
+                    <div class="activity-item">
+                        <div class="activity-time">
+                            @activity.Timestamp.ToString("HH:mm")
+                        </div>
+                        <div class="activity-marker"></div>
+                        <div class="activity-content">
+                            <strong>@activity.ActivityType</strong>
+                            <p>@activity.Description</p>
+                            @if (!string.IsNullOrEmpty(activity.UserName))
+                            {
+                                <small>by @activity.UserName</small>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private DashboardAnalytics? analytics;
+    private List<NotificationMessage> notifications = new();
+    private int unreadCount = 0;
+    private bool showNotifications = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAnalyticsAsync();
+        await LoadNotificationsAsync();
+        
+        // Subscribe to notifications
+        NotificationService.NotificationReceived += OnNotificationReceived;
+    }
+
+    private async Task LoadAnalyticsAsync()
+    {
+        analytics = await AnalyticsService.GetDashboardAnalyticsAsync(
+            AuthState.UserId, 
+            AuthState.CurrentRole);
+    }
+
+    private async Task LoadNotificationsAsync()
+    {
+        if (AuthState.UserId.HasValue)
+        {
+            notifications = await NotificationService.GetUserNotificationsAsync(AuthState.UserId.Value);
+            unreadCount = await NotificationService.GetUnreadCountAsync(AuthState.UserId.Value);
+        }
+    }
+
+    private void OnNotificationReceived(object? sender, NotificationMessage notification)
+    {
+        if (notification.UserId == AuthState.UserId)
+        {
+            notifications.Insert(0, notification);
+            unreadCount++;
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void ToggleNotifications()
+    {
+        showNotifications = !showNotifications;
+    }
+
+    private async Task MarkAsRead(string notificationId)
+    {
+        if (AuthState.UserId.HasValue)
+        {
+            await NotificationService.MarkAsReadAsync(notificationId, AuthState.UserId.Value);
+            await LoadNotificationsAsync();
+        }
+    }
+
+    private async Task MarkAllAsRead()
+    {
+        if (AuthState.UserId.HasValue)
+        {
+            await NotificationService.MarkAllAsReadAsync(AuthState.UserId.Value);
+            await LoadNotificationsAsync();
+        }
+    }
+
+    private string GetNotificationIcon(NotificationType type) => type switch
+    {
+        NotificationType.Success => "check-circle-fill",
+        NotificationType.Warning => "exclamation-triangle-fill",
+        NotificationType.Error => "x-circle-fill",
+        NotificationType.Critical => "lightning-fill",
+        _ => "info-circle-fill"
+    };
+
+    public void Dispose()
+    {
+        NotificationService.NotificationReceived -= OnNotificationReceived;
+    }
+}

@@ -13,6 +13,7 @@ public interface IUserService
     Task<User?> GetUserByIdAsync(int userId, CancellationToken ct = default);
     Task<(bool success, string? error)> UpdateUserAsync(int userId, string? email, int? roleId, bool? isActive, CancellationToken ct = default);
     Task<(bool success, string? error)> ResetPasswordAsync(int userId, string newPassword, CancellationToken ct = default);
+    Task<(bool success, string message)> ResetPasswordByUsernameAsync(string username, string newPassword, CancellationToken ct = default);
     Task<(bool success, string? error)> DeleteUserAsync(int userId, CancellationToken ct = default);
     Task<bool> ValidateAdminAccessAsync(int userId, CancellationToken ct = default);
     Task<bool> UsernameExistsAsync(string username, CancellationToken ct = default);

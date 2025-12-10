@@ -52,4 +52,13 @@ public class Volunteer
     public string? Notes { get; set; }
 
     public DateTime RegisteredAt { get; set; } = DateTime.UtcNow;
+    
+    // Security: Track failed login attempts
+    public int FailedLoginAttempts { get; set; } = 0;
+    
+    // Security: Account lockout until this time (null if not locked)
+    public DateTime? LockoutEnd { get; set; }
+    
+    // Security: Force password reset on next login
+    public bool RequiresPasswordReset { get; set; } = false;
 }

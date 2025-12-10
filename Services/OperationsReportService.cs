@@ -286,10 +286,10 @@ public class OperationsReportService : IOperationsReportService
         // Stock-Out Transactions: Use Resource Allocations and Distributions
         var resourceDistributions = await _context.ResourceDistributions
             .Include(rd => rd.Allocation)
-                .ThenInclude(a => a.Stock)
-                .ThenInclude(s => s.ReliefGood)
+                .ThenInclude(a => a!.Stock)
+                .ThenInclude(s => s!.ReliefGood)
             .Include(rd => rd.Allocation)
-                .ThenInclude(a => a.Shelter)
+                .ThenInclude(a => a!.Shelter)
             .Include(rd => rd.DistributedBy)
             .OrderByDescending(rd => rd.DistributedAt)
             .Take(50)
@@ -298,14 +298,14 @@ public class OperationsReportService : IOperationsReportService
         inventoryReport.StockOutSummary = resourceDistributions.Select(rd => new StockOutTransaction
         {
             TransactionId = rd.DistributionId,
-            ItemName = rd.Allocation.Stock.ReliefGood.Name,
+            ItemName = rd.Allocation?.Stock?.ReliefGood?.Name ?? "Unknown",
             QuantityReleased = rd.DistributedQuantity,
-            Unit = rd.Allocation.Stock.ReliefGood.Unit,
-            Destination = rd.Allocation.Shelter?.Name ?? "Direct Distribution",
+            Unit = rd.Allocation?.Stock?.ReliefGood?.Unit ?? "units",
+            Destination = rd.Allocation?.Shelter?.Name ?? "Direct Distribution",
             Purpose = "Distribution",
             ReleaseDate = rd.DistributedAt,
             ReleasedBy = rd.DistributedBy?.Username ?? "System",
-            RemainingBalance = rd.Allocation.Stock.Quantity
+            RemainingBalance = rd.Allocation?.Stock?.Quantity ?? 0
         }).ToList();
 
         // Executive Summary

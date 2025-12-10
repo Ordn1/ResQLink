@@ -147,16 +147,22 @@ else
                         <span class="nav-text">Audit Logs</span>
                     </button>
 
+                    <button class='nav-btn @ActiveClass("/admin/archives")' @onclick='() => Go("/admin/archives")'>
+                        <i class="bi bi-archive-fill nav-icon"></i>
+                        <span class="nav-text">Archives</span>
+                    </button>
+
                     <button class='nav-btn @ActiveClass("/manage-users")' @onclick='() => Go("/manage-users")'>
                         <i class="bi bi-person-badge-fill nav-icon"></i>
                         <span class="nav-text">Manage Users</span>
                     </button>
-
-                    <button class='nav-btn @ActiveClass("/settings")' @onclick='() => Go("/settings")'>
-                        <i class="bi bi-gear-fill nav-icon"></i>
-                        <span class="nav-text">Settings</span>
-                    </button>
                 }
+
+                @* Settings available to all non-volunteer roles *@
+                <button class='nav-btn @ActiveClass("/settings")' @onclick='() => Go("/settings")'>
+                    <i class="bi bi-gear-fill nav-icon"></i>
+                    <span class="nav-text">Settings</span>
+                </button>
             </nav>
         </aside>
 
@@ -265,7 +271,6 @@ else
     private string? ToastTitle;
     private string ToastType = "info"; // info, success, warning, error
     private System.Threading.Timer? _toastTimer;
-    private bool _logoImageError;
     private bool _avatarImageError;
 
     private readonly (string Label, string Slug)[] InventoryCategories = new[]
@@ -425,10 +430,8 @@ else
             Auth.Logout();
             ShowToast("Logged Out", "You have been successfully logged out.", "success");
 
-            Task.Delay(500).ContinueWith(_ =>
-            {
-                Nav.NavigateTo("/", true);
-            });
+            await Task.Delay(500);
+            Nav.NavigateTo("/", true);
         }
         catch (Exception ex)
         {
@@ -471,7 +474,6 @@ else
 
     private void HandleImageError(ErrorEventArgs e)
     {
-        _logoImageError = true;
         Console.WriteLine("Failed to load ResQLink logo image");
     }
 
@@ -573,9 +575,11 @@ else
                 "/stocks" => "Stocks",
                 "/suppliers" => "Suppliers",
                 "/reports" => "Reports",
+                "/reports/enhanced" => "Reports (Enhanced)",
                 "/finance" => "Finance",
                 "/audit-logs" => "Audit Logs",
                 "/admin/audit-logs" => "Audit Logs",
+                "/admin/archives" => "Archives",
                 "/manage-users" => "Manage Users",
                 "/settings" => "Settings",
                 _ => path.Trim('/').Replace('-', ' ')

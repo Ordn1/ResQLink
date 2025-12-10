@@ -6,16 +6,10 @@ using System.Text;
 
 namespace ResQLink.Services.Users;
 
-public class UserService : IUserService
+public class UserService(AppDbContext db, AuditService? auditService = null) : IUserService
 {
-    private readonly AppDbContext _db;
-    private readonly AuditService? _auditService;
-
-    public UserService(AppDbContext db, AuditService? auditService = null)
-    {
-        _db = db;
-        _auditService = auditService;
-    }
+    private readonly AppDbContext _db = db;
+    private readonly AuditService? _auditService = auditService;
 
     public async Task EnsureCreatedAndSeedAdminAsync(CancellationToken ct = default)
     {
@@ -103,7 +97,6 @@ public class UserService : IUserService
     {
         var user = await _db.Users
             .Include(u => u.Role)
-            .AsNoTracking()
             .FirstOrDefaultAsync(u => u.Username == username && u.IsActive, ct);
         
         if (user is null)
@@ -127,7 +120,57 @@ public class UserService : IUserService
             return null;
         }
 
+        // Check if account is locked
+        if (IsAccountLocked(user))
+        {
+            var remainingMinutes = Math.Ceiling((user.LockoutEnd!.Value - DateTime.UtcNow).TotalMinutes);
+            if (_auditService != null)
+            {
+                await _auditService.LogAsync(
+                    action: "LOGIN",
+                    entityType: "User",
+                    entityId: user.UserId,
+                    userId: user.UserId,
+                    userType: user.Role?.RoleName,
+                    userName: $"{user.Username} ({user.Email})",
+                    description: $"Failed login attempt for locked account '{user.Username}'. Account locked for {remainingMinutes} more minutes.",
+                    severity: "Warning",
+                    isSuccessful: false,
+                    errorMessage: $"Account is locked. Try again in {remainingMinutes} minutes or reset your password."
+                );
+            }
+            return null; // Return null to indicate locked account
+        }
+
         var isValid = VerifyPassword(password, user.PasswordHash);
+        
+        if (!isValid)
+        {
+            // Record failed login attempt
+            await RecordFailedLoginAttemptAsync(user, ct);
+            
+            // Log failed attempt
+            if (_auditService != null)
+            {
+                await _auditService.LogAsync(
+                    action: "LOGIN",
+                    entityType: "User",
+                    entityId: user.UserId,
+                    userId: user.UserId,
+                    userType: user.Role?.RoleName,
+                    userName: $"{user.Username} ({user.Email})",
+                    description: $"Failed login attempt for user '{user.Username}': Invalid password. Attempts: {user.FailedLoginAttempts}",
+                    severity: "Warning",
+                    isSuccessful: false,
+                    errorMessage: "Invalid password"
+                );
+            }
+            
+            return null;
+        }
+        
+        // Successful login - reset failed attempts
+        await ResetLoginAttemptsAsync(user, ct);
         
         // Log login attempt (success or failure)
         if (_auditService != null)
@@ -139,16 +182,102 @@ public class UserService : IUserService
                 userId: user.UserId,
                 userType: user.Role?.RoleName,
                 userName: $"{user.Username} ({user.Email})",
-                description: isValid 
-                    ? $"User {user.Username} logged in successfully" 
-                    : $"Failed login attempt for user '{user.Username}': Invalid password",
-                severity: isValid ? "Info" : "Warning",
-                isSuccessful: isValid,
-                errorMessage: isValid ? null : "Invalid password"
+                description: $"User {user.Username} logged in successfully",
+                severity: "Info",
+                isSuccessful: true
             );
         }
         
-        return isValid ? user : null;
+        return user;
+    }
+
+    // Check if account is currently locked
+    private static bool IsAccountLocked(User user)
+    {
+        if (user.LockoutEnd == null)
+            return false;
+            
+        if (user.LockoutEnd > DateTime.UtcNow)
+            return true;
+            
+        // Lockout period has expired, return false but don't reset here
+        return false;
+    }
+    
+    // Record a failed login attempt and lock account if threshold reached
+    private async Task RecordFailedLoginAttemptAsync(User user, CancellationToken ct = default)
+    {
+        user.FailedLoginAttempts++;
+        
+        // Lock account for 5 minutes after 3 failed attempts
+        if (user.FailedLoginAttempts >= 3)
+        {
+            user.LockoutEnd = DateTime.UtcNow.AddMinutes(5);
+            user.RequiresPasswordReset = true; // Force password reset
+        }
+        
+        _db.Users.Update(user);
+        await _db.SaveChangesAsync(ct);
+    }
+    
+    // Reset failed login attempts on successful login
+    private async Task ResetLoginAttemptsAsync(User user, CancellationToken ct = default)
+    {
+        if (user.FailedLoginAttempts > 0 || user.LockoutEnd != null)
+        {
+            user.FailedLoginAttempts = 0;
+            user.LockoutEnd = null;
+            // Note: RequiresPasswordReset is NOT reset here - only by actual password reset
+            
+            _db.Users.Update(user);
+            await _db.SaveChangesAsync(ct);
+        }
+    }
+
+    // Reset password for a user (unlocks account and clears failed attempts)
+    public async Task<(bool success, string message)> ResetPasswordByUsernameAsync(string username, string newPassword, CancellationToken ct = default)
+    {
+        try
+        {
+            var user = await _db.Users.FirstOrDefaultAsync(u => u.Username == username, ct);
+            
+            if (user == null)
+            {
+                return (false, "User not found");
+            }
+            
+            // Update password
+            user.PasswordHash = HashPassword(newPassword);
+            user.FailedLoginAttempts = 0;
+            user.LockoutEnd = null;
+            user.RequiresPasswordReset = false;
+            user.UpdatedAt = DateTime.UtcNow;
+            
+            _db.Users.Update(user);
+            await _db.SaveChangesAsync(ct);
+            
+            // Log password reset
+            if (_auditService != null)
+            {
+                await _auditService.LogAsync(
+                    action: "PASSWORD_RESET",
+                    entityType: "User",
+                    entityId: user.UserId,
+                    userId: user.UserId,
+                    userType: user.Role?.RoleName,
+                    userName: $"{user.Username} ({user.Email})",
+                    description: $"Password reset for user '{user.Username}'. Account unlocked.",
+                    severity: "Info",
+                    isSuccessful: true
+                );
+            }
+            
+            return (true, "Password reset successfully. You can now login with your new password.");
+        }
+        catch (Exception ex)
+        {
+            return (false, $"Error resetting password: {ex.Message}");
+        }
     }
 
     // Log logout
@@ -345,7 +474,7 @@ public class UserService : IUserService
                     return (false, "Invalid email address");
 
                 var emailExists = await _db.Users
-                    .AnyAsync(u => u.Email == email.ToLower() && u.UserId != userId, ct);
+                    .AnyAsync(u => u.Email != null && u.Email.Equals(email, StringComparison.OrdinalIgnoreCase) && u.UserId != userId, ct);
                 if (emailExists)
                     return (false, "Email already in use");
 
@@ -428,13 +557,15 @@ public class UserService : IUserService
     {
         try
         {
+            // Load tracked user entity (avoid AsNoTracking/Attach to prevent duplicate tracked Role)
             var user = await _db.Users
-                .Include(u => u.Role)
-                .AsNoTracking()
                 .FirstOrDefaultAsync(u => u.UserId == userId, ct);
             
             if (user is null)
                 return (false, "User not found");
+
+            // Ensure role is available for audit logging without duplicating tracked instances
+            await _db.Entry(user).Reference(u => u.Role).LoadAsync(ct);
 
             if (string.IsNullOrWhiteSpace(newPassword) || newPassword.Length < 12)
                 return (false, "Password must be at least 12 characters");
@@ -445,9 +576,7 @@ public class UserService : IUserService
             user.PasswordHash = HashPassword(newPassword);
             user.UpdatedAt = DateTime.UtcNow;
             
-            _db.Users.Attach(user);
-            _db.Entry(user).State = EntityState.Modified;
-            
+            // No Attach/Modified needed since entity is tracked
             await _db.SaveChangesAsync(ct);
 
             // Log password reset
@@ -669,9 +798,9 @@ public class UserService : IUserService
     }
 
     // NEW: Get user transaction history
-    public async Task<List<AuditLog>> GetUserTransactionHistoryAsync(int userId, DateTime? startDate = null, DateTime? endDate = null, CancellationToken ct = default)
+    public async Task<List<AuditLog>> GetUserTransactionHistoryAsync(int userId, DateTime? _startDate = null, DateTime? _endDate = null, CancellationToken _ct = default)
     {
-        if (_auditService == null) return new List<AuditLog>();
+        if (_auditService == null) return [];
 
         return await _auditService.GetUserActivityAsync(userId, limit: 1000);
     }
@@ -693,13 +822,12 @@ public class UserService : IUserService
 
     public async Task<bool> EmailExistsAsync(string email, CancellationToken ct = default)
     {
-        return await _db.Users.AnyAsync(u => u.Email == email.ToLower(), ct);
+        return await _db.Users.AnyAsync(u => u.Email != null && u.Email.Equals(email, StringComparison.OrdinalIgnoreCase), ct);
     }
 
     private static string HashPassword(string password)
     {
-        using var sha = SHA256.Create();
-        var bytes = sha.ComputeHash(Encoding.UTF8.GetBytes(password));
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(password));
         return Convert.ToHexString(bytes);
     }
 

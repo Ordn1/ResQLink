@@ -4,8 +4,18 @@ using ResQLink.Data.Entities;
 
 namespace ResQLink.Services;
 
-public class StockService(AppDbContext db)
+public class StockService
 {
+    private readonly AppDbContext db;
+    private readonly AuditService _auditService;
+    private readonly AuthState? _authState;
+
+    public StockService(AppDbContext db, AuditService auditService, AuthState? authState = null)
+    {
+        this.db = db;
+        _auditService = auditService;
+        _authState = authState;
+    }
     public Task<List<Stock>> GetAllAsync(bool onlyActive = true) =>
         db.Stocks
           .Include(s => s.ReliefGood).ThenInclude(r => r.Categories).ThenInclude(rc => rc.Category)
@@ -171,24 +181,87 @@ public class StockService(AppDbContext db)
     {
         try
         {
-            var s = await db.Stocks.Include(st => st.Allocations).FirstOrDefaultAsync(st => st.StockId == stockId);
-            if (s == null) return (false, "Stock not found.");
+            var s = await db.Stocks
+                .Include(st => st.Allocations)
+                .Include(st => st.ReliefGood)
+                .FirstOrDefaultAsync(st => st.StockId == stockId);
 
-            if (s.Allocations.Count != 0)
+            if (s == null)
             {
-                // Soft delete if has allocations
-                s.IsActive = false;
-                await db.SaveChangesAsync();
+                await _auditService.LogAsync(
+                    action: "ARCHIVE",
+                    entityType: "Stock",
+                    entityId: stockId,
+                    userId: _authState?.UserId,
+                    userType: _authState?.CurrentRole,
+                    userName: _authState?.CurrentUser?.Username,
+                    description: $"Failed to archive stock #{stockId}: Not found",
+                    severity: "Warning",
+                    isSuccessful: false,
+                    errorMessage: "Stock not found"
+                );
+                return (false, "Stock not found.");
             }
-            else
-            {
-                db.Stocks.Remove(s);
-                await db.SaveChangesAsync();
-            }
+
+            // Archive the stock
+            s.IsArchived = true;
+            s.ArchivedAt = DateTime.UtcNow;
+            s.ArchivedBy = _authState?.UserId;
+            s.IsActive = false;
+
+            var allocationCount = s.Allocations.Count;
+            s.ArchiveReason = allocationCount > 0
+                ? $"Archived with {allocationCount} allocations"
+                : "Archived by user";
+
+            await db.SaveChangesAsync();
+
+            // Log stock archive
+            await _auditService.LogAsync(
+                action: "ARCHIVE",
+                entityType: "Stock",
+                entityId: stockId,
+                userId: _authState?.UserId,
+                userType: _authState?.CurrentRole,
+                userName: _authState?.CurrentUser?.Username,
+                description: $"Archived stock '{s.ReliefGood?.Name}' (Qty: {s.Quantity}). {s.ArchiveReason}",
+                severity: "Info",
+                isSuccessful: true
+            );
 
             return (true, null);
         }
-        catch (DbUpdateException ex) { return (false, ex.InnerException?.Message ?? ex.Message); }
-        catch (Exception ex) { return (false, ex.Message); }
+        catch (DbUpdateException ex)
+        {
+            await _auditService.LogAsync(
+                action: "ARCHIVE",
+                entityType: "Stock",
+                entityId: stockId,
+                userId: _authState?.UserId,
+                userType: _authState?.CurrentRole,
+                userName: _authState?.CurrentUser?.Username,
+                description: $"Failed to archive stock #{stockId}: Database error",
+                severity: "Error",
+                isSuccessful: false,
+                errorMessage: ex.InnerException?.Message ?? ex.Message
+            );
+            return (false, ex.InnerException?.Message ?? ex.Message);
+        }
+        catch (Exception ex)
+        {
+            await _auditService.LogAsync(
+                action: "ARCHIVE",
+                entityType: "Stock",
+                entityId: stockId,
+                userId: _authState?.UserId,
+                userType: _authState?.CurrentRole,
+                userName: _authState?.CurrentUser?.Username,
+                description: $"Failed to archive stock #{stockId}: {ex.Message}",
+                severity: "Error",
+                isSuccessful: false,
+                errorMessage: ex.Message
+            );
+            return (false, ex.Message);
+        }
     }
 }

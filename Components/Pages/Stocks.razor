@@ -8,6 +8,7 @@
 @inject ResQLink.Data.AppDbContext Db
 @inject ResQLink.Services.AuthState AuthState
 @inject IJSRuntime JSRuntime
+@inject IJSRuntime JS
 
 <div class="stocks-root">
     <section class="panel kpi-panel">
@@ -182,11 +183,11 @@
     @* Enhanced Add / Edit Stock Modal with Validation *@
     @if (_showModal)
     {
-        <div class="modal-overlay" @onclick="CloseModal" @onclick:stopPropagation="false">
+        <div class="modal-overlay" @onclick="async () => await CloseModal()" @onclick:stopPropagation="false">
             <div class="modal-dialog" @onclick:stopPropagation="true" style="max-width: 600px;">
                 <div class="modal-header">
                     <h3>@(_editMode ? $"Edit Stock #{_editStockId}" : "Add New Stock")</h3>
-                    <button class="modal-close" @onclick="CloseModal" disabled="@_saving">&times;</button>
+                    <button class="modal-close" @onclick="async () => await CloseModal()" disabled="@_saving">&times;</button>
                 </div>
                 <div class="modal-body">
                     @if (_loadingModal)
@@ -319,7 +320,7 @@
                         <div class="modal-actions">
                             <button type="button"
                                     class="btn-cancel"
-                                    @onclick="CloseModal"
+                                    @onclick="async () => await CloseModal()"
                                     disabled="@_saving"
                                     @onclick:stopPropagation="true">
                                 Cancel
@@ -742,9 +743,13 @@
         }
     }
 
-    private void CloseModal()
+    private async Task CloseModal()
     {
         if (_saving) return;
+        
+        var confirmed = await JS.InvokeAsync<bool>("confirm", "Are you sure you want to close this form? Any unsaved changes will be lost.");
+        if (!confirmed) return;
+        
         _showModal = false;
         _fieldErrors.Clear();
     }

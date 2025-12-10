@@ -24,20 +24,61 @@
             <input id="username" @bind="Username" class="login-input" @onkeypress="HandleKeyPress" />
 
             <label class="login-label" for="password" style="margin-top:12px;">Password:</label>
-            <input id="password" type="password" @bind="Password" class="login-input" @onkeypress="HandleKeyPress" />
+            <div class="password-input-wrapper">
+                <input id="password" type="@(ShowPassword ? "text" : "password")" @bind="Password" class="login-input" @onkeypress="HandleKeyPress" />
+                <button type="button"
+                        class="toggle-password-btn"
+                        title="@(ShowPassword ? "Hide password" : "Show password")"
+                        @onclick="ToggleShowPassword">
+                    <i class="bi @(ShowPassword ? "bi-eye-slash" : "bi-eye")"></i>
+                </button>
+            </div>
         </div>
 
         <div class="login-actions">
             <button type="button" class="login-btn" @onclick="HandleLogin">LOGIN</button>
             <button type="button" class="login-btn volunteer-btn" @onclick="HandleVolunteerLogin">SIGN IN AS VOLUNTEER</button>
             <a href="/register" class="forgot-link">Register new account</a>
-            <a href="#" class="forgot-link" @onclick="PreventDefault">Forgot password?</a>
+            <a href="#" class="forgot-link" @onclick="ShowResetPasswordDialog">Forgot password?</a>
             @if (!string.IsNullOrEmpty(LoginError))
             {
                 <div style="color:#ffdddd;font-size:.75rem;margin-top:6px;">@LoginError</div>
             }
+            @if (!string.IsNullOrEmpty(SuccessMessage))
+            {
+                <div style="color:#90ee90;font-size:.75rem;margin-top:6px;">@SuccessMessage</div>
+            }
         </div>
     </div>
+
+    <!-- Password Reset Modal -->
+    @if (ShowResetDialog)
+    {
+        <div class="modal-overlay" @onclick="CloseResetDialog">
+            <div class="modal-content" @onclick:stopPropagation>
+                <h3 style="margin-bottom:16px;color:#333;">Reset Password</h3>
+                
+                <label class="login-label" for="reset-username">Username:</label>
+                <input id="reset-username" @bind="ResetUsername" class="login-input" style="margin-bottom:12px;" />
+                
+                <label class="login-label" for="new-password">New Password:</label>
+                <input id="new-password" type="password" @bind="NewPassword" class="login-input" style="margin-bottom:12px;" />
+                
+                <label class="login-label" for="confirm-password">Confirm Password:</label>
+                <input id="confirm-password" type="password" @bind="ConfirmPassword" class="login-input" style="margin-bottom:16px;" />
+                
+                @if (!string.IsNullOrEmpty(ResetError))
+                {
+                    <div style="color:#ff6b6b;font-size:.85rem;margin-bottom:12px;">@ResetError</div>
+                }
+                
+                <div style="display:flex;gap:8px;">
+                    <button type="button" class="login-btn" @onclick="HandlePasswordReset">Reset Password</button>
+                    <button type="button" class="login-btn volunteer-btn" @onclick="CloseResetDialog">Cancel</button>
+                </div>
+            </div>
+        </div>
+    }
 
     <div class="login-frame">
         <h1 class="resqlink-header">
@@ -54,10 +95,86 @@
     private string Username { get; set; } = "";
     private string Password { get; set; } = "";
     private string LoginError { get; set; } = "";
+    private string SuccessMessage { get; set; } = "";
+    private bool ShowPassword { get; set; } = false;
+    
+    // Password Reset Dialog
+    private bool ShowResetDialog { get; set; } = false;
+    private string ResetUsername { get; set; } = "";
+    private string NewPassword { get; set; } = "";
+    private string ConfirmPassword { get; set; } = "";
+    private string ResetError { get; set; } = "";
+
+    private void ToggleShowPassword() => ShowPassword = !ShowPassword;
+
+    private void ShowResetPasswordDialog(MouseEventArgs e)
+    {
+        ShowResetDialog = true;
+        ResetUsername = Username; // Pre-fill with current username
+        NewPassword = "";
+        ConfirmPassword = "";
+        ResetError = "";
+    }
+
+    private void CloseResetDialog()
+    {
+        ShowResetDialog = false;
+        ResetUsername = "";
+        NewPassword = "";
+        ConfirmPassword = "";
+        ResetError = "";
+    }
+
+    private async Task HandlePasswordReset()
+    {
+        ResetError = "";
+        SuccessMessage = "";
+        
+        if (string.IsNullOrWhiteSpace(ResetUsername))
+        {
+            ResetError = "Please enter your username.";
+            return;
+        }
+        
+        if (string.IsNullOrWhiteSpace(NewPassword))
+        {
+            ResetError = "Please enter a new password.";
+            return;
+        }
+        
+        if (NewPassword != ConfirmPassword)
+        {
+            ResetError = "Passwords do not match.";
+            return;
+        }
+        
+        if (NewPassword.Length < 6)
+        {
+            ResetError = "Password must be at least 6 characters long.";
+            return;
+        }
+        
+        var (success, message) = await Users.ResetPasswordByUsernameAsync(ResetUsername, NewPassword);
+        
+        if (success)
+        {
+            SuccessMessage = message;
+            CloseResetDialog();
+            Username = ResetUsername;
+            Password = "";
+        }
+        else
+        {
+            ResetError = message;
+        }
+    }
 
     private async Task HandleLogin()
     {
         LoginError = "";
+        SuccessMessage = "";
+        
+        // Do not clear Password or ShowPassword to preserve state on validation errors
         if (string.IsNullOrWhiteSpace(Username) || string.IsNullOrWhiteSpace(Password))
         {
             LoginError = "Enter username and password.";
@@ -67,7 +184,23 @@
         var user = await Users.AuthenticateAsync(Username, Password);
         if (user is null)
         {
-            LoginError = "Invalid credentials.";
+            // Check if account is locked by trying to fetch user
+            var lockedUser = await Db.Users.AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Username == Username && u.IsActive);
+            
+            if (lockedUser != null && lockedUser.LockoutEnd != null && lockedUser.LockoutEnd > DateTime.UtcNow)
+            {
+                var remainingMinutes = Math.Ceiling((lockedUser.LockoutEnd.Value - DateTime.UtcNow).TotalMinutes);
+                LoginError = $"Account locked due to multiple failed attempts. Try again in {remainingMinutes} minute(s) or reset your password.";
+            }
+            else if (lockedUser != null && lockedUser.FailedLoginAttempts >= 2)
+            {
+                LoginError = $"Invalid credentials. Warning: {3 - lockedUser.FailedLoginAttempts} attempt(s) remaining before account lockout.";
+            }
+            else
+            {
+                LoginError = "Invalid credentials.";
+            }
             return;
         }
 
@@ -96,6 +229,8 @@
     private async Task HandleVolunteerLogin()
     {
         LoginError = "";
+        SuccessMessage = "";
+        
         if (string.IsNullOrWhiteSpace(Username) || string.IsNullOrWhiteSpace(Password))
         {
             LoginError = "Enter first name and password.";
@@ -104,7 +239,6 @@
 
         // Authenticate volunteer using first name (case-insensitive) and password
         var volunteer = await Db.Volunteers
-            .AsNoTracking()
             .FirstOrDefaultAsync(v => v.FirstName.ToLower() == Username.ToLower() && v.Status == "Active");
 
         if (volunteer is null)
@@ -113,12 +247,47 @@
             return;
         }
 
+        // Check if volunteer account is locked
+        if (volunteer.LockoutEnd != null && volunteer.LockoutEnd > DateTime.UtcNow)
+        {
+            var remainingMinutes = Math.Ceiling((volunteer.LockoutEnd.Value - DateTime.UtcNow).TotalMinutes);
+            LoginError = $"Account locked due to multiple failed attempts. Try again in {remainingMinutes} minute(s) or contact administrator.";
+            return;
+        }
+
         // Verify password
         var passwordHash = HashPassword(Password);
         if (volunteer.PasswordHash != passwordHash)
         {
-            LoginError = "Invalid credentials.";
+            // Record failed login attempt
+            volunteer.FailedLoginAttempts++;
+            
+            if (volunteer.FailedLoginAttempts >= 3)
+            {
+                volunteer.LockoutEnd = DateTime.UtcNow.AddMinutes(5);
+                volunteer.RequiresPasswordReset = true;
+                Db.Volunteers.Update(volunteer);
+                await Db.SaveChangesAsync();
+                
+                LoginError = "Account locked due to multiple failed attempts. Please contact administrator to reset your password.";
+            }
+            else
+            {
+                Db.Volunteers.Update(volunteer);
+                await Db.SaveChangesAsync();
+                
+                LoginError = $"Invalid credentials. Warning: {3 - volunteer.FailedLoginAttempts} attempt(s) remaining before account lockout.";
+            }
             return;
+        }
+
+        // Successful login - reset failed attempts
+        if (volunteer.FailedLoginAttempts > 0 || volunteer.LockoutEnd != null)
+        {
+            volunteer.FailedLoginAttempts = 0;
+            volunteer.LockoutEnd = null;
+            Db.Volunteers.Update(volunteer);
+            await Db.SaveChangesAsync();
         }
 
         // Create a temporary User object for the volunteer to work with AuthState
@@ -155,6 +324,4 @@
             await HandleLogin();
         }
     }
-
-    private void PreventDefault(MouseEventArgs e) { }
 }

@@ -46,6 +46,9 @@ public partial class AppDbContext : DbContext
             e.Property(x => x.PasswordHash).HasMaxLength(256).IsRequired();
             e.Property(x => x.Email).HasMaxLength(255).IsRequired();
             e.Property(x => x.IsActive).HasDefaultValue(true);
+            e.Property(x => x.FailedLoginAttempts).HasDefaultValue(0);
+            e.Property(x => x.LockoutEnd).IsRequired(false);
+            e.Property(x => x.RequiresPasswordReset).HasDefaultValue(false);
             e.Property(x => x.CreatedAt).HasDefaultValueSql("SYSUTCDATETIME()");
             e.Property(x => x.UpdatedAt).HasDefaultValueSql("SYSUTCDATETIME()");
             e.HasOne(x => x.Role)
@@ -383,6 +386,9 @@ public partial class AppDbContext : DbContext
             e.Property(v => v.Availability).HasMaxLength(50);
             e.Property(v => v.Notes).HasMaxLength(500);
             e.Property(v => v.RegisteredAt).HasDefaultValueSql("GETUTCDATE()");
+            e.Property(v => v.FailedLoginAttempts).HasDefaultValue(0);
+            e.Property(v => v.LockoutEnd).IsRequired(false);
+            e.Property(v => v.RequiresPasswordReset).HasDefaultValue(false);
 
             // Foreign key relationships
             e.HasOne(v => v.AssignedShelter)
@@ -396,8 +402,8 @@ public partial class AppDbContext : DbContext
               .OnDelete(DeleteBehavior.SetNull);
 
             // Check constraint for Status
-            e.HasCheckConstraint("CK_Volunteers_Status", 
-                "[Status] IN ('Active', 'Inactive', 'On Leave')");
+            e.ToTable(t => t.HasCheckConstraint("CK_Volunteers_Status", 
+                "[Status] IN ('Active', 'Inactive', 'On Leave')"));
 
             // Index for common queries
             e.HasIndex(v => v.Email);
@@ -436,6 +442,15 @@ public partial class AppDbContext : DbContext
             e.Property(i => i.Unit).HasMaxLength(50).IsRequired();
             e.Property(i => i.UnitPrice).HasColumnType("decimal(14,2)");
         });
+
+        // Global Query Filters - Exclude archived records by default
+        modelBuilder.Entity<ReliefGood>().HasQueryFilter(e => !e.IsArchived);
+        modelBuilder.Entity<Disaster>().HasQueryFilter(e => !e.IsArchived);
+        modelBuilder.Entity<Category>().HasQueryFilter(e => !e.IsArchived);
+        modelBuilder.Entity<Supplier>().HasQueryFilter(e => !e.IsArchived);
+        modelBuilder.Entity<Stock>().HasQueryFilter(e => !e.IsArchived);
+        modelBuilder.Entity<ProcurementRequest>().HasQueryFilter(e => !e.IsArchived);
+        modelBuilder.Entity<BarangayBudget>().HasQueryFilter(e => !e.IsArchived);
 
         base.OnModelCreating(modelBuilder);
     }

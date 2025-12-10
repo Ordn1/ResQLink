@@ -6,14 +6,14 @@
 @inject ResQLink.Services.AuthState Auth
 @inject NavigationManager Navigation
 
-@if (!Auth.IsAdmin())
+@if (!Auth.IsAuthenticated)
 {
     <div class="access-denied">
         <i class="bi bi-shield-x" style="font-size: 4rem; color: #dc3545;"></i>
         <h2>Access Denied</h2>
-        <p>You must be an administrator to access settings.</p>
-        <button class="btn-primary" @onclick="NavigateToDashboard">
-            <i class="bi bi-house-fill"></i> Go to Dashboard
+        <p>Please log in to access settings.</p>
+        <button class="btn-primary" @onclick="NavigateToLogin">
+            <i class="bi bi-box-arrow-in-right"></i> Go to Login
         </button>
     </div>
     return;
@@ -40,7 +40,7 @@
             <div class="form-row">
                 <div class="form-group">
                     <label>
-                        <input type="checkbox" @bind="remoteEnabled" disabled="@busy" /> 
+                        <input type="checkbox" @bind="remoteEnabled" disabled="@DisableConfig" /> 
                         Enable remote sync
                     </label>
                     <span class="help-text">Enable synchronization with remote database server</span>
@@ -50,7 +50,7 @@
             <div class="form-row">
                 <div class="form-group">
                     <label for="interval">Auto-sync interval</label>
-                    <select id="interval" class="form-control" @bind="interval" disabled="@busy">
+                    <select id="interval" class="form-control" @bind="interval" disabled="@DisableConfig">
                         <option value="0">Off</option>
                         <option value="5">Every 5 minutes</option>
                         <option value="10">Every 10 minutes</option>
@@ -63,7 +63,7 @@
             <div class="form-row">
                 <div class="form-group">
                     <div class="button-group">
-                        <button class="btn-primary" @onclick="SaveAsync" disabled="@busy">
+                        <button class="btn-primary" @onclick="SaveAsync" disabled="@DisableConfig">
                             @if (isSaving)
                             {
                                 <span class="spinner"></span>
@@ -203,12 +203,13 @@
     private string message = string.Empty;
     private string operationStatus = string.Empty;
 
+    private bool DisableConfig => !Auth.IsAdmin();
+
     protected override async Task OnInitializedAsync()
     {
-        // Check admin access
-        if (!Auth.IsAdmin())
+        if (!Auth.IsAuthenticated)
         {
-            await JS.InvokeVoidAsync("alert", "Access denied. Admin privileges required.");
+            await JS.InvokeVoidAsync("alert", "Access denied. Please log in.");
             return;
         }
 
@@ -217,13 +218,14 @@
         interval = SyncConfig.IntervalMinutes;
     }
 
-    private void NavigateToDashboard()
+    private void NavigateToLogin()
     {
-        Navigation.NavigateTo("/home");
+        Navigation.NavigateTo("/", true);
     }
 
     private async Task SaveAsync()
     {
+        if (DisableConfig) return;
         busy = true;
         isSaving = true;
         message = string.Empty;
@@ -232,7 +234,7 @@
 
         try
         {
-            await Task.Delay(300); // Brief delay for visual feedback
+            await Task.Delay(300);
 
             SyncConfig.RemoteEnabled = remoteEnabled;
             SyncConfig.IntervalMinutes = interval;

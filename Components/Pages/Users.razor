@@ -1,4 +1,5 @@
 @page "/users"
+@inject IJSRuntime JS
 
 <div class="users-root">
 
@@ -7,7 +8,7 @@
             <h2 class="panel-title">Users Management</h2>
             <div class="panel-actions">
                 <input class="mini-input"
-                       placeholder="Search name or email…"
+                       placeholder="Search name or emailï¿½"
                        @bind="search"
                        @bind:event="oninput" />
                 <select class="mini-input" @bind="roleFilter">
@@ -83,11 +84,11 @@
     @* Add/Edit User Modal *@
     @if (showModal)
     {
-        <div class="modal-overlay" @onclick="CloseModal" @onclick:stopPropagation="false">
+        <div class="modal-overlay" @onclick="async () => await CloseModal()" @onclick:stopPropagation="false">
             <div class="modal-dialog" @onclick:stopPropagation="true">
                 <div class="modal-header">
                     <h3>@(editMode ? "Edit User" : "Add User")</h3>
-                    <button class="modal-close" @onclick="CloseModal">&times;</button>
+                    <button class="modal-close" @onclick="async () => await CloseModal()">&times;</button>
                 </div>
                 <div class="modal-body">
                     <div class="form-row">
@@ -141,7 +142,7 @@
                         }
                         <button type="button"
                                 class="btn-cancel"
-                                @onclick="CloseModal"
+                                @onclick="async () => await CloseModal()"
                                 disabled="@saving"
                                 @onclick:stopPropagation="true">
                             Cancel
@@ -273,9 +274,13 @@
         showModal = true;
     }
 
-    private void CloseModal()
+    private async Task CloseModal()
     {
         if (saving) return;
+        
+        var confirmed = await JS.InvokeAsync<bool>("confirm", "Are you sure you want to close this form? Any unsaved changes will be lost.");
+        if (!confirmed) return;
+        
         showModal = false;
         errorMessage = string.Empty;
         editUser = new();

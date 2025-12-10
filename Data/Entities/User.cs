@@ -32,6 +32,15 @@ public class User
 
     public bool IsActive { get; set; } = true;
 
+    // Security: Track failed login attempts
+    public int FailedLoginAttempts { get; set; } = 0;
+    
+    // Security: Account lockout until this time (null if not locked)
+    public DateTime? LockoutEnd { get; set; }
+    
+    // Security: Force password reset on next login
+    public bool RequiresPasswordReset { get; set; } = false;
+
     // Defaults set in DB (SYSUTCDATETIME())
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

@@ -4,7 +4,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace ResQLink.Data.Entities;
 
 [Table("Relief_Goods")]
-public class ReliefGood
+public class ReliefGood : IArchivable
 {
     [Key]
     public int RgId { get; set; }
@@ -14,6 +14,12 @@ public class ReliefGood
     [MaxLength(255)] public string? Description { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    // Archive tracking (IArchivable)
+    public bool IsArchived { get; set; } = false;
+    public DateTime? ArchivedAt { get; set; }
+    public int? ArchivedBy { get; set; }
+    [MaxLength(500)] public string? ArchiveReason { get; set; }
 
     // Expiration tracking for perishable/medical items
     public DateTime? ExpirationDate { get; set; }

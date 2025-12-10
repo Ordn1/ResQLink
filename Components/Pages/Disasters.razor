@@ -110,11 +110,11 @@
 @* Create/Edit Modal *@
 @if (showModal)
 {
-    <div class="modal-overlay" @onclick="CloseModal" @onclick:stopPropagation="false">
+    <div class="modal-overlay" @onclick="async () => await CloseModal()" @onclick:stopPropagation="false">
         <div class="modal-dialog" @onclick="PreventClose" @onclick:stopPropagation="true">
             <div class="modal-header">
                 <h3>@(isEditMode ? "Edit Disaster" : "Create New Disaster")</h3>
-                <button class="modal-close" @onclick="CloseModal" @onclick:stopPropagation="true">&times;</button>
+                <button class="modal-close" @onclick="async () => await CloseModal()" @onclick:stopPropagation="true">&times;</button>
             </div>
             <div class="modal-body">
                 <EditForm Model="currentDisaster" OnValidSubmit="HandleSubmit">
@@ -199,7 +199,7 @@
                     </div>
 
                     <div class="modal-actions">
-                        <button type="button" class="btn-cancel" @onclick="CloseModal" @onclick:stopPropagation="true">Cancel</button>
+                        <button type="button" class="btn-cancel" @onclick="async () => await CloseModal()" @onclick:stopPropagation="true">Cancel</button>
                         <button type="submit" class="btn-primary" disabled="@isSubmitting" @onclick:stopPropagation="true">
                             @if (isSubmitting)
                             {
@@ -420,17 +420,27 @@
         {
             if (isEditMode)
             {
-                await DisasterService.UpdateAsync(currentDisaster);
+                var (result, error) = await DisasterService.UpdateAsync(currentDisaster);
+                if (error != null)
+                {
+                    await JS.InvokeVoidAsync("alert", $"Error: {error}");
+                    return;
+                }
                 await JS.InvokeVoidAsync("alert", "Disaster updated successfully!");
             }
             else
             {
-                await DisasterService.CreateAsync(currentDisaster);
+                var (result, error) = await DisasterService.CreateAsync(currentDisaster);
+                if (error != null)
+                {
+                    await JS.InvokeVoidAsync("alert", $"Error: {error}");
+                    return;
+                }
                 await JS.InvokeVoidAsync("alert", "Disaster created successfully!");
             }
 
             await LoadDisastersAsync();
-            CloseModal();
+            await CloseModal();
         }
         catch (Exception ex)
         {
@@ -472,8 +482,12 @@
     }
 
     // Modal management
-    private void CloseModal()
+    private async Task CloseModal()
     {
+        // Ask for confirmation before closing
+        var confirmed = await JS.InvokeAsync<bool>("confirm", "Are you sure you want to close this form? Any unsaved changes will be lost.");
+        if (!confirmed) return;
+        
         showModal = false;
         isSubmitting = false;
         currentDisaster = new();

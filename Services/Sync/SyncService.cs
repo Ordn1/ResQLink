@@ -234,10 +234,10 @@ WHERE o.type = 'U'
                     var tableIdent = GetMappedTableIdentifier<TEntity>(local);
                     var isIdentityEntity = EntityHasIdentityKey<TEntity>(local);
 
-                    static TEntity CreateScalarOnlyCopy<TEntity>(DbContext ctx, TEntity source) where TEntity : class
+                    static TDestEntity CreateScalarOnlyCopy<TDestEntity>(DbContext ctx, TDestEntity source) where TDestEntity : class
                     {
-                        var et = ctx.Model.FindEntityType(typeof(TEntity))!;
-                        var dest = Activator.CreateInstance<TEntity>()!;
+                        var et = ctx.Model.FindEntityType(typeof(TDestEntity))!;
+                        var dest = Activator.CreateInstance<TDestEntity>()!;
                         var props = et.GetProperties();
 
                         foreach (var p in props)

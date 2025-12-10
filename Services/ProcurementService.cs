@@ -38,6 +38,13 @@ public class ProcurementService
     {
         try
         {
+            // Server-side validation
+            if (input.TotalAmount < 0)
+                return (null, "Total Amount cannot be negative.");
+            if (string.IsNullOrWhiteSpace(input.BarangayName))
+                return (null, "Barangay is required.");
+
+            input.BarangayName = input.BarangayName.Trim();
             input.RequestDate = DateTime.UtcNow;
             _db.ProcurementRequests.Add(input);
             await _db.SaveChangesAsync();
@@ -94,6 +101,12 @@ public class ProcurementService
     {
         try
         {
+            // Server-side validation
+            if (input.TotalAmount < 0)
+                return (null, "Total Amount cannot be negative.");
+            if (string.IsNullOrWhiteSpace(input.BarangayName))
+                return (null, "Barangay is required.");
+
             var existing = await _db.ProcurementRequests
                 .Include(r => r.Supplier)
                 .Include(r => r.Items)
@@ -215,6 +228,14 @@ public class ProcurementService
     {
         try
         {
+            // Server-side validation
+            if (item.Quantity < 0)
+                return (null, "Quantity cannot be negative.");
+            if (item.UnitPrice < 0)
+                return (null, "Unit Price cannot be negative.");
+            if (string.IsNullOrWhiteSpace(item.ItemName) || string.IsNullOrWhiteSpace(item.Unit))
+                return (null, "Item and Unit are required.");
+
             var request = await _db.ProcurementRequests.FindAsync(requestId);
             if (request is null) return (null, "Request not found.");
 
@@ -262,6 +283,14 @@ public class ProcurementService
     {
         try
         {
+            // Server-side validation
+            if (item.Quantity < 0)
+                return (null, "Quantity cannot be negative.");
+            if (item.UnitPrice < 0)
+                return (null, "Unit Price cannot be negative.");
+            if (string.IsNullOrWhiteSpace(item.ItemName) || string.IsNullOrWhiteSpace(item.Unit))
+                return (null, "Item and Unit are required.");
+
             var existing = await _db.ProcurementRequestItems.FindAsync(item.RequestItemId);
             if (existing is null) return (null, "Item not found.");
 
