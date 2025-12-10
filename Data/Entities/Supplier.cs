@@ -4,7 +4,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace ResQLink.Data.Entities;
 
 [Table("Suppliers")]
-public class Supplier : IArchivable
+public class Supplier
 {
     [Key]
     public int SupplierId { get; set; }
@@ -18,10 +18,4 @@ public class Supplier : IArchivable
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
-
-    // Archive tracking (IArchivable)
-    public bool IsArchived { get; set; } = false;
-    public DateTime? ArchivedAt { get; set; }
-    public int? ArchivedBy { get; set; }
-    [MaxLength(500)] public string? ArchiveReason { get; set; }
 }

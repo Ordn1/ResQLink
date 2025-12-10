@@ -4,7 +4,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace ResQLink.Data.Entities;
 
 [Table("Stocks")]
-public class Stock : IArchivable
+public class Stock
 {
   [Key]
   public int StockId { get; set; }
@@ -33,12 +33,6 @@ public class Stock : IArchivable
   public bool IsActive { get; set; } = true;
 
   public DateTime LastUpdated { get; set; } = DateTime.UtcNow;
-
-  // Archive tracking (IArchivable)
-  public bool IsArchived { get; set; } = false;
-  public DateTime? ArchivedAt { get; set; }
-  public int? ArchivedBy { get; set; }
-  [MaxLength(500)] public string? ArchiveReason { get; set; }
 
   [DatabaseGenerated(DatabaseGeneratedOption.Computed)]
   public decimal? CapacityPercent { get; private set; }

@@ -8,12 +8,14 @@ public class SupplierService
 {
     private readonly AppDbContext _db;
     private readonly AuditService _auditService;
+    private readonly ArchiveService _archiveService;
     private readonly AuthState? _authState;
 
-    public SupplierService(AppDbContext db, AuditService auditService, AuthState? authState = null)
+    public SupplierService(AppDbContext db, AuditService auditService, ArchiveService archiveService, AuthState? authState = null)
     {
         _db = db;
         _auditService = auditService;
+        _archiveService = archiveService;
         _authState = authState;
     }
 
@@ -237,29 +239,12 @@ public class SupplierService
             return false;
         }
 
-        // Archive the supplier
-        existing.IsArchived = true;
-        existing.ArchivedAt = DateTime.UtcNow;
-        existing.ArchivedBy = _authState?.UserId;
-        existing.ArchiveReason = "Archived by user";
-        existing.IsActive = false;
-        existing.UpdatedAt = DateTime.UtcNow;
+        // Use centralized ArchiveService
+        var (success, error) = await _archiveService.ArchiveAsync<Supplier>(
+            id,
+            "Archived by user",
+            existing.SupplierName);
 
-        await _db.SaveChangesAsync();
-
-        // Log supplier archive
-        await _auditService.LogAsync(
-            action: "ARCHIVE",
-            entityType: "Supplier",
-            entityId: id,
-            userId: _authState?.UserId,
-            userType: _authState?.CurrentRole,
-            userName: _authState?.CurrentUser?.Username,
-            description: $"Archived supplier '{existing.SupplierName}'",
-            severity: "Info",
-            isSuccessful: true
-        );
-
-        return true;
+        return success;
     }
 }

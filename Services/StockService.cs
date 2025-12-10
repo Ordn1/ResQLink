@@ -8,12 +8,14 @@ public class StockService
 {
     private readonly AppDbContext db;
     private readonly AuditService _auditService;
+    private readonly ArchiveService _archiveService;
     private readonly AuthState? _authState;
 
-    public StockService(AppDbContext db, AuditService auditService, AuthState? authState = null)
+    public StockService(AppDbContext db, AuditService auditService, ArchiveService archiveService, AuthState? authState = null)
     {
         this.db = db;
         _auditService = auditService;
+        _archiveService = archiveService;
         _authState = authState;
     }
     public Task<List<Stock>> GetAllAsync(bool onlyActive = true) =>
@@ -203,31 +205,19 @@ public class StockService
                 return (false, "Stock not found.");
             }
 
-            // Archive the stock
-            s.IsArchived = true;
-            s.ArchivedAt = DateTime.UtcNow;
-            s.ArchivedBy = _authState?.UserId;
-            s.IsActive = false;
-
+            // Use centralized ArchiveService
             var allocationCount = s.Allocations.Count;
-            s.ArchiveReason = allocationCount > 0
+            var reason = allocationCount > 0
                 ? $"Archived with {allocationCount} allocations"
                 : "Archived by user";
 
-            await db.SaveChangesAsync();
+            var result = await _archiveService.ArchiveAsync<Stock>(
+                stockId,
+                reason,
+                s.ReliefGood?.Name ?? $"Stock #{stockId}");
 
-            // Log stock archive
-            await _auditService.LogAsync(
-                action: "ARCHIVE",
-                entityType: "Stock",
-                entityId: stockId,
-                userId: _authState?.UserId,
-                userType: _authState?.CurrentRole,
-                userName: _authState?.CurrentUser?.Username,
-                description: $"Archived stock '{s.ReliefGood?.Name}' (Qty: {s.Quantity}). {s.ArchiveReason}",
-                severity: "Info",
-                isSuccessful: true
-            );
+            if (!result.success)
+                return result;
 
             return (true, null);
         }

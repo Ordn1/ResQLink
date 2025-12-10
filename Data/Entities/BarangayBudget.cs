@@ -4,7 +4,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace ResQLink.Data.Entities;
 
 [Table("BarangayBudgets")]
-public class BarangayBudget : IArchivable
+public class BarangayBudget
 {
     [Key] public int BudgetId { get; set; }
 
@@ -25,12 +25,6 @@ public class BarangayBudget : IArchivable
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
-
-    // Archive tracking (IArchivable)
-    public bool IsArchived { get; set; } = false;
-    public DateTime? ArchivedAt { get; set; }
-    public int? ArchivedBy { get; set; }
-    [MaxLength(500)] public string? ArchiveReason { get; set; }
 
     public ICollection<BarangayBudgetItem> Items { get; set; } = new List<BarangayBudgetItem>();
 }

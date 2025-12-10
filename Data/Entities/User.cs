@@ -36,6 +36,7 @@ public class User
     public int FailedLoginAttempts { get; set; } = 0;
     
     // Security: Account lockout until this time (null if not locked)
+    [Column("LockoutEnd")]
     public DateTime? LockoutEnd { get; set; }
     
     // Security: Force password reset on next login

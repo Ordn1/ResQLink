@@ -4,7 +4,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace ResQLink.Data.Entities;
 
 [Table("Categories")]
-public class Category : IArchivable
+public class Category
 {
     [Key]
     public int CategoryId { get; set; }
@@ -13,12 +13,6 @@ public class Category : IArchivable
     [MaxLength(255)] public string? Description { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-
-    // Archive tracking (IArchivable)
-    public bool IsArchived { get; set; } = false;
-    public DateTime? ArchivedAt { get; set; }
-    public int? ArchivedBy { get; set; }
-    [MaxLength(500)] public string? ArchiveReason { get; set; }
 
     public short? CategoryTypeId { get; set; }
     public CategoryType? CategoryType { get; set; }

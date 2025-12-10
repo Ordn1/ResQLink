@@ -4,7 +4,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace ResQLink.Data.Entities;
 
 [Table("Disasters")]
-public class Disaster : IValidatableObject, IArchivable
+public class Disaster : IValidatableObject
 {
     [Key]
     public int DisasterId { get; set; }
@@ -24,12 +24,6 @@ public class Disaster : IValidatableObject, IArchivable
     [MaxLength(255)] [Required] public string Location { get; set; } = string.Empty;
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-
-    // Archive tracking (IArchivable)
-    public bool IsArchived { get; set; } = false;
-    public DateTime? ArchivedAt { get; set; }
-    public int? ArchivedBy { get; set; }
-    [MaxLength(500)] public string? ArchiveReason { get; set; }
 
     public ICollection<Shelter> Shelters { get; set; } = new List<Shelter>();
     public ICollection<Evacuee> Evacuees { get; set; } = new List<Evacuee>();

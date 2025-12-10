@@ -8,12 +8,14 @@ public class BudgetService
 {
     private readonly AppDbContext _db;
     private readonly AuditService? _auditService;
+    private readonly ArchiveService? _archiveService;
     private readonly AuthState? _authState;
 
-    public BudgetService(AppDbContext db, AuditService? auditService = null, AuthState? authState = null)
+    public BudgetService(AppDbContext db, AuditService? auditService = null, ArchiveService? archiveService = null, AuthState? authState = null)
     {
         _db = db;
         _auditService = auditService;
+        _archiveService = archiveService;
         _authState = authState;
     }
 
@@ -246,33 +248,22 @@ public class BudgetService
                 return (false, "Budget not found.");
             }
 
-            // Archive the budget instead of deleting
-            budget.IsArchived = true;
-            budget.ArchivedAt = DateTime.UtcNow;
-            budget.ArchivedBy = _authState?.UserId;
-
-            var itemCount = budget.Items.Count;
-            var totalSpent = budget.Items.Sum(i => i.Amount);
-            budget.ArchiveReason = itemCount > 0
-                ? $"Archived with {itemCount} budget items (Total: ₱{totalSpent:N2})"
-                : "Archived by user";
-
-            await _db.SaveChangesAsync();
-
-            // Log budget archive
-            if (_auditService != null)
+            // Use centralized ArchiveService
+            if (_archiveService != null)
             {
-                await _auditService.LogAsync(
-                    action: "ARCHIVE",
-                    entityType: "BarangayBudget",
-                    entityId: id,
-                    userId: _authState?.UserId,
-                    userType: _authState?.CurrentRole,
-                userName: _authState?.CurrentUser?.Username,
-                description: $"Archived budget '{budget.BarangayName}' ({budget.Year}) - ₱{budget.TotalAmount:N2}. {budget.ArchiveReason}",
-                severity: "Info",
-                isSuccessful: true
-            );
+                var itemCount = budget.Items.Count;
+                var totalSpent = budget.Items.Sum(i => i.Amount);
+                var reason = itemCount > 0
+                    ? $"Archived with {itemCount} budget items (Total: ₱{totalSpent:N2})"
+                    : "Archived by user";
+
+                var result = await _archiveService.ArchiveAsync<BarangayBudget>(
+                    id,
+                    reason,
+                    $"{budget.BarangayName} ({budget.Year})");
+
+                if (!result.success)
+                    return (false, result.error);
             }
 
             return (true, null);

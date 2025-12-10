@@ -39,6 +39,8 @@ public class SyncService : ISyncService
         "ReportResourceDistribution",
         "AuditLogs",
         "Suppliers",
+        "ProcurementRequests",
+        "ProcurementRequestItems",
         "BarangayBudgets",
         "BarangayBudgetItems"
     };
@@ -408,6 +410,11 @@ WHERE o.type = 'U'
                                 remote.Entry(exists).CurrentValues.SetValues(row);
                                 toUpdate.Add(exists);
                             }
+                            else
+                            {
+                                // Detach if not modified to prevent tracking conflicts
+                                remote.Entry(exists).State = EntityState.Detached;
+                            }
                         }
                     }
 
@@ -719,6 +726,21 @@ WHERE o.type = 'U'
 
                 await SyncStocksAsync();
 
+                var localSuppliers = await local.Suppliers.AsNoTracking().ToListAsync(ct);
+                await SyncEntitiesAsync(localSuppliers, x => x.SupplierId);
+
+                var localProcurementRequests = await local.ProcurementRequests.AsNoTracking().ToListAsync(ct);
+                await SyncEntitiesAsync(localProcurementRequests, x => x.RequestId);
+
+                var localProcurementRequestItems = await local.ProcurementRequestItems.AsNoTracking().ToListAsync(ct);
+                await SyncEntitiesAsync(localProcurementRequestItems, x => x.RequestItemId);
+
+                var localBarangayBudgets = await local.BarangayBudgets.AsNoTracking().ToListAsync(ct);
+                await SyncEntitiesAsync(localBarangayBudgets, x => x.BudgetId);
+
+                var localBudgetItems = await local.BarangayBudgetItems.AsNoTracking().ToListAsync(ct);
+                await SyncEntitiesAsync(localBudgetItems, x => x.BudgetItemId);
+
                 var localEvac = await local.Evacuees.AsNoTracking().ToListAsync(ct);
                 await SyncEntitiesAsync(localEvac, x => x.EvacueeId);
 
@@ -788,7 +810,19 @@ WHERE o.type = 'U'
         catch (Exception ex)
         {
             _logger.LogError(ex, "Push failed");
+            
+            // Enhanced error logging for column issues
             var errorMessage = ex.InnerException?.Message ?? ex.Message;
+            if (errorMessage.Contains("Invalid column name"))
+            {
+                errorMessage += "\n\n💡 TROUBLESHOOTING:\n" +
+                    "1. Verify you ran the archive migration on the REMOTE database (not local)\n" +
+                    "2. Check that your Remote Connection String points to the correct database\n" +
+                    "3. Run 'Refresh_Remote_Schema.sql' on the remote database\n" +
+                    "4. Restart the application to clear EF Core's model cache";
+                _logger.LogError("Column mismatch detected. Remote database schema may be outdated or connection string incorrect.");
+            }
+            
             return (false, errorMessage);
         }
     }

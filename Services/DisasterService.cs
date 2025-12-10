@@ -20,11 +20,13 @@ public class DisasterService : IDisasterService
     private readonly AppDbContext _context;
     private readonly AuthState? _authState;
     private readonly AuditService _auditService;
+    private readonly ArchiveService _archiveService;
 
-    public DisasterService(AppDbContext context, AuditService auditService, AuthState? authState = null)
+    public DisasterService(AppDbContext context, AuditService auditService, ArchiveService archiveService, AuthState? authState = null)
     {
         _context = context;
         _auditService = auditService;
+        _archiveService = archiveService;
         _authState = authState;
     }
 
@@ -253,11 +255,7 @@ public class DisasterService : IDisasterService
             if (disaster == null)
                 return false;
 
-            // Archive the disaster instead of deleting
-            disaster.IsArchived = true;
-            disaster.ArchivedAt = DateTime.UtcNow;
-            disaster.ArchivedBy = _authState?.UserId;
-            
+            // Build archive reason with related data
             var relatedInfo = new List<string>();
             if (disaster.Evacuees.Any())
                 relatedInfo.Add($"{disaster.Evacuees.Count} evacuees");
@@ -270,17 +268,37 @@ public class DisasterService : IDisasterService
             if (stockCount > 0)
                 relatedInfo.Add($"{stockCount} stock entries");
             
-            disaster.ArchiveReason = relatedInfo.Any() 
+            var reason = relatedInfo.Any() 
                 ? $"Archived with {string.Join(", ", relatedInfo)}" 
                 : "Archived by user";
-            
-            // Change status to indicate it's closed
-            if (disaster.Status != "Closed")
-                disaster.Status = "Closed";
-                
-            await _context.SaveChangesAsync();
-            
-            // Log archive action to audit trail
+
+            // Use centralized ArchiveService
+            var (success, error) = await _archiveService.ArchiveAsync<Disaster>(
+                id,
+                reason,
+                disaster.Title);
+
+            if (!success)
+            {
+                await _auditService.LogAsync(
+                    action: "ARCHIVE",
+                    entityType: "Disaster",
+                    entityId: id,
+                    userId: _authState?.UserId,
+                    userType: _authState?.CurrentRole,
+                    userName: _authState?.CurrentUser?.Username,
+                    description: $"Failed to archive disaster '{disaster.Title}': {error}",
+                    severity: "Error",
+                    isSuccessful: false,
+                    errorMessage: error
+                );
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
             await _auditService.LogAsync(
                 action: "ARCHIVE",
                 entityType: "Disaster",
@@ -288,19 +306,12 @@ public class DisasterService : IDisasterService
                 userId: _authState?.UserId,
                 userType: _authState?.CurrentRole,
                 userName: _authState?.CurrentUser?.Username,
-                description: $"Archived disaster '{disaster.Title}'. {disaster.ArchiveReason}",
-                severity: "Info",
-                isSuccessful: true
+                description: $"Exception while archiving disaster #{id}: {ex.Message}",
+                severity: "Error",
+                isSuccessful: false,
+                errorMessage: ex.Message
             );
-            
-            return true;
-        }
-        catch (DbUpdateException ex)
-        {
-            // Wrap database exceptions with more context
-            throw new InvalidOperationException(
-                $"An error occurred while archiving the disaster. {ex.InnerException?.Message ?? ex.Message}", 
-                ex);
+            return false;
         }
     }
 

@@ -9,12 +9,14 @@ public class InventoryService
 {
     private readonly AppDbContext _db;
     private readonly AuditService _auditService;
+    private readonly ArchiveService _archiveService;
     private readonly AuthState _authState;
 
-    public InventoryService(AppDbContext db, AuditService auditService, AuthState authState)
+    public InventoryService(AppDbContext db, AuditService auditService, ArchiveService archiveService, AuthState authState)
     {
         _db = db;
         _auditService = auditService;
+        _archiveService = archiveService;
         _authState = authState;
     }
 
@@ -700,41 +702,21 @@ public class InventoryService
                 return (false, "Item not found");
             }
 
-            // 🔥 NEW: Capture item details before archiving
-            var itemDetails = new
-            {
-                item.RgId,
-                item.Name,
-                item.Unit,
-                item.Description,
-                StockCount = item.Stocks.Count,
-                TotalQuantity = item.Stocks.Sum(s => s.Quantity)
-            };
-
-            // Archive the item instead of deleting
-            item.IsArchived = true;
-            item.ArchivedAt = DateTime.UtcNow;
-            item.ArchivedBy = _authState.UserId;
-            item.ArchiveReason = item.Stocks.Any() 
+            // Use centralized ArchiveService
+            var reason = item.Stocks.Any() 
                 ? $"Archived with {item.Stocks.Count} stock entries" 
                 : "Archived by user";
-            item.IsActive = false; // Also mark as inactive
             
-            await _db.SaveChangesAsync();
+            var result = await _archiveService.ArchiveAsync<ReliefGood>(
+                id,
+                reason,
+                item.Name);
             
-            // 🔥 NEW: Log archival
-            await _auditService.LogAsync(
-                action: "ARCHIVE",
-                entityType: "ReliefGood",
-                entityId: id,
-                userId: _authState.UserId,
-                userType: _authState.CurrentRole,
-                userName: _authState.CurrentUser?.Username,
-                oldValues: itemDetails,
-                description: $"Relief good '{item.Name}' (ID: {id}) archived (has {item.Stocks.Count} stock entries)",
-                severity: "Info",
-                isSuccessful: true
-            );
+            if (!result.success)
+            {
+                await tx.RollbackAsync();
+                return (false, result.error);
+            }
 
             await tx.CommitAsync();
             return (true, null);

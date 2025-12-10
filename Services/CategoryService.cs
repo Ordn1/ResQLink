@@ -9,11 +9,13 @@ public class CategoryService
     private readonly AppDbContext _db;
     private readonly AuthState? _authState;
     private readonly AuditService _auditService;
+    private readonly ArchiveService _archiveService;
 
-    public CategoryService(AppDbContext db, AuditService auditService, AuthState? authState = null)
+    public CategoryService(AppDbContext db, AuditService auditService, ArchiveService archiveService, AuthState? authState = null)
     {
         _db = db;
         _auditService = auditService;
+        _archiveService = archiveService;
         _authState = authState;
     }
 
@@ -228,7 +230,7 @@ public class CategoryService
         }
     }
 
-    // ✅ Archive instead of delete with proper error handling
+    // ✅ Archive instead of delete using centralized ArchiveService
     public async Task<(bool success, string? error)> DeleteAsync(int id)
     {
         var category = await _db.Categories
@@ -240,33 +242,18 @@ public class CategoryService
 
         try
         {
-            // Archive the category instead of deleting
-            category.IsArchived = true;
-            category.ArchivedAt = DateTime.UtcNow;
-            category.ArchivedBy = _authState?.UserId;
-            category.IsActive = false;
-            
             var itemCount = category.ReliefGoods.Count;
-            category.ArchiveReason = itemCount > 0 
+            var reason = itemCount > 0 
                 ? $"Archived with {itemCount} linked relief goods" 
                 : "Archived by user";
+
+            // Use centralized ArchiveService
+            var result = await _archiveService.ArchiveAsync<Category>(
+                id, 
+                reason, 
+                category.CategoryName);
             
-            await _db.SaveChangesAsync();
-            
-            // Log archive action to audit trail
-            await _auditService.LogAsync(
-                action: "ARCHIVE",
-                entityType: "Category",
-                entityId: id,
-                userId: _authState?.UserId,
-                userType: _authState?.CurrentRole,
-                userName: _authState?.CurrentUser?.Username,
-                description: $"Archived category '{category.CategoryName}'. {category.ArchiveReason}",
-                severity: "Info",
-                isSuccessful: true
-            );
-            
-            return (true, null);
+            return result;
         }
         catch (Exception ex)
         {

@@ -30,6 +30,7 @@ public partial class AppDbContext : DbContext
     public DbSet<ProcurementRequest> ProcurementRequests => Set<ProcurementRequest>();
     public DbSet<ProcurementRequestItem> ProcurementRequestItems => Set<ProcurementRequestItem>();
     public DbSet<BarangayBudget> BudgetAllocations { get; set; } // Add this property to fix CS1061
+    public DbSet<Archive> Archives => Set<Archive>();
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -135,7 +136,7 @@ public partial class AppDbContext : DbContext
             e.Property(d => d.CreatedAt).HasDefaultValueSql("SYSUTCDATETIME()");
         });
 
-        // ReliefGoods
+        // Relief Goods
         modelBuilder.Entity<ReliefGood>(e =>
         {
             e.ToTable("Relief_Goods");
@@ -443,14 +444,25 @@ public partial class AppDbContext : DbContext
             e.Property(i => i.UnitPrice).HasColumnType("decimal(14,2)");
         });
 
-        // Global Query Filters - Exclude archived records by default
-        modelBuilder.Entity<ReliefGood>().HasQueryFilter(e => !e.IsArchived);
-        modelBuilder.Entity<Disaster>().HasQueryFilter(e => !e.IsArchived);
-        modelBuilder.Entity<Category>().HasQueryFilter(e => !e.IsArchived);
-        modelBuilder.Entity<Supplier>().HasQueryFilter(e => !e.IsArchived);
-        modelBuilder.Entity<Stock>().HasQueryFilter(e => !e.IsArchived);
-        modelBuilder.Entity<ProcurementRequest>().HasQueryFilter(e => !e.IsArchived);
-        modelBuilder.Entity<BarangayBudget>().HasQueryFilter(e => !e.IsArchived);
+        // Archives - Centralized archive table
+        modelBuilder.Entity<Archive>(e =>
+        {
+            e.ToTable("Archives");
+            e.HasKey(a => a.ArchiveId);
+            e.Property(a => a.EntityType).HasMaxLength(100).IsRequired();
+            e.Property(a => a.EntityId).IsRequired();
+            e.Property(a => a.ArchivedData).HasColumnType("nvarchar(max)").IsRequired();
+            e.Property(a => a.ArchivedAt).HasDefaultValueSql("SYSUTCDATETIME()");
+            e.Property(a => a.ArchiveReason).HasMaxLength(500);
+            e.Property(a => a.EntityName).HasMaxLength(200);
+            e.HasOne(a => a.ArchivedByUser)
+                .WithMany()
+                .HasForeignKey(a => a.ArchivedBy)
+                .OnDelete(DeleteBehavior.Restrict);
+            // Index for faster lookups
+            e.HasIndex(a => new { a.EntityType, a.EntityId });
+            e.HasIndex(a => a.ArchivedAt);
+        });
 
         base.OnModelCreating(modelBuilder);
     }

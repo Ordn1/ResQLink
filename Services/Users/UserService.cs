@@ -474,7 +474,7 @@ public class UserService(AppDbContext db, AuditService? auditService = null) : I
                     return (false, "Invalid email address");
 
                 var emailExists = await _db.Users
-                    .AnyAsync(u => u.Email != null && u.Email.Equals(email, StringComparison.OrdinalIgnoreCase) && u.UserId != userId, ct);
+                    .AnyAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower() && u.UserId != userId, ct);
                 if (emailExists)
                     return (false, "Email already in use");
 
@@ -822,7 +822,7 @@ public class UserService(AppDbContext db, AuditService? auditService = null) : I
 
     public async Task<bool> EmailExistsAsync(string email, CancellationToken ct = default)
     {
-        return await _db.Users.AnyAsync(u => u.Email != null && u.Email.Equals(email, StringComparison.OrdinalIgnoreCase), ct);
+        return await _db.Users.AnyAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower(), ct);
     }
 
     private static string HashPassword(string password)

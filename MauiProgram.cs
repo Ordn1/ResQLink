@@ -64,6 +64,11 @@ namespace ResQLink
 #if DEBUG
                 opt.EnableSensitiveDataLogging();
                 opt.EnableDetailedErrors();
+                
+                // ADD THESE TWO LINES TO FORCE MODEL REBUILD
+                opt.EnableServiceProviderCaching(false);
+                opt.ReplaceService<Microsoft.EntityFrameworkCore.Infrastructure.IModelCacheKeyFactory, 
+                                   Microsoft.EntityFrameworkCore.Infrastructure.ModelCacheKeyFactory>();
 #endif
             });
 #else
@@ -80,30 +85,66 @@ namespace ResQLink
 
             // Register Business Services
             builder.Services.AddSingleton<AuditService>();
+            builder.Services.AddScoped<ArchiveService>();
             builder.Services.AddScoped<IUserService>(sp =>
             {
                 var db = sp.GetRequiredService<AppDbContext>();
                 var auditService = sp.GetRequiredService<AuditService>();
                 return new UserService(db, auditService);
             });
-            builder.Services.AddScoped<IDisasterService, DisasterService>();
-            builder.Services.AddScoped<CategoryService>();
-            builder.Services.AddScoped<SupplierService>();
-            builder.Services.AddScoped<InventoryService>();
-            builder.Services.AddScoped<StockService>();
+            builder.Services.AddScoped<IDisasterService>(sp =>
+            {
+                var db = sp.GetRequiredService<AppDbContext>();
+                var audit = sp.GetRequiredService<AuditService>();
+                var archive = sp.GetRequiredService<ArchiveService>();
+                var auth = sp.GetService<AuthState>();
+                return new DisasterService(db, audit, archive, auth);
+            });
+            builder.Services.AddScoped<CategoryService>(sp =>
+            {
+                var db = sp.GetRequiredService<AppDbContext>();
+                var audit = sp.GetRequiredService<AuditService>();
+                var archive = sp.GetRequiredService<ArchiveService>();
+                var auth = sp.GetService<AuthState>();
+                return new CategoryService(db, audit, archive, auth);
+            });
+            builder.Services.AddScoped<SupplierService>(sp =>
+            {
+                var db = sp.GetRequiredService<AppDbContext>();
+                var audit = sp.GetRequiredService<AuditService>();
+                var archive = sp.GetRequiredService<ArchiveService>();
+                var auth = sp.GetService<AuthState>();
+                return new SupplierService(db, audit, archive, auth);
+            });
+            builder.Services.AddScoped<InventoryService>(sp =>
+            {
+                var db = sp.GetRequiredService<AppDbContext>();
+                var audit = sp.GetRequiredService<AuditService>();
+                var archive = sp.GetRequiredService<ArchiveService>();
+                var auth = sp.GetRequiredService<AuthState>();
+                return new InventoryService(db, audit, archive, auth);
+            });
+            builder.Services.AddScoped<StockService>(sp =>
+            {
+                var db = sp.GetRequiredService<AppDbContext>();
+                var audit = sp.GetRequiredService<AuditService>();
+                var archive = sp.GetRequiredService<ArchiveService>();
+                var auth = sp.GetService<AuthState>();
+                return new StockService(db, audit, archive, auth);
+            });
             builder.Services.AddScoped<ResourceAllocationService>();
-            builder.Services.AddScoped<BudgetService>();
             builder.Services.AddScoped<ProcurementService>();
             // Add these service registrations in your existing Program.cs
             builder.Services.AddScoped<IOperationsReportService, OperationsReportService>();
 
-            // Budget Service with Audit
+            // Budget Service with Audit and Archive
             builder.Services.AddScoped<BudgetService>(sp =>
             {
                 var db = sp.GetRequiredService<AppDbContext>();
                 var audit = sp.GetService<AuditService>();
+                var archive = sp.GetService<ArchiveService>();
                 var auth = sp.GetService<AuthState>();
-                return new BudgetService(db, audit, auth);
+                return new BudgetService(db, audit, archive, auth);
             });
 
             // Procurement Service with Audit
@@ -147,7 +188,7 @@ namespace ResQLink
             var syncSettings = new SyncSettings
             {
                 RemoteEnabled = true, // Disabled by default until connection is verified
-                RemoteConnectionString = "Server=db34346.public.databaseasp.net; Database=db34346; User Id=db34346; Password=2e!D=Qk38t@B; Encrypt=True; TrustServerCertificate=True; MultipleActiveResultSets=True",
+                RemoteConnectionString = "Server=db32781.public.databaseasp.net; Database=db32781; User Id=db32781; Password=7Cb#g8_X-Q5n; Encrypt=True; TrustServerCertificate=True; MultipleActiveResultSets=True;las",
                 IntervalMinutes = 5
             };
             builder.Services.AddSingleton(syncSettings);

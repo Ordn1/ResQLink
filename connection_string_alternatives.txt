@@ -1,0 +1,20 @@
+# Connection String Alternatives to Try
+# Update MauiProgram.cs line 191 with one of these:
+
+# Option 1: Explicit port (common alternative port)
+Server=db32781.public.databaseasp.net,1433; Database=db32781; User Id=db32781; Password=7Cb#g8_X-Q5n; Encrypt=True; TrustServerCertificate=True; MultipleActiveResultSets=True; Connection Timeout=30;
+
+# Option 2: Different port format
+Server=tcp:db32781.public.databaseasp.net,1433; Database=db32781; User Id=db32781; Password=7Cb#g8_X-Q5n; Encrypt=True; TrustServerCertificate=True; MultipleActiveResultSets=True; Connection Timeout=30;
+
+# Option 3: Without encryption
+Server=db32781.public.databaseasp.net; Database=db32781; User Id=db32781; Password=7Cb#g8_X-Q5n; Encrypt=False; MultipleActiveResultSets=True; Connection Timeout=30;
+
+# Option 4: With SQL Server instance name (if provider uses named instances)
+Server=db32781.public.databaseasp.net\SQLEXPRESS; Database=db32781; User Id=db32781; Password=7Cb#g8_X-Q5n; Encrypt=True; TrustServerCertificate=True; MultipleActiveResultSets=True; Connection Timeout=30;
+
+# IMPORTANT: Contact databaseasp.net support to:
+# 1. Confirm the correct server address and port
+# 2. Whitelist your IP: 192.168.254.104
+# 3. Verify firewall rules allow remote connections
+# 4. Check if they provide a different connection method (VPN, SSH tunnel, etc.)
