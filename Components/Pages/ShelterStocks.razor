@@ -6,129 +6,147 @@
 @inject ResQLink.Data.AppDbContext Db
 @inject NavigationManager Nav
 
-<div class="page-container">
-    <section class="panel">
-        <header class="panel-head">
-            <h2 class="panel-title">@(_shelter?.Name ?? "Shelter") - Stock Inventory</h2>
-            <div class="panel-actions">
-                <button class="mini-btn" @onclick="GoBack">? Back to Shelters</button>
-                <button class="mini-btn" @onclick="Refresh">? Refresh</button>
-            </div>
-        </header>
+<div class="stock-root">
+    
+    <div class="page-header">
+        <h2 class="page-subtitle">@(_shelter?.Name ?? "Shelter") - Stock Inventory</h2>
+    </div>
 
-        @if (_loading)
-        {
-            <p class="text-center">Loading...</p>
-        }
-        else if (_shelter == null)
-        {
-            <p class="text-center text-muted">Shelter not found.</p>
-        }
-        else
-        {
-            <div style="padding:16px;border-bottom:1px solid var(--border);background:#f8fafc;">
-                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;">
-                    <div>
-                        <div style="font-size:0.75rem;font-weight:600;color:#64748b;margin-bottom:4px;">Location</div>
-                        <div style="font-weight:600;">@_shelter.Location</div>
-                    </div>
-                    <div>
-                        <div style="font-size:0.75rem;font-weight:600;color:#64748b;margin-bottom:4px;">Capacity</div>
-                        <div style="font-weight:600;">@_shelter.CurrentOccupancy / @_shelter.Capacity</div>
-                    </div>
-                    <div>
-                        <div style="font-size:0.75rem;font-weight:600;color:#64748b;margin-bottom:4px;">Total Items</div>
-                        <div style="font-weight:600;">@_shelterStocks.Count items</div>
-                    </div>
+    @if (_loading)
+    {
+        <div class="empty-state">
+            <div class="spinner"></div>
+            <p>Loading stock information...</p>
+        </div>
+    }
+    else if (_shelter == null)
+    {
+        <div class="empty-state">
+            <i class="bi bi-exclamation-circle empty-icon"></i>
+            <p class="empty-text">Shelter not found.</p>
+        </div>
+    }
+    else
+    {
+        <div class="action-buttons">
+            <button class="btn-action" @onclick="GoBack">
+                <i class="bi bi-arrow-left"></i> Back to Shelters
+            </button>
+            <button class="btn-action" @onclick="Refresh">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+            </button>
+        </div>
+
+        <div class="info-grid">
+            <div class="info-card">
+                <div class="info-label">Location</div>
+                <div class="info-value">@_shelter.Location</div>
+            </div>
+            <div class="info-card">
+                <div class="info-label">Capacity</div>
+                <div class="info-value">@_shelter.CurrentOccupancy / @_shelter.Capacity</div>
+            </div>
+            <div class="info-card">
+                <div class="info-label">Total Items</div>
+                <div class="info-value">@_shelterStocks.Count items</div>
+            </div>
+        </div>
+
+        <div class="section-container">
+            <div class="section-header">
+                <h3>Current Stock</h3>
+            </div>
+            @if (_shelterStocks.Count == 0)
+            {
+                <div class="empty-state">
+                    <i class="bi bi-box-seam empty-icon"></i>
+                    <p class="empty-text">No items allocated to this shelter yet.</p>
                 </div>
-            </div>
-
-            <div class="panel-body">
-                <h3 style="font-size:0.9rem;font-weight:700;margin-bottom:12px;">Current Stock</h3>
-                @if (_shelterStocks.Count == 0)
-                {
-                    <p class="text-center text-muted">No items allocated to this shelter yet.</p>
-                }
-                else
-                {
-                    <div class="table-wrap">
-                        <table class="data-table">
-                            <thead>
+            }
+            else
+            {
+                <div class="table-wrap">
+                    <table class="stock-table">
+                        <thead>
+                            <tr>
+                                <th>Item</th>
+                                <th class="t-center">Quantity</th>
+                                <th class="t-center">Max Capacity</th>
+                                <th class="t-center">Status</th>
+                                <th class="t-center">Progress</th>
+                                <th>Last Updated</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var stock in _shelterStocks)
+                            {
                                 <tr>
-                                    <th>Item</th>
-                                    <th class="t-center">Quantity</th>
-                                    <th class="t-center">Max Capacity</th>
-                                    <th class="t-center">Status</th>
-                                    <th class="t-center">Progress</th>
-                                    <th>Last Updated</th>
+                                    <td class="cell-item">@stock.ReliefGood?.Name (@stock.ReliefGood?.Unit)</td>
+                                    <td class="t-center cell-quantity">@stock.Quantity</td>
+                                    <td class="t-center cell-quantity">@stock.MaxCapacity</td>
+                                    <td class="t-center">
+                                        <span class="status-chip @StockExtensions.GetStatusClass(stock.Status ?? StockExtensions.ComputeStatus(stock.Quantity, stock.MaxCapacity))">
+                                            @(stock.Status ?? StockExtensions.ComputeStatus(stock.Quantity, stock.MaxCapacity))
+                                        </span>
+                                    </td>
+                                    <td class="t-center">
+                                        <div class="progress-shell" style="width:120px;display:inline-block;">
+                                            <div class="progress-bar" style="width:@($"{(stock.CapacityPercent ?? StockExtensions.ComputePercent(stock.Quantity, stock.MaxCapacity)):0.0}%")"></div>
+                                        </div>
+                                        <span style="margin-left:6px;font-size:0.7rem;">
+                                            @($"{(stock.CapacityPercent ?? StockExtensions.ComputePercent(stock.Quantity, stock.MaxCapacity)):0.0}%")
+                                        </span>
+                                    </td>
+                                    <td class="cell-date">@stock.LastUpdated.ToString("MMM dd, yyyy HH:mm")</td>
                                 </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var stock in _shelterStocks)
-                                {
-                                    <tr>
-                                        <td><strong>@stock.ReliefGood?.Name</strong> (@stock.ReliefGood?.Unit)</td>
-                                        <td class="t-center">@stock.Quantity</td>
-                                        <td class="t-center">@stock.MaxCapacity</td>
-                                        <td class="t-center">
-                                            <span class="status-chip @StockExtensions.GetStatusClass(stock.Status ?? StockExtensions.ComputeStatus(stock.Quantity, stock.MaxCapacity))">
-                                                @(stock.Status ?? StockExtensions.ComputeStatus(stock.Quantity, stock.MaxCapacity))
-                                            </span>
-                                        </td>
-                                        <td class="t-center">
-                                            <div class="progress-shell" style="width:120px;display:inline-block;">
-                                                <div class="progress-bar" style="width:@($"{(stock.CapacityPercent ?? StockExtensions.ComputePercent(stock.Quantity, stock.MaxCapacity)):0.0}%")"></div>
-                                            </div>
-                                            <span style="margin-left:6px;font-size:0.8em;">
-                                                @($"{(stock.CapacityPercent ?? StockExtensions.ComputePercent(stock.Quantity, stock.MaxCapacity)):0.0}%")
-                                            </span>
-                                        </td>
-                                        <td>@stock.LastUpdated.ToString("MMM dd, yyyy HH:mm")</td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                }
-            </div>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
 
-            <div class="panel-body" style="border-top:1px solid var(--border);margin-top:20px;">
-                <h3 style="font-size:0.9rem;font-weight:700;margin-bottom:12px;">Allocation History</h3>
-                @if (_allocations.Count == 0)
-                {
-                    <p class="text-center text-muted">No allocation history.</p>
-                }
-                else
-                {
-                    <div class="table-wrap">
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th style="width:80px">ID</th>
-                                    <th>Item</th>
-                                    <th class="t-center">Quantity</th>
-                                    <th>Allocated By</th>
-                                    <th>Date</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var alloc in _allocations)
-                                {
-                                    <tr>
-                                        <td class="t-center">#@alloc.AllocationId</td>
-                                        <td><strong>@alloc.Stock?.ReliefGood?.Name</strong></td>
-                                        <td class="t-center">@alloc.AllocatedQuantity @alloc.Stock?.ReliefGood?.Unit</td>
-                                        <td>@alloc.AllocatedBy?.Username</td>
-                                        <td>@alloc.AllocatedAt.ToString("MMM dd, yyyy HH:mm")</td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                }
+        <div class="section-container">
+            <div class="section-header">
+                <h3>Allocation History</h3>
             </div>
-        }
-    </section>
+            @if (_allocations.Count == 0)
+            {
+                <div class="empty-state">
+                    <i class="bi bi-clock-history empty-icon"></i>
+                    <p class="empty-text">No allocation history.</p>
+                </div>
+            }
+            else
+            {
+                <div class="table-wrap">
+                    <table class="stock-table">
+                        <thead>
+                            <tr>
+                                <th style="width:80px">ID</th>
+                                <th>Item</th>
+                                <th class="t-center">Quantity</th>
+                                <th>Allocated By</th>
+                                <th>Date</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var alloc in _allocations)
+                            {
+                                <tr>
+                                    <td class="t-center cell-id">#@alloc.AllocationId</td>
+                                    <td class="cell-item">@alloc.Stock?.ReliefGood?.Name</td>
+                                    <td class="t-center cell-quantity">@alloc.AllocatedQuantity @alloc.Stock?.ReliefGood?.Unit</td>
+                                    <td class="cell-allocatedby">@alloc.AllocatedBy?.Username</td>
+                                    <td class="cell-date">@alloc.AllocatedAt.ToString("MMM dd, yyyy HH:mm")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    }
 </div>
 
 @code {

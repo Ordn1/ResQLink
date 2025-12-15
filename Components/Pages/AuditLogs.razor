@@ -9,7 +9,7 @@
     @if (!Auth.IsAdmin())
     {
         <div class="access-denied">
-            <i class="bi bi-shield-x" style="font-size: 4rem; color: #dc3545;"></i>
+            <i class="bi bi-shield-x"></i>
             <h2>Access Denied</h2>
             <p>You must be an administrator to view audit logs.</p>
         </div>
@@ -17,47 +17,50 @@
     }
 
     <!-- Page header -->
-    <div class="page-header" style="margin-bottom: 1.5rem;">
+    <header class="page-header">
         <div>
-            <h1 style="font-size: 1.75rem; font-weight: 700; color: #111827; margin: 0;">Audit Logs</h1>
-            <p style="font-size: 0.875rem; color: #6b7280; margin: 0.5rem 0 0 0;">
-                <i class="bi bi-journal-text"></i> Comprehensive activity tracking and forensic analysis
+            <p class="page-subtitle">
+                <i class="bi bi-journal-text"></i>
+                Finance‑aligned activity tracking and forensic analysis
             </p>
         </div>
 
-        <div class="page-actions" style="display: flex; gap: 0.75rem;">
-            <button class="btn-secondary" @onclick="ClearFilters" title="Clear filters" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; border-radius: 0.5rem; border: 1px solid #d1d5db; background: white; cursor: pointer;">
+        <div class="page-actions">
+            <button class="btn-secondary" @onclick="ClearFilters" title="Clear filters">
                 <i class="bi bi-arrow-counterclockwise"></i>
-                Clear
+                <span>Clear</span>
             </button>
 
-            <button class="btn-primary" @onclick="ExportLogs" title="Export logs" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; border-radius: 0.5rem; background: #059669; color: white; border: none; cursor: pointer;">
+            <button class="btn-primary" @onclick="ExportLogs" title="Export logs">
                 <i class="bi bi-download"></i>
-                Export Logs
+                <span>Export Logs</span>
             </button>
         </div>
-    </div>
+    </header>
 
     <!-- Console-style controls row -->
-    <section class="console-panel" aria-label="Audit console" style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 0.75rem; padding: 1.5rem; margin-bottom: 1.5rem;">
-        <header style="margin-bottom: 1rem;">
-            <div style="font-size: 0.75rem; font-weight: 700; color: #6b7280; letter-spacing: 0.05em; margin-bottom: 1rem;">AUDIT CONSOLE</div>
+    <section class="console-panel" aria-label="Audit console">
+        <div class="console-head">
+            <div class="console-title">AUDIT CONSOLE</div>
 
-            <div style="display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end; justify-content: space-between;">
-                <div style="display: flex; flex-wrap: wrap; gap: 0.75rem; flex: 1;">
-                    <div style="display: flex; flex-direction: column; gap: 0.25rem;">
-                        <label style="font-size: 0.75rem; color: #6b7280;">Start Date</label>
-                        <input type="datetime-local" @bind="filterStartDate" style="padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; font-size: 0.875rem;" />
+            <div class="console-actions">
+                <div class="controls-left">
+                    <div class="control-item">
+                        <label class="sr-only" for="startDate">Start Date</label>
+                        <input id="startDate" class="mini-input"
+                               type="datetime-local"
+                               @bind="filterStartDate" />
                     </div>
 
-                    <div style="display: flex; flex-direction: column; gap: 0.25rem;">
-                        <label style="font-size: 0.75rem; color: #6b7280;">End Date</label>
-                        <input type="datetime-local" @bind="filterEndDate" style="padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; font-size: 0.875rem;" />
+                    <div class="control-item">
+                        <label class="sr-only" for="endDate">End Date</label>
+                        <input id="endDate" class="mini-input"
+                               type="datetime-local"
+                               @bind="filterEndDate" />
                     </div>
 
-                    <div style="display: flex; flex-direction: column; gap: 0.25rem;">
-                        <label style="font-size: 0.75rem; color: #6b7280;">Action</label>
-                        <select @bind="filterAction" style="padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; font-size: 0.875rem; min-width: 120px;">
+                    <div class="control-item">
+                        <select class="mini-input" @bind="filterAction">
                             <option value="">All Actions</option>
                             <option value="LOGIN">Login</option>
                             <option value="LOGOUT">Logout</option>
@@ -74,26 +77,8 @@
                         </select>
                     </div>
 
-                    <div style="display: flex; flex-direction: column; gap: 0.25rem;">
-                        <label style="font-size: 0.75rem; color: #6b7280;">Entity</label>
-                        <select @bind="filterEntityType" style="padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; font-size: 0.875rem; min-width: 120px;">
-                            <option value="">All Entities</option>
-                            <option value="User">User</option>
-                            <option value="ReliefGood">Relief Good</option>
-                            <option value="Category">Category</option>
-                            <option value="Stock">Stock</option>
-                            <option value="Shelter">Shelter</option>
-                            <option value="Disaster">Disaster</option>
-                            <option value="Evacuee">Evacuee</option>
-                            <option value="Supplier">Supplier</option>
-                            <option value="ProcurementRequest">Procurement</option>
-                            <option value="BarangayBudget">Budget</option>
-                        </select>
-                    </div>
-
-                    <div style="display: flex; flex-direction: column; gap: 0.25rem;">
-                        <label style="font-size: 0.75rem; color: #6b7280;">Severity</label>
-                        <select @bind="filterSeverity" style="padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; font-size: 0.875rem; min-width: 100px;">
+                    <div class="control-item">
+                        <select class="mini-input" @bind="filterSeverity">
                             <option value="">All Severities</option>
                             <option value="Info">Info</option>
                             <option value="Warning">Warning</option>
@@ -102,263 +87,297 @@
                         </select>
                     </div>
 
-                    <div style="display: flex; flex-direction: column; gap: 0.25rem;">
-                        <label style="font-size: 0.75rem; color: #6b7280;">User ID</label>
-                        <input type="number" @bind="filterUserId" placeholder="User ID" style="padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; font-size: 0.875rem; width: 100px;" />
+                    <div class="control-item">
+                        <input class="mini-input"
+                               type="text"
+                               @bind="filterUserName"
+                               placeholder="User Name" />
                     </div>
                 </div>
 
-                <button class="btn-primary" @onclick="ApplyFilters" disabled="@isLoading" style="padding: 0.5rem 1.25rem; background: #059669; color: white; border: none; border-radius: 0.375rem; font-size: 0.875rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; align-self: flex-end;">
-                    <i class="bi bi-search"></i>
-                    <span>@(isLoading ? "Filtering..." : "Apply Filters")</span>
-                </button>
+                <div class="controls-right">
+                    <button class="btn-primary" @onclick="ApplyFilters" disabled="@isLoading">
+                        <i class="bi bi-search"></i>
+                        <span>@(isLoading ? "Filtering..." : "Apply Filters")</span>
+                    </button>
+                </div>
             </div>
-        </header>
+        </div>
     </section>
 
     <!-- KPI summary cards -->
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
-        <div style="background: white; border: 1px solid #e5e7eb; border-radius: 0.75rem; padding: 1.25rem;">
-            <div style="font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">INFO</div>
-            <div style="font-size: 2rem; font-weight: 700; color: #3b82f6; margin-top: 0.5rem;">@logs.Count(l => l.Severity == "Info")</div>
-        </div>
-
-        <div style="background: white; border: 1px solid #e5e7eb; border-radius: 0.75rem; padding: 1.25rem;">
-            <div style="font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">WARNINGS</div>
-            <div style="font-size: 2rem; font-weight: 700; color: #f59e0b; margin-top: 0.5rem;">@logs.Count(l => l.Severity == "Warning")</div>
-        </div>
-
-        <div style="background: white; border: 1px solid #e5e7eb; border-radius: 0.75rem; padding: 1.25rem;">
-            <div style="font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">ERRORS</div>
-            <div style="font-size: 2rem; font-weight: 700; color: #ef4444; margin-top: 0.5rem;">@logs.Count(l => l.Severity == "Error")</div>
-        </div>
-
-        <div style="background: white; border: 1px solid #e5e7eb; border-radius: 0.75rem; padding: 1.25rem;">
-            <div style="font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">CRITICAL</div>
-            <div style="font-size: 2rem; font-weight: 700; color: #dc2626; margin-top: 0.5rem;">@logs.Count(l => l.Severity == "Critical")</div>
-        </div>
-    </div>
-
-    <!-- Audit Trail table -->
-    <section style="background: white; border: 1px solid #e5e7eb; border-radius: 0.75rem; overflow: hidden;">
-        <div style="padding: 1.25rem; border-bottom: 1px solid #e5e7eb;">
-            <h3 style="font-size: 1.125rem; font-weight: 600; color: #111827; margin: 0; display: flex; align-items: center; gap: 0.5rem;">
-                <i class="bi bi-list-ul"></i>
-                Audit Trail (@TotalFiltered entries)
-            </h3>
-        </div>
-
-        <div style="overflow-x: auto; max-height: calc(100vh - 600px); overflow-y: auto;">
-            @if (isLoading)
-            {
-                <div style="padding: 4rem; text-align: center;">
-                    <div class="spinner" style="border: 3px solid #e5e7eb; border-top-color: #059669; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 1rem;"></div>
-                    <p style="color: #6b7280;">Loading audit logs...</p>
+    <section class="kpi-panel">
+        <div class="kpi-grid">
+            <!-- INFO -->
+            <div class="kpi-card kpi-info">
+                <div class="kpi-header">
+                    <div class="kpi-label">INFO</div>
+                    <div class="kpi-icon-circle">
+                        <i class="bi bi-info-circle-fill"></i>
+                    </div>
                 </div>
-            }
-            else if (!PagedLogs.Any())
-            {
-                <div style="padding: 4rem; text-align: center;">
-                    <i class="bi bi-inbox" style="font-size: 3rem; color: #d1d5db;"></i>
-                    <h4 style="margin-top: 1rem; color: #6b7280;">No Audit Logs Found</h4>
-                    <p style="color: #9ca3af;">No activities match your current filters.</p>
-                </div>
-            }
-            else
-            {
-                <table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">
-                    <thead style="background: #f9fafb; position: sticky; top: 0; z-index: 10;">
-                        <tr>
-                            <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #374151; border-bottom: 1px solid #e5e7eb;">Timestamp</th>
-                            <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #374151; border-bottom: 1px solid #e5e7eb;">User</th>
-                            <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #374151; border-bottom: 1px solid #e5e7eb;">Action</th>
-                            <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #374151; border-bottom: 1px solid #e5e7eb;">Entity</th>
-                            <th style="padding: 0.75rem 1rem; text-align: left; font-weight: 600; color: #374151; border-bottom: 1px solid #e5e7eb;">Description</th>
-                            <th style="padding: 0.75rem 1rem; text-align: center; font-weight: 600; color: #374151; border-bottom: 1px solid #e5e7eb;">Severity</th>
-                            <th style="padding: 0.75rem 1rem; text-align: center; font-weight: 600; color: #374151; border-bottom: 1px solid #e5e7eb;">Status</th>
-                            <th style="padding: 0.75rem 1rem; text-align: center; font-weight: 600; color: #374151; border-bottom: 1px solid #e5e7eb;">Details</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var log in PagedLogs)
-                        {
-                            <tr style="border-bottom: 1px solid #f3f4f6; @(log.IsSuccessful ? "" : "background: #fef2f2;")">
-                                <td style="padding: 0.75rem 1rem; white-space: nowrap;">
-                                    <div style="font-weight: 500; color: #111827;">@log.Timestamp.ToLocalTime().ToString("MMM dd, yyyy")</div>
-                                    <small style="color: #6b7280;">@log.Timestamp.ToLocalTime().ToString("HH:mm:ss")</small>
-                                </td>
-
-                                <td style="padding: 0.75rem 1rem;">
-                                    <div style="font-weight: 500; color: #111827;">@(log.UserName ?? "System")</div>
-                                    <small style="color: #6b7280;">@log.UserType @(log.UserId.HasValue ? $"(ID: {log.UserId})" : "")</small>
-                                </td>
-
-                                <td style="padding: 0.75rem 1rem;">
-                                    <span style="@GetActionStyle(log.Action)">@log.Action</span>
-                                </td>
-
-                                <td style="padding: 0.75rem 1rem;">
-                                    <div style="color: #111827;">@log.EntityType</div>
-                                    @if (log.EntityId.HasValue)
-                                    {
-                                        <small style="color: #6b7280;">ID: @log.EntityId</small>
-                                    }
-                                </td>
-
-                                <td style="padding: 0.75rem 1rem; max-width: 300px;">
-                                    <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="@log.Description">
-                                        @log.Description
-                                    </div>
-                                </td>
-
-                                <td style="padding: 0.75rem 1rem; text-align: center;">
-                                    <span style="@GetSeverityStyle(log.Severity)">@log.Severity</span>
-                                </td>
-
-                                <td style="padding: 0.75rem 1rem; text-align: center;">
-                                    <span style="@GetStatusStyle(log.IsSuccessful)">
-                                        @(log.IsSuccessful ? "Success" : "Failed")
-                                    </span>
-                                </td>
-
-                                <td style="padding: 0.75rem 1rem; text-align: center;">
-                                    <button @onclick="() => ShowDetails(log)" style="background: none; border: none; color: #059669; cursor: pointer; font-size: 1.125rem;" title="View details">
-                                        <i class="bi bi-eye-fill"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            }
-        </div>
-
-        <!-- Pagination Footer -->
-        <div style="padding: 1rem 1.25rem; border-top: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; background: #f9fafb;">
-            <div style="font-size: 0.875rem; color: #6b7280;">
-                Showing @StartIndex–@EndIndex of @TotalFiltered entries
+                <div class="kpi-value">@logs.Count(l => l.Severity == "Info")</div>
             </div>
-            <div style="display: flex; align-items: center; gap: 0.5rem;">
-                <label style="font-size: 0.875rem; color: #6b7280;">Rows:</label>
-                <select @bind="pageSize" @bind:after="ResetPagination" style="padding: 0.375rem 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; font-size: 0.875rem;">
-                    <option>10</option>
-                    <option>25</option>
-                    <option>50</option>
-                    <option>100</option>
-                </select>
-                <button @onclick="PrevPage" disabled="@(_pageIndex == 0)" style="padding: 0.375rem 0.75rem; border: 1px solid #d1d5db; border-radius: 0.375rem; background: white; cursor: pointer; font-size: 0.875rem; @(_pageIndex == 0 ? "opacity: 0.5; cursor: not-allowed;" : "")">Prev</button>
-                <span style="font-size: 0.875rem; color: #6b7280;">Page @(_pageIndex + 1) of @TotalPages</span>
-                <button @onclick="NextPage" disabled="@(_pageIndex >= TotalPages - 1)" style="padding: 0.375rem 0.75rem; border: 1px solid #d1d5db; border-radius: 0.375rem; background: white; cursor: pointer; font-size: 0.875rem; @(_pageIndex >= TotalPages - 1 ? "opacity: 0.5; cursor: not-allowed;" : "")">Next</button>
+
+            <!-- WARNINGS -->
+            <div class="kpi-card" style="border-left:4px solid #f59e0b;">
+                <div class="kpi-header">
+                    <div class="kpi-label">WARNINGS</div>
+                    <div class="kpi-icon-circle" style="background:#fef3c7; color:#b45309;">
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+                    </div>
+                </div>
+                <div class="kpi-value" style="color:#f59e0b;">
+                    @logs.Count(l => l.Severity == "Warning")
+                </div>
+            </div>
+
+            <!-- ERRORS -->
+            <div class="kpi-card kpi-danger">
+                <div class="kpi-header">
+                    <div class="kpi-label">ERRORS</div>
+                    <div class="kpi-icon-circle">
+                        <i class="bi bi-x-circle-fill"></i>
+                    </div>
+                </div>
+                <div class="kpi-value">
+                    @logs.Count(l => l.Severity == "Error")
+                </div>
+            </div>
+
+            <!-- CRITICAL -->
+            <div class="kpi-card" style="border-left:4px solid #b91c1c;">
+                <div class="kpi-header">
+                    <div class="kpi-label">CRITICAL</div>
+                    <div class="kpi-icon-circle" style="background:#fee2e2; color:#7f1d1d;">
+                        <i class="bi bi-radioactive"></i>
+                    </div>
+                </div>
+                <div class="kpi-value" style="color:#dc2626;">
+                    @logs.Count(l => l.Severity == "Critical")
+                </div>
             </div>
         </div>
     </section>
+
+    <!-- NEW: Table structure matching Manage User -->
+    <div class="audit-table-container">
+        @if (isLoading)
+        {
+            <div class="loading-state">
+                <div class="spinner"></div>
+                <p>Loading audit logs...</p>
+            </div>
+        }
+        else
+        {
+            <table class="audit-table">
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>User</th>
+                        <th>Action</th>
+                        <th>Description</th>
+                        <th class="t-center">Severity</th>
+                        <th class="t-center">Status</th>
+                        <th class="t-center">Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var log in PagedLogs)
+                    {
+                        <tr>
+                            <td>
+                                <div class="timestamp-cell">
+                                    <strong>@log.Timestamp.ToLocalTime().ToString("MMM dd, yyyy")</strong>
+                                    <small>@log.Timestamp.ToLocalTime().ToString("HH:mm:ss")</small>
+                                </div>
+                            </td>
+
+                            <td>
+                                <div class="user-info">
+                                    <strong>@(log.UserName ?? "System")</strong>
+                                    <small>@log.UserType </small>
+                                </div>
+                            </td>
+
+                            <td>
+                                <span class="@GetActionClass(log.Action)">
+                                    @log.Action
+                                </span>
+                            </td>
+
+                            <td>
+                                <div class="description-cell" title="@log.Description">
+                                    @log.Description
+                                </div>
+                            </td>
+
+                            <td class="t-center">
+                                <span class="@GetSeverityClass(log.Severity)">
+                                    @log.Severity
+                                </span>
+                            </td>
+
+                            <td class="t-center">
+                                <span class="@GetStatusClass(log.IsSuccessful)">
+                                    @(log.IsSuccessful ? "Success" : "Failed")
+                                </span>
+                            </td>
+
+                            <td class="t-center">
+                                <button class="btn-view-icon"
+                                        @onclick="() => ShowDetails(log)"
+                                        title="View details">
+                                    <i class="bi bi-eye-fill"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                    @if (!PagedLogs.Any())
+                    {
+                        <tr>
+                            <td colspan="7" style="text-align:center; padding: 30px; color: #6b7280;">
+                                <i class="bi bi-inbox" style="font-size: 1.5rem; display:block; margin-bottom: 8px;"></i>
+                                No logs found matching your criteria.
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+
+            <!-- NEW: Pagination matching Manage User -->
+            @if (TotalFiltered > 0)
+            {
+                <div class="pagination-container">
+                    <div class="pagination-info">
+                        Showing @StartIndex to @EndIndex of @TotalFiltered entries
+                    </div>
+                    <div class="pagination-controls">
+                        <!-- Keep page size selector but style it subtly to fit -->
+                        <select @bind="pageSize" @bind:after="ResetPagination" class="page-size-select">
+                            <option value="10">10 / page</option>
+                            <option value="25">25 / page</option>
+                            <option value="50">50 / page</option>
+                            <option value="100">100 / page</option>
+                        </select>
+
+                        <button class="btn-page" @onclick="PrevPage" disabled="@(_pageIndex == 0)">
+                            <i class="bi bi-chevron-left"></i> Previous
+                        </button>
+
+                        <span style="font-size: 0.875rem; margin: 0 8px; color: #374151;">
+                            Page @(_pageIndex + 1) of @TotalPages
+                        </span>
+
+                        <button class="btn-page" @onclick="NextPage" disabled="@(_pageIndex >= TotalPages - 1)">
+                            Next <i class="bi bi-chevron-right"></i>
+                        </button>
+                    </div>
+                </div>
+            }
+        }
+    </div>
+
 
     <!-- Details Modal -->
     @if (selectedLog != null)
     {
-        <div style="position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 1rem;" @onclick="CloseDetails">
-            <div style="background: white; border-radius: 0.75rem; max-width: 600px; width: 100%; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);" @onclick:stopPropagation="true">
-                <div style="padding: 1.5rem; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center;">
-                    <h3 style="font-size: 1.25rem; font-weight: 600; color: #111827; margin: 0;">Audit Log Details</h3>
-                    <button @onclick="CloseDetails" style="background: none; border: none; font-size: 1.5rem; color: #6b7280; cursor: pointer; padding: 0; line-height: 1;">
+        <div class="modal-overlay" @onclick="CloseDetails">
+            <div class="modal-content" @onclick:stopPropagation="true">
+                <div class="modal-header">
+                    <h3 class="modal-title">Audit Log Details</h3>
+                    <button class="btn-close" @onclick="CloseDetails">
                         <i class="bi bi-x-lg"></i>
                     </button>
                 </div>
 
-                <div style="padding: 1.5rem; display: grid; gap: 1rem;">
-                    <div style="display: grid; grid-template-columns: 140px 1fr; gap: 0.5rem;">
-                        <label style="font-weight: 600; color: #374151;">Log ID:</label>
-                        <span style="color: #6b7280;">@selectedLog.AuditLogId</span>
-                    </div>
-
-                    <div style="display: grid; grid-template-columns: 140px 1fr; gap: 0.5rem;">
-                        <label style="font-weight: 600; color: #374151;">Timestamp:</label>
-                        <span style="color: #6b7280;">@selectedLog.Timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</span>
-                    </div>
-
-                    <div style="display: grid; grid-template-columns: 140px 1fr; gap: 0.5rem;">
-                        <label style="font-weight: 600; color: #374151;">User:</label>
-                        <span style="color: #6b7280;">@selectedLog.UserName (@selectedLog.UserType)</span>
-                    </div>
-
-                    <div style="display: grid; grid-template-columns: 140px 1fr; gap: 0.5rem;">
-                        <label style="font-weight: 600; color: #374151;">Action:</label>
-                        <span style="@GetActionStyle(selectedLog.Action)">@selectedLog.Action</span>
-                    </div>
-
-                    <div style="display: grid; grid-template-columns: 140px 1fr; gap: 0.5rem;">
-                        <label style="font-weight: 600; color: #374151;">Entity:</label>
-                        <span style="color: #6b7280;">@selectedLog.EntityType @(selectedLog.EntityId.HasValue ? $"(ID: {selectedLog.EntityId})" : "")</span>
-                    </div>
-
-                    <div style="display: grid; grid-template-columns: 140px 1fr; gap: 0.5rem;">
-                        <label style="font-weight: 600; color: #374151;">Severity:</label>
-                        <span style="@GetSeverityStyle(selectedLog.Severity)">@selectedLog.Severity</span>
-                    </div>
-
-                    <div style="display: grid; grid-template-columns: 140px 1fr; gap: 0.5rem;">
-                        <label style="font-weight: 600; color: #374151;">Status:</label>
-                        <span style="@GetStatusStyle(selectedLog.IsSuccessful)">
-                            @(selectedLog.IsSuccessful ? "Success" : "Failed")
-                        </span>
-                    </div>
-
-                    <div style="display: grid; grid-template-columns: 140px 1fr; gap: 0.5rem;">
-                        <label style="font-weight: 600; color: #374151;">Description:</label>
-                        <span style="color: #6b7280;">@selectedLog.Description</span>
-                    </div>
-
-                    @if (!string.IsNullOrEmpty(selectedLog.IpAddress))
-                    {
-                        <div style="display: grid; grid-template-columns: 140px 1fr; gap: 0.5rem;">
-                            <label style="font-weight: 600; color: #374151;">IP Address:</label>
-                            <span style="color: #6b7280;">@selectedLog.IpAddress</span>
+                <div class="modal-body">
+                    <div class="details-grid">
+                        <div class="detail-item">
+                            <label>Log ID</label>
+                            <span>@selectedLog.AuditLogId</span>
                         </div>
-                    }
 
-                    @if (!string.IsNullOrEmpty(selectedLog.SessionId))
-                    {
-                        <div style="display: grid; grid-template-columns: 140px 1fr; gap: 0.5rem;">
-                            <label style="font-weight: 600; color: #374151;">Session ID:</label>
-                            <span style="color: #6b7280; word-break: break-all; font-size: 0.75rem;">@selectedLog.SessionId</span>
+                        <div class="detail-item">
+                            <label>Timestamp</label>
+                            <span>@selectedLog.Timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</span>
                         </div>
-                    }
 
-                    @if (!string.IsNullOrEmpty(selectedLog.ErrorMessage))
-                    {
-                        <div style="padding: 1rem; background: #fef2f2; border-left: 4px solid #ef4444; border-radius: 0.375rem;">
-                            <label style="font-weight: 600; color: #991b1b; display: block; margin-bottom: 0.5rem;">Error Message:</label>
-                            <span style="color: #dc2626;">@selectedLog.ErrorMessage</span>
+                        <div class="detail-item">
+                            <label>User</label>
+                            <span>@selectedLog.UserName (@selectedLog.UserType)</span>
                         </div>
-                    }
 
-                    @if (!string.IsNullOrEmpty(selectedLog.OldValues))
-                    {
-                        <div>
-                            <label style="font-weight: 600; color: #374151; display: block; margin-bottom: 0.5rem;">Old Values:</label>
-                            <pre style="background: #f9fafb; padding: 1rem; border-radius: 0.375rem; overflow-x: auto; font-size: 0.75rem; color: #374151;">@selectedLog.OldValues</pre>
+                        <div class="detail-item">
+                            <label>Action</label>
+                            <span class="@GetActionClass(selectedLog.Action)">@selectedLog.Action</span>
                         </div>
-                    }
 
-                    @if (!string.IsNullOrEmpty(selectedLog.NewValues))
-                    {
-                        <div>
-                            <label style="font-weight: 600; color: #374151; display: block; margin-bottom: 0.5rem;">New Values:</label>
-                            <pre style="background: #f0fdf4; padding: 1rem; border-radius: 0.375rem; overflow-x: auto; font-size: 0.75rem; color: #374151;">@selectedLog.NewValues</pre>
+                        <div class="detail-item">
+                            <label>Severity</label>
+                            <span class="@GetSeverityClass(selectedLog.Severity)">@selectedLog.Severity</span>
                         </div>
-                    }
+
+                        <div class="detail-item">
+                            <label>Status</label>
+                            <span class="@GetStatusClass(selectedLog.IsSuccessful)">
+                                @(selectedLog.IsSuccessful ? "Success" : "Failed")
+                            </span>
+                        </div>
+
+                        <div class="detail-item full-width">
+                            <label>Description</label>
+                            <span>@selectedLog.Description</span>
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(selectedLog.IpAddress))
+                        {
+                            <div class="detail-item">
+                                <label>IP Address</label>
+                                <span>@selectedLog.IpAddress</span>
+                            </div>
+                        }
+
+                        @if (!string.IsNullOrEmpty(selectedLog.SessionId))
+                        {
+                            <div class="detail-item full-width">
+                                <label>Session ID</label>
+                                <span style="word-break:break-all; font-size:0.8rem;">
+                                    @selectedLog.SessionId
+                                </span>
+                            </div>
+                        }
+
+                        @if (!string.IsNullOrEmpty(selectedLog.ErrorMessage))
+                        {
+                            <div class="detail-item full-width error-message">
+                                <label>Error Message</label>
+                                <span>@selectedLog.ErrorMessage</span>
+                            </div>
+                        }
+
+                        @if (!string.IsNullOrEmpty(selectedLog.OldValues))
+                        {
+                            <div class="detail-item full-width">
+                                <label>Old Values</label>
+                                <pre class="json-preview">@selectedLog.OldValues</pre>
+                            </div>
+                        }
+
+                        @if (!string.IsNullOrEmpty(selectedLog.NewValues))
+                        {
+                            <div class="detail-item full-width">
+                                <label>New Values</label>
+                                <pre class="json-preview">@selectedLog.NewValues</pre>
+                            </div>
+                        }
+                    </div>
                 </div>
             </div>
         </div>
     }
 </div>
-
-<style>
-    @@keyframes spin {
-        to { transform: rotate(360deg); }
-    }
-</style>
-
 @code {
     private List<AuditLog> logs = new();
     private AuditLog? selectedLog;
@@ -367,9 +386,8 @@
     private DateTime? filterStartDate;
     private DateTime? filterEndDate;
     private string filterAction = "";
-    private string filterEntityType = "";
     private string filterSeverity = "";
-    private int? filterUserId;
+    private string filterUserName = "";
 
     // Pagination
     private int _pageIndex = 0;
@@ -401,11 +419,13 @@
                 startDate: filterStartDate,
                 endDate: filterEndDate,
                 action: string.IsNullOrEmpty(filterAction) ? null : filterAction,
-                entityType: string.IsNullOrEmpty(filterEntityType) ? null : filterEntityType,
                 severity: string.IsNullOrEmpty(filterSeverity) ? null : filterSeverity,
-                userId: filterUserId,
                 limit: 1000
             );
+            if (!string.IsNullOrEmpty(filterUserName))
+            {
+                logs = logs.Where(l => !string.IsNullOrEmpty(l.UserName) && l.UserName.Contains(filterUserName, StringComparison.OrdinalIgnoreCase)).ToList();
+            }
         }
         catch (Exception ex)
         {
@@ -428,22 +448,15 @@
         filterStartDate = null;
         filterEndDate = null;
         filterAction = "";
-        filterEntityType = "";
         filterSeverity = "";
-        filterUserId = null;
+        filterUserName = "";
         _pageIndex = 0;
         await LoadLogs();
     }
 
-    private void ShowDetails(AuditLog log)
-    {
-        selectedLog = log;
-    }
+    private void ShowDetails(AuditLog log) => selectedLog = log;
 
-    private void CloseDetails()
-    {
-        selectedLog = null;
-    }
+    private void CloseDetails() => selectedLog = null;
 
     private void PrevPage()
     {
@@ -460,42 +473,19 @@
         _pageIndex = 0;
     }
 
-    private string GetActionStyle(string action)
-    {
-        var (bg, text) = action?.ToUpperInvariant() switch
-        {
-            "LOGIN" => ("#dbeafe", "#1e40af"),
-            "LOGOUT" => ("#e0e7ff", "#4338ca"),
-            "CREATE" => ("#d1fae5", "#065f46"),
-            "UPDATE" => ("#fef3c7", "#92400e"),
-            "DELETE" => ("#fee2e2", "#991b1b"),
-            "STOCK_IN" => ("#d1fae5", "#065f46"),
-            "STOCK_OUT" => ("#fce7f3", "#831843"),
-            _ => ("#f3f4f6", "#374151")
-        };
-        return $"display: inline-block; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; background: {bg}; color: {text};";
-    }
+    private string GetActionClass(string action) => "action-badge"; // All use default colored text now, specificity handled in CSS
 
-    private string GetSeverityStyle(string? severity)
+    private string GetSeverityClass(string? severity) => severity?.ToUpperInvariant() switch
     {
-        var (bg, text) = severity?.ToUpperInvariant() switch
-        {
-            "INFO" => ("#dbeafe", "#1e40af"),
-            "WARNING" => ("#fef3c7", "#92400e"),
-            "ERROR" => ("#fee2e2", "#991b1b"),
-            "CRITICAL" => ("#fee2e2", "#7f1d1d"),
-            _ => ("#f3f4f6", "#374151")
-        };
-        return $"display: inline-block; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; background: {bg}; color: {text};";
-    }
+        "INFO" => "severity-text sev-info",
+        "WARNING" => "severity-text sev-warning",
+        "ERROR" => "severity-text sev-error",
+        "CRITICAL" => "severity-text sev-critical",
+        _ => "severity-text"
+    };
 
-    private string GetStatusStyle(bool isSuccessful)
-    {
-        var (bg, text) = isSuccessful
-            ? ("#d1fae5", "#065f46")
-            : ("#fee2e2", "#991b1b");
-        return $"display: inline-block; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; background: {bg}; color: {text};";
-    }
+    private string GetStatusClass(bool isSuccessful) =>
+        isSuccessful ? "status-text status-active" : "status-text status-inactive";
 
     private async Task ExportLogs()
     {

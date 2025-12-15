@@ -38,17 +38,17 @@ else
             <div class="kpi-grid">
                 <div class="kpi-card">
                     <div class="kpi-icon-circle">
-                        <i class="bi bi-wallet2"></i>
+                        <i class="bi bi-folder-fill"></i>
                     </div>
                     <div class="kpi-content">
                         <div class="kpi-label">Total Budgets</div>
-                        <div class="kpi-value text-accent">@Budgets.Count</div>
+                        <div class="kpi-value">@Budgets.Count</div>
                         <div class="kpi-detail">₱@Budgets.Sum(b => b.TotalAmount).ToString("N2") allocated</div>
                     </div>
                 </div>
                 <div class="kpi-card">
-                    <div class="kpi-icon-circle alt">
-                        <i class="bi bi-receipt"></i>
+                    <div class="kpi-icon-circle">
+                        <i class="bi bi-file-text-fill"></i>
                     </div>
                     <div class="kpi-content">
                         <div class="kpi-label">Procurement Requests</div>
@@ -57,22 +57,22 @@ else
                     </div>
                 </div>
                 <div class="kpi-card">
-                    <div class="kpi-icon-circle ok">
-                        <i class="bi bi-check-circle"></i>
+                    <div class="kpi-icon-circle">
+                        <i class="bi bi-check-circle-fill"></i>
                     </div>
                     <div class="kpi-content">
                         <div class="kpi-label">Approved Requests</div>
-                        <div class="kpi-value text-success">@Requests.Count(r => r.Status == "Approved")</div>
+                        <div class="kpi-value">@Requests.Count(r => r.Status == "Approved")</div>
                         <div class="kpi-detail">₱@Requests.Where(r => r.Status == "Approved").Sum(r => r.TotalAmount).ToString("N2")</div>
                     </div>
                 </div>
                 <div class="kpi-card">
-                    <div class="kpi-icon-circle warn">
+                    <div class="kpi-icon-circle">
                         <i class="bi bi-hourglass-split"></i>
                     </div>
                     <div class="kpi-content">
                         <div class="kpi-label">Pending Requests</div>
-                        <div class="kpi-value text-warning">@Requests.Count(r => r.Status is "Draft" or "Submitted")</div>
+                        <div class="kpi-value">@Requests.Count(r => r.Status is "Draft" or "Submitted")</div>
                         <div class="kpi-detail">₱@Requests.Where(r => r.Status is "Draft" or "Submitted").Sum(r => r.TotalAmount).ToString("N2")</div>
                     </div>
                 </div>
@@ -105,7 +105,6 @@ else
                 <table class="dash-table">
                     <thead>
                         <tr>
-                            <th style="width:70px">ID</th>
                             <th>Barangay</th>
                             <th class="t-center">Year</th>
                             <th class="t-right">Total Allocated</th>
@@ -116,14 +115,13 @@ else
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var b in FilteredBudgets)
+                        @foreach (var b in PagedBudgets)
                         {
                             var spent = budgetSpent.ContainsKey(b.BudgetId) ? budgetSpent[b.BudgetId] : 0m;
                             var available = b.TotalAmount - spent;
                             var percentUsed = b.TotalAmount > 0 ? (spent / b.TotalAmount * 100) : 0;
                             
                             <tr>
-                                <td class="t-center"><span class="id-badge">@b.BudgetId</span></td>
                                 <td><strong>@b.BarangayName</strong></td>
                                 <td class="t-center">@b.Year</td>
                                 <td class="t-right">
@@ -156,10 +154,10 @@ else
                                 </td>
                             </tr>
                         }
-                        @if (!FilteredBudgets.Any())
+                        @if (!PagedBudgets.Any())
                         {
                             <tr>
-                                <td colspan="8" class="empty-state">
+                                <td colspan="7" class="empty-state">
                                     <div class="empty-icon"><i class="bi bi-inbox"></i></div>
                                     <div class="empty-text">No budgets found</div>
                                 </td>
@@ -171,18 +169,23 @@ else
 
             <footer class="panel-foot">
                 <div class="foot-left">
-                    <i class="bi bi-info-circle"></i>
-                    Showing @FilteredBudgets.Count() of @Budgets.Count budget(s)
+                    Showing @BudgetStartIndex–@BudgetEndIndex of @BudgetTotalFiltered budgets
                 </div>
-                <div style="display: flex; gap: 16px; font-size: 0.8rem;">
-                    <span><strong>Total Allocated:</strong> ₱@Budgets.Sum(b => b.TotalAmount).ToString("N2")</span>
-                    <span><strong>Total Spent:</strong> ₱@budgetSpent.Values.Sum().ToString("N2")</span>
-                    <span><strong>Total Available:</strong> ₱@(Budgets.Sum(b => b.TotalAmount) - budgetSpent.Values.Sum()).ToString("N2")</span>
+                <div class="foot-right">
+                    <label class="foot-label">Rows</label>
+                    <select class="mini-input" @bind="budgetPageSize">
+                        <option>10</option>
+                        <option>20</option>
+                        <option>50</option>
+                    </select>
+                    <button class="mini-btn" @onclick="BudgetPrevPage" disabled="@(_budgetPageIndex == 0)">Prev</button>
+                    <span class="page-indicator">Page @(_budgetPageIndex + 1) / @BudgetTotalPages</span>
+                    <button class="mini-btn" @onclick="BudgetNextPage" disabled="@(_budgetPageIndex >= BudgetTotalPages - 1)">Next</button>
                 </div>
             </footer>
         </section>
 
-        <!-- Procurement (unchanged) -->
+        <!-- Procurement -->
         <section class="panel finance-section">
             <header class="panel-head">
                 <div class="panel-title-group">
@@ -209,7 +212,6 @@ else
                 <table class="dash-table">
                     <thead>
                         <tr>
-                            <th style="width:70px">ID</th>
                             <th>Barangay</th>
                             <th>Supplier</th>
                             <th class="t-right">Total Amount</th>
@@ -218,10 +220,9 @@ else
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var r in FilteredRequests)
+                        @foreach (var r in PagedRequests)
                         {
                             <tr>
-                                <td class="t-center"><span class="id-badge">@r.RequestId</span></td>
                                 <td><strong>@r.BarangayName</strong></td>
                                 <td>
                                     @if (r.Supplier != null)
@@ -254,10 +255,10 @@ else
                                 </td>
                             </tr>
                         }
-                        @if (!FilteredRequests.Any())
+                        @if (!PagedRequests.Any())
                         {
                             <tr>
-                                <td colspan="6" class="empty-state">
+                                <td colspan="5" class="empty-state">
                                     <div class="empty-icon"><i class="bi bi-inbox"></i></div>
                                     <div class="empty-text">No procurement requests found</div>
                                 </td>
@@ -269,8 +270,18 @@ else
 
             <footer class="panel-foot">
                 <div class="foot-left">
-                    <i class="bi bi-info-circle"></i>
-                    Showing @FilteredRequests.Count() of @Requests.Count request(s)
+                    Showing @RequestStartIndex–@RequestEndIndex of @RequestTotalFiltered requests
+                </div>
+                <div class="foot-right">
+                    <label class="foot-label">Rows</label>
+                    <select class="mini-input" @bind="requestPageSize">
+                        <option>10</option>
+                        <option>20</option>
+                        <option>50</option>
+                    </select>
+                    <button class="mini-btn" @onclick="RequestPrevPage" disabled="@(_requestPageIndex == 0)">Prev</button>
+                    <span class="page-indicator">Page @(_requestPageIndex + 1) / @RequestTotalPages</span>
+                    <button class="mini-btn" @onclick="RequestNextPage" disabled="@(_requestPageIndex >= RequestTotalPages - 1)">Next</button>
                 </div>
             </footer>
         </section>
@@ -282,7 +293,7 @@ else
         <div class="modal-overlay" @onclick="CloseBudgetForm" @onclick:stopPropagation="false">
             <div class="modal-dialog" @onclick:stopPropagation="true">
                 <div class="modal-header">
-                    <h3>@(budgetModel.BudgetId == 0 ? "New Budget from Procurement" : $"Edit Budget #{budgetModel.BudgetId}")</h3>
+                    <h3>@(budgetModel.BudgetId == 0 ? "New Budget from Procurement" : "Edit Budget")</h3>
                     <button class="modal-close" @onclick="CloseBudgetForm">&times;</button>
                 </div>
                 <div class="modal-body">
@@ -407,7 +418,6 @@ else
                         <table class="dash-table">
                             <thead>
                                 <tr>
-                                    <th style="width:60px">ID</th>
                                     <th>Category</th>
                                     <th>Description</th>
                                     <th class="t-right">Amount</th>
@@ -419,7 +429,6 @@ else
                                 @foreach (var it in budgetItems)
                                 {
                                     <tr>
-                                        <td class="t-center">@it.BudgetItemId</td>
                                         <td>@it.Category</td>
                                         <td>@it.Description</td>
                                         <td class="t-right">@it.Amount.ToString("N2")</td>
@@ -432,7 +441,7 @@ else
                                 }
                                 @if (!budgetItems.Any())
                                 {
-                                    <tr><td colspan="6" class="t-center text-muted">No items.</td></tr>
+                                    <tr><td colspan="5" class="t-center text-muted">No items.</td></tr>
                                 }
                             </tbody>
                         </table>
@@ -445,7 +454,7 @@ else
                     @if (editItem != null)
                     {
                         <hr />
-                        <h5>Edit Item #@editItem.BudgetItemId</h5>
+                        <h5>Edit Item</h5>
                         <div class="form-row">
                             <div class="form-group">
                                 <label>Category *</label>
@@ -482,7 +491,7 @@ else
         <div class="modal-overlay" @onclick="CloseRequestForm" @onclick:stopPropagation="false">
             <div class="modal-dialog" @onclick:stopPropagation="true">
                 <div class="modal-header">
-                    <h3>@(requestModel.RequestId == 0 ? "New Request" : $"Edit Request #{requestModel.RequestId}")</h3>
+                    <h3>@(requestModel.RequestId == 0 ? "New Request" : "Edit Request")</h3>
                     <button class="modal-close" @onclick="CloseRequestForm">&times;</button>
                 </div>
                 <div class="modal-body">
@@ -544,7 +553,7 @@ else
         <div class="modal-overlay" @onclick="CloseRequestItems" @onclick:stopPropagation="false">
             <div class="modal-dialog large" @onclick:stopPropagation="true">
                 <div class="modal-header">
-                    <h3>Request Items — @activeRequest?.BarangayName (#@activeRequest?.RequestId)</h3>
+                    <h3>Request Items — @activeRequest?.BarangayName</h3>
                     <button class="modal-close" @onclick="CloseRequestItems">&times;</button>
                 </div>
                 <div class="modal-body">
@@ -622,7 +631,6 @@ else
                         <table class="dash-table">
                             <thead>
                                 <tr>
-                                    <th style="width:60px">ID</th>
                                     <th>Item</th>
                                     <th>Unit</th>
                                     <th class="t-center">Qty</th>
@@ -635,7 +643,6 @@ else
                                 @foreach (var it in requestItems)
                                 {
                                     <tr>
-                                        <td class="t-center">@it.RequestItemId</td>
                                         <td>@it.ItemName</td>
                                         <td>@it.Unit</td>
                                         <td class="t-center">@it.Quantity</td>
@@ -649,7 +656,7 @@ else
                                 }
                                 @if (!requestItems.Any())
                                 {
-                                    <tr><td colspan="7" class="t-center text-muted">No items.</td></tr>
+                                    <tr><td colspan="6" class="t-center text-muted">No items.</td></tr>
                                 }
                             </tbody>
                         </table>
@@ -662,7 +669,7 @@ else
                     @if (editReqItem != null)
                     {
                         <hr />
-                        <h5>Edit Item #@editReqItem.RequestItemId</h5>
+                        <h5>Edit Item</h5>
                         <div class="form-row">
                             <div class="form-group">
                                 <label>Item *</label>
@@ -716,6 +723,14 @@ else
     private string budgetStatus = string.Empty;
     private string requestSearch = string.Empty;
     private string requestStatus = string.Empty;
+
+    // Pagination - Budget Table
+    private int _budgetPageIndex = 0;
+    private int budgetPageSize = 10;
+
+    // Pagination - Request Table
+    private int _requestPageIndex = 0;
+    private int requestPageSize = 10;
 
     // UI state
     private bool saving;
@@ -814,7 +829,7 @@ else
         await BudgetState.RefreshBudgetsAsync(DbFactory);
     }
 
-    // Filters
+    // Filters - Budgets
     private IEnumerable<BarangayBudget> FilteredBudgets => Budgets
         .Where(b =>
             (string.IsNullOrWhiteSpace(budgetSearch)
@@ -824,12 +839,33 @@ else
         .OrderByDescending(b => b.Year)
         .ThenBy(b => b.BarangayName);
 
+    // Pagination - Budgets
+    private int BudgetTotalFiltered => FilteredBudgets.Count();
+    private int BudgetTotalPages => Math.Max((int)Math.Ceiling(BudgetTotalFiltered / (double)budgetPageSize), 1);
+    private int BudgetStartIndex => BudgetTotalFiltered == 0 ? 0 : (_budgetPageIndex * budgetPageSize) + 1;
+    private int BudgetEndIndex => Math.Min((_budgetPageIndex + 1) * budgetPageSize, BudgetTotalFiltered);
+    private IEnumerable<BarangayBudget> PagedBudgets => FilteredBudgets.Skip(_budgetPageIndex * budgetPageSize).Take(budgetPageSize);
+
+    private void BudgetPrevPage() { if (_budgetPageIndex > 0) _budgetPageIndex--; }
+    private void BudgetNextPage() { if (_budgetPageIndex < BudgetTotalPages - 1) _budgetPageIndex++; }
+
+    // Filters - Requests
     private IEnumerable<ProcurementRequest> FilteredRequests => Requests
         .Where(r =>
             (string.IsNullOrWhiteSpace(requestSearch)
                 || r.BarangayName.Contains(requestSearch, StringComparison.OrdinalIgnoreCase))
             && (string.IsNullOrWhiteSpace(requestStatus) || r.Status == requestStatus))
         .OrderByDescending(r => r.RequestDate);
+
+    // Pagination - Requests
+    private int RequestTotalFiltered => FilteredRequests.Count();
+    private int RequestTotalPages => Math.Max((int)Math.Ceiling(RequestTotalFiltered / (double)requestPageSize), 1);
+    private int RequestStartIndex => RequestTotalFiltered == 0 ? 0 : (_requestPageIndex * requestPageSize) + 1;
+    private int RequestEndIndex => Math.Min((_requestPageIndex + 1) * requestPageSize, RequestTotalFiltered);
+    private IEnumerable<ProcurementRequest> PagedRequests => FilteredRequests.Skip(_requestPageIndex * requestPageSize).Take(requestPageSize);
+
+    private void RequestPrevPage() { if (_requestPageIndex > 0) _requestPageIndex--; }
+    private void RequestNextPage() { if (_requestPageIndex < RequestTotalPages - 1) _requestPageIndex++; }
 
     // Budget actions
     private void NewBudget()
@@ -963,6 +999,10 @@ else
         {
             await BudgetSvc.DeleteAsync(id);
             await LoadAll();
+            
+            // Adjust current page if needed
+            if (_budgetPageIndex >= BudgetTotalPages && BudgetTotalPages > 0)
+                _budgetPageIndex = BudgetTotalPages - 1;
         }
         finally { saving = false; }
     }
@@ -1138,6 +1178,10 @@ else
         {
             await ProcSvc.DeleteAsync(id);
             await LoadAll();
+            
+            // Adjust current page if needed
+            if (_requestPageIndex >= RequestTotalPages && RequestTotalPages > 0)
+                _requestPageIndex = RequestTotalPages - 1;
         }
         finally { saving = false; }
     }

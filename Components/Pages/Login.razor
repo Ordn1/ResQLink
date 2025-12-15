@@ -25,12 +25,17 @@
 
             <label class="login-label" for="password" style="margin-top:12px;">Password:</label>
             <div class="password-input-wrapper">
-                <input id="password" type="@(ShowPassword ? "text" : "password")" @bind="Password" class="login-input" @onkeypress="HandleKeyPress" />
+                <input id="password" 
+                       type="@(ShowPassword ? "text" : "password")" 
+                       @bind="Password" 
+                       class="login-input password-with-toggle" 
+                       @onkeypress="HandleKeyPress" />
                 <button type="button"
                         class="toggle-password-btn"
                         title="@(ShowPassword ? "Hide password" : "Show password")"
-                        @onclick="ToggleShowPassword">
-                    <i class="bi @(ShowPassword ? "bi-eye-slash" : "bi-eye")"></i>
+                        @onclick="ToggleShowPassword"
+                        tabindex="-1">
+                    <i class="bi @(ShowPassword ? "bi-eye-slash-fill" : "bi-eye-fill")"></i>
                 </button>
             </div>
         </div>
@@ -56,20 +61,46 @@
     {
         <div class="modal-overlay" @onclick="CloseResetDialog">
             <div class="modal-content" @onclick:stopPropagation>
-                <h3 style="margin-bottom:16px;color:#333;">Reset Password</h3>
+                <h3 style="margin-bottom:16px;color:#fff;">Reset Password</h3>
                 
                 <label class="login-label" for="reset-username">Username:</label>
                 <input id="reset-username" @bind="ResetUsername" class="login-input" style="margin-bottom:12px;" />
                 
                 <label class="login-label" for="new-password">New Password:</label>
-                <input id="new-password" type="password" @bind="NewPassword" class="login-input" style="margin-bottom:12px;" />
+                <div class="password-input-wrapper">
+                    <input id="new-password" 
+                           type="@(ShowNewPassword ? "text" : "password")" 
+                           @bind="NewPassword" 
+                           class="login-input password-with-toggle" 
+                           style="margin-bottom:12px;" />
+                    <button type="button"
+                            class="toggle-password-btn"
+                            title="@(ShowNewPassword ? "Hide password" : "Show password")"
+                            @onclick="() => ShowNewPassword = !ShowNewPassword"
+                            tabindex="-1">
+                        <i class="bi @(ShowNewPassword ? "bi-eye-slash-fill" : "bi-eye-fill")"></i>
+                    </button>
+                </div>
                 
                 <label class="login-label" for="confirm-password">Confirm Password:</label>
-                <input id="confirm-password" type="password" @bind="ConfirmPassword" class="login-input" style="margin-bottom:16px;" />
+                <div class="password-input-wrapper">
+                    <input id="confirm-password" 
+                           type="@(ShowConfirmPassword ? "text" : "password")" 
+                           @bind="ConfirmPassword" 
+                           class="login-input password-with-toggle" 
+                           style="margin-bottom:16px;" />
+                    <button type="button"
+                            class="toggle-password-btn"
+                            title="@(ShowConfirmPassword ? "Hide password" : "Show password")"
+                            @onclick="() => ShowConfirmPassword = !ShowConfirmPassword"
+                            tabindex="-1">
+                        <i class="bi @(ShowConfirmPassword ? "bi-eye-slash-fill" : "bi-eye-fill")"></i>
+                    </button>
+                </div>
                 
                 @if (!string.IsNullOrEmpty(ResetError))
                 {
-                    <div style="color:#ff6b6b;font-size:.85rem;margin-bottom:12px;">@ResetError</div>
+                    <div style="color:#ffdddd;font-size:.85rem;margin-bottom:12px;">@ResetError</div>
                 }
                 
                 <div style="display:flex;gap:8px;">
@@ -104,6 +135,8 @@
     private string NewPassword { get; set; } = "";
     private string ConfirmPassword { get; set; } = "";
     private string ResetError { get; set; } = "";
+    private bool ShowNewPassword { get; set; } = false;
+    private bool ShowConfirmPassword { get; set; } = false;
 
     private void ToggleShowPassword() => ShowPassword = !ShowPassword;
 
@@ -114,6 +147,8 @@
         NewPassword = "";
         ConfirmPassword = "";
         ResetError = "";
+        ShowNewPassword = false;
+        ShowConfirmPassword = false;
     }
 
     private void CloseResetDialog()
@@ -123,6 +158,8 @@
         NewPassword = "";
         ConfirmPassword = "";
         ResetError = "";
+        ShowNewPassword = false;
+        ShowConfirmPassword = false;
     }
 
     private async Task HandlePasswordReset()

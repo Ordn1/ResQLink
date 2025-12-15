@@ -19,18 +19,34 @@
                 </button>
             </div>
         </header>
+
         <div class="kpi-grid">
             <div class="kpi-card">
-                <div class="kpi-label">Total Suppliers</div>
-                <div class="kpi-value text-accent">@_suppliers.Count</div>
+                <div class="kpi-icon-circle">
+                    <i class="bi bi-building-fill"></i>
+                </div>
+                <div class="kpi-content">
+                    <div class="kpi-label">Total Suppliers</div>
+                    <div class="kpi-value">@_suppliers.Count</div>
+                </div>
             </div>
             <div class="kpi-card">
-                <div class="kpi-label">Active</div>
-                <div class="kpi-value">@_suppliers.Count(s => s.IsActive)</div>
+                <div class="kpi-icon-circle">
+                    <i class="bi bi-check-circle-fill"></i>
+                </div>
+                <div class="kpi-content">
+                    <div class="kpi-label">Active Suppliers</div>
+                    <div class="kpi-value">@_suppliers.Count(s => s.IsActive)</div>
+                </div>
             </div>
             <div class="kpi-card">
-                <div class="kpi-label">Inactive</div>
-                <div class="kpi-value">@_suppliers.Count(s => !s.IsActive)</div>
+                <div class="kpi-icon-circle" style="background: #fef2f2; color: #dc2626;">
+                    <i class="bi bi-x-circle-fill"></i>
+                </div>
+                <div class="kpi-content">
+                    <div class="kpi-label">Inactive Suppliers</div>
+                    <div class="kpi-value" style="color: #dc2626;">@_suppliers.Count(s => !s.IsActive)</div>
+                </div>
             </div>
         </div>
     </section>
@@ -40,7 +56,7 @@
             <h2 class="panel-title">Suppliers Management</h2>
             <div class="panel-actions">
                 <input class="mini-input"
-                       placeholder="Search name, contact, email�"
+                       placeholder="Search name, contact, email…"
                        @bind="_search"
                        @bind:event="oninput" />
                 <select class="mini-input" @bind="_statusFilter">
@@ -55,11 +71,14 @@
         <div class="panel-body">
             @if (_loading)
             {
-                <p class="t-center text-muted">Loading�</p>
+                <p class="t-center text-muted" style="padding: 20px;">Loading…</p>
             }
             else if (!FilteredSuppliers.Any())
             {
-                <p class="t-center text-muted">No suppliers found.</p>
+                <div class="empty-state">
+                    <div class="empty-icon"><i class="bi bi-inbox"></i></div>
+                    <div class="empty-text">No suppliers found</div>
+                </div>
             }
             else
             {
@@ -81,17 +100,22 @@
                             @foreach (var sup in PagedSuppliers)
                             {
                                 <tr>
+                                    @* Plain text ID per request *@
                                     <td class="t-center col-id">@sup.SupplierId</td>
+
                                     <td class="col-name"><strong>@sup.SupplierName</strong></td>
-                                    <td class="col-contact">@(sup.ContactPerson ?? "�")</td>
-                                    <td class="col-email">@(sup.Email ?? "�")</td>
-                                    <td class="col-phone">@(sup.PhoneNumber ?? "�")</td>
-                                    <td class="col-address">@(sup.Address ?? "�")</td>
+                                    <td class="col-contact">@(sup.ContactPerson ?? "—")</td>
+                                    <td class="col-email">@(sup.Email ?? "—")</td>
+                                    <td class="col-phone">@(sup.PhoneNumber ?? "—")</td>
+                                    <td class="col-address">@(sup.Address ?? "—")</td>
+
+                                    @* Colored text ONLY per request (no chip) *@
                                     <td class="t-center col-status">
-                                        <span class="status-chip @(sup.IsActive ? "st-active" : "st-contained")">
+                                        <span style="font-weight: 700; font-size: 0.7rem; text-transform: uppercase; color: @(sup.IsActive ? "#16a34a" : "#9ca3af");">
                                             @(sup.IsActive ? "Active" : "Inactive")
                                         </span>
                                     </td>
+
                                     <td class="action-cell col-actions">
                                         <button class="action-btn edit"
                                                 @onclick="() => OpenEditModal(sup)"
@@ -107,12 +131,6 @@
                                     </td>
                                 </tr>
                             }
-                            @if (!PagedSuppliers.Any())
-                            {
-                                <tr>
-                                    <td colspan="8" class="t-center text-muted">No suppliers found.</td>
-                                </tr>
-                            }
                         </tbody>
                     </table>
                 </div>
@@ -126,11 +144,12 @@
 
         <footer class="panel-foot">
             <div class="foot-left">
-                Showing @StartIndex�@EndIndex of @FilteredSuppliers.Count() suppliers
+                <i class="bi bi-info-circle"></i>
+                Showing @StartIndex—@EndIndex of @FilteredSuppliers.Count() suppliers
             </div>
             <div class="foot-right">
                 <label class="foot-label">Rows</label>
-                <select class="mini-input" @bind="_pageSize">
+                <select class="mini-input" @bind="_pageSize" style="width: auto; min-width: 60px;">
                     <option>10</option>
                     <option>20</option>
                     <option>50</option>
@@ -142,7 +161,7 @@
         </footer>
     </section>
 
-    @* Create/Edit Supplier Modal � consistent with other pages *@
+    @* Create/Edit Supplier Modal *@
     @if (_showModal)
     {
         <div class="modal-overlay" @onclick="async () => await CloseModal()" @onclick:stopPropagation="false">
@@ -170,13 +189,13 @@
                         </div>
                         <div class="form-group">
                             <label for="phone">Phone Number</label>
-                            <input id="phone" 
-                                   type="tel" 
-                                   class="form-control" 
-                                   @bind="_editModel.PhoneNumber" 
-                                   placeholder="09XXXXXXXXX" 
+                            <input id="phone"
+                                   type="tel"
+                                   class="form-control"
+                                   @bind="_editModel.PhoneNumber"
+                                   placeholder="09XXXXXXXXX"
                                    maxlength="11" />
-                            <small class="hint">Must be exactly 11 digits (e.g., 09171234567)</small>
+                            <small class="hint" style="font-size: 0.65rem; color: #6b7280;">Must be exactly 11 digits</small>
                         </div>
                     </div>
 
@@ -196,7 +215,7 @@
 
                     <div class="form-row">
                         <div class="form-group">
-                            <label>
+                            <label style="display: flex; align-items: center; gap: 8px;">
                                 <input type="checkbox" @bind="_editModel.IsActive" />
                                 Active
                             </label>
@@ -348,7 +367,7 @@
         if (_saving) return;
 
         // Ask for confirmation if form has data
-        if (!string.IsNullOrWhiteSpace(_editModel.SupplierName) || 
+        if (!string.IsNullOrWhiteSpace(_editModel.SupplierName) ||
             !string.IsNullOrWhiteSpace(_editModel.ContactPerson) ||
             !string.IsNullOrWhiteSpace(_editModel.Email) ||
             !string.IsNullOrWhiteSpace(_editModel.PhoneNumber))

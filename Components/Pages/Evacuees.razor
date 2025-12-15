@@ -22,16 +22,31 @@
         </header>
         <div class="kpi-grid">
             <div class="kpi-card">
-                <div class="kpi-label">Total Evacuees</div>
-                <div class="kpi-value">@AllEvacuees.Count</div>
+                <div class="kpi-icon">
+                    <i class="bi bi-people"></i>
+                </div>
+                <div class="kpi-content">
+                    <div class="kpi-label">Total Evacuees</div>
+                    <div class="kpi-value">@AllEvacuees.Count</div>
+                </div>
             </div>
             <div class="kpi-card">
-                <div class="kpi-label">Admitted / Stable</div>
-                <div class="kpi-value text-accent">@AdmittedOrStableCount</div>
+                <div class="kpi-icon">
+                    <i class="bi bi-check-circle"></i>
+                </div>
+                <div class="kpi-content">
+                    <div class="kpi-label">Admitted / Stable</div>
+                    <div class="kpi-value">@AdmittedOrStableCount</div>
+                </div>
             </div>
             <div class="kpi-card">
-                <div class="kpi-label">Critical</div>
-                <div class="kpi-value">@CriticalCount</div>
+                <div class="kpi-icon">
+                    <i class="bi bi-exclamation-triangle"></i>
+                </div>
+                <div class="kpi-content">
+                    <div class="kpi-label">Critical</div>
+                    <div class="kpi-value">@CriticalCount</div>
+                </div>
             </div>
         </div>
     </section>
@@ -67,7 +82,6 @@
             <table class="dash-table">
                 <thead>
                     <tr>
-                        <th style="width:70px">ID</th>
                         <th>Name</th>
                         <th>Disaster</th>
                         <th>Shelter</th>
@@ -80,7 +94,6 @@
                     @foreach (var e in PagedEvacuees)
                     {
                         <tr>
-                            <td class="t-center">#@e.Id</td>
                             <td>@e.Name</td>
                             <td>@e.Disaster</td>
                             <td>@e.Shelter</td>
@@ -106,7 +119,7 @@
                     @if (!PagedEvacuees.Any())
                     {
                         <tr>
-                            <td colspan="7" class="t-center text-muted">No results.</td>
+                            <td colspan="6" class="t-center text-muted">No results.</td>
                         </tr>
                     }
                 </tbody>
@@ -162,7 +175,7 @@
     <div class="modal-overlay" @onclick="CancelForm" @onclick:stopPropagation="false">
         <div class="modal-dialog" @onclick="PreventClose" @onclick:stopPropagation="true">
             <div class="modal-header">
-                <h3>@(editModel.EvacueeId == 0 ? "Add Evacuee" : $"Edit Evacuee #{editModel.EvacueeId}")</h3>
+                <h3>@(editModel.EvacueeId == 0 ? "Add Evacuee" : $"Edit Evacuee")</h3>
                 <button class="modal-close" @onclick="CancelForm" @onclick:stopPropagation="true">&times;</button>
             </div>
             <div class="modal-body">

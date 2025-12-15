@@ -9,10 +9,7 @@
 
     <section class="panel kpi-panel">
         <header class="panel-head">
-            <h2 class="panel-title">Categories</h2>
-            <div class="panel-badge">
-                <span class="role-badge">INVENTORY MANAGER</span>
-            </div>
+            <h2 class="panel-title">Categories Overview</h2>
             <div class="panel-actions">
                 <button class="mini-btn" @onclick="Refresh" title="Refresh" disabled="@isLoading">
                     <i class="bi bi-arrow-clockwise"></i>
@@ -20,18 +17,36 @@
                 </button>
             </div>
         </header>
+
         <div class="kpi-grid">
             <div class="kpi-card">
-                <div class="kpi-label">Total Categories</div>
-                <div class="kpi-value text-accent">@categories.Count</div>
+                <div class="kpi-icon-circle">
+                    <i class="bi bi-tags-fill"></i>
+                </div>
+                <div class="kpi-content">
+                    <div class="kpi-label">Total Categories</div>
+                    <div class="kpi-value">@categories.Count</div>
+                </div>
             </div>
+
             <div class="kpi-card">
-                <div class="kpi-label">Active</div>
-                <div class="kpi-value">@categories.Count(c => c.IsActive)</div>
+                <div class="kpi-icon-circle">
+                    <i class="bi bi-check-circle-fill"></i>
+                </div>
+                <div class="kpi-content">
+                    <div class="kpi-label">Active</div>
+                    <div class="kpi-value">@categories.Count(c => c.IsActive)</div>
+                </div>
             </div>
+
             <div class="kpi-card">
-                <div class="kpi-label">Inactive</div>
-                <div class="kpi-value">@categories.Count(c => !c.IsActive)</div>
+                <div class="kpi-icon-circle" style="background: #fef2f2; color: #dc2626;">
+                    <i class="bi bi-x-circle-fill"></i>
+                </div>
+                <div class="kpi-content">
+                    <div class="kpi-label" style="color: #991b1b;">Inactive</div>
+                    <div class="kpi-value" style="color: #dc2626;">@categories.Count(c => !c.IsActive)</div>
+                </div>
             </div>
         </div>
     </section>
@@ -40,7 +55,7 @@
         <header class="panel-head">
             <h2 class="panel-title">Categories Management</h2>
             <div class="panel-actions">
-                <select class="mini-input" @bind="typeFilter" style="width:150px;">
+                <select class="mini-input" @bind="typeFilter" @bind:after="ResetPagination" style="width:150px;">
                     <option value="">All Types</option>
                     <option value="P">Perishable</option>
                     <option value="N">Non-Perishable</option>
@@ -53,18 +68,18 @@
             </div>
         </header>
 
-        <div class="panel-body">
+        <div class="panel-body" style="padding: 0;">
             @if (isLoading)
             {
-                <div class="loading-state">
+                <div class="loading-state" style="padding: 40px; text-align: center;">
                     <div class="spinner"></div>
-                    <p>Loading categories...</p>
+                    <p class="text-muted" style="margin-top: 10px;">Loading categories...</p>
                 </div>
             }
             else if (!FilteredCategories.Any())
             {
                 <div class="empty-state">
-                    <i class="bi bi-inbox" style="font-size: 3rem; color: #9ca3af;"></i>
+                    <i class="bi bi-inbox"></i>
                     <p class="text-muted">No categories found.</p>
                 </div>
             }
@@ -84,14 +99,14 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var cat in FilteredCategories)
+                            @foreach (var cat in PagedCategories)
                             {
                                 var hasItems = cat.ReliefGoods.Count > 0;
                                 <tr>
                                     <td class="t-center col-id">@cat.CategoryId</td>
                                     <td class="col-name"><strong>@cat.CategoryName</strong></td>
                                     <td class="col-type">
-                                        <span class="status-chip @GetTypeClass(cat.CategoryType?.TypeCode ?? 'O')">
+                                        <span class="text-muted">
                                             @(cat.CategoryType?.TypeName ?? "Uncategorized")
                                         </span>
                                     </td>
@@ -99,7 +114,7 @@
                                     <td class="t-center col-items">
                                         @if (hasItems)
                                         {
-                                            <span class="badge-count">@cat.ReliefGoods.Count</span>
+                                            <span style="font-weight: 700; color: #111827;">@cat.ReliefGoods.Count</span>
                                         }
                                         else
                                         {
@@ -107,7 +122,7 @@
                                         }
                                     </td>
                                     <td class="t-center col-status">
-                                        <span class="status-chip @(cat.IsActive ? "st-active" : "st-contained")">
+                                        <span style="font-weight: 700; font-size: 0.7rem; text-transform: uppercase; color: @(cat.IsActive ? "#16a34a" : "#9ca3af");">
                                             @(cat.IsActive ? "ACTIVE" : "INACTIVE")
                                         </span>
                                     </td>
@@ -144,7 +159,18 @@
         <footer class="panel-foot">
             <div class="foot-left">
                 <i class="bi bi-info-circle"></i>
-                Showing @FilteredCategories.Count() of @categories.Count categories
+                Showing @StartIndex–@EndIndex of @TotalFiltered categories
+            </div>
+            <div class="foot-right">
+                <label class="foot-label">Rows</label>
+                <select class="mini-input" @bind="_pageSize" style="width: auto; min-width: 60px;" @bind:after="ResetPagination">
+                    <option>10</option>
+                    <option>20</option>
+                    <option>50</option>
+                </select>
+                <button class="mini-btn" @onclick="PrevPage" disabled="@(_pageIndex == 0)">Prev</button>
+                <span class="page-indicator">Page @(_pageIndex + 1) / @TotalPages</span>
+                <button class="mini-btn" @onclick="NextPage" disabled="@(_pageIndex >= TotalPages - 1)">Next</button>
             </div>
         </footer>
     </section>
@@ -152,11 +178,11 @@
     @* Add/Edit Category modal *@
     @if (showModal)
     {
-        <div class="modal-overlay" @onclick="async () => await CloseModal()" @onclick:stopPropagation="false">
-            <div class="modal-dialog" @onclick="PreventClose" @onclick:stopPropagation="true">
+        <div class="modal-overlay">
+            <div class="modal-dialog" @onclick:stopPropagation="true">
                 <div class="modal-header">
                     <h3>@(isEditMode ? $"Edit Category #{editModel.CategoryId}" : "Add Category")</h3>
-                    <button class="modal-close" @onclick="async () => await CloseModal()" @onclick:stopPropagation="true">&times;</button>
+                    <button class="modal-close" @onclick="async () => await CloseModal()">&times;</button>
                 </div>
                 <div class="modal-body">
                     <div class="form-row">
@@ -176,7 +202,7 @@
                         </div>
                         <div class="form-group">
                             <label for="catType">Category Type *</label>
-                            <select id="catType" 
+                            <select id="catType"
                                     class="form-control @(fieldErrors.ContainsKey("Type") ? "is-invalid" : "")"
                                     @bind="editModel.CategoryTypeId"
                                     @bind:after="OnCategoryTypeChanged">
@@ -193,9 +219,9 @@
                                 <div class="invalid-feedback">@fieldErrors["Type"]</div>
                             }
                             <small class="hint">
-                                <strong>P</strong>=Perishable | 
-                                <strong>N</strong>=Non-Perishable | 
-                                <strong>M</strong>=Medical | 
+                                <strong>P</strong>=Perishable |
+                                <strong>N</strong>=Non-Perishable |
+                                <strong>M</strong>=Medical |
                                 <strong>O</strong>=Others
                             </small>
                         </div>
@@ -256,15 +282,15 @@
     @* Delete Confirmation Modal *@
     @if (showDeleteModal && categoryToDelete != null)
     {
-        <div class="modal-overlay" @onclick="CloseDeleteModal" @onclick:stopPropagation="false">
-            <div class="modal-dialog small" @onclick="PreventClose" @onclick:stopPropagation="true">
+        <div class="modal-overlay">
+            <div class="modal-dialog small" @onclick:stopPropagation="true">
                 <div class="modal-header">
                     <h3>Confirm Delete</h3>
-                    <button class="modal-close" @onclick="CloseDeleteModal" @onclick:stopPropagation="true">&times;</button>
+                    <button class="modal-close" @onclick="CloseDeleteModal">&times;</button>
                 </div>
                 <div class="modal-body">
                     <p style="margin-bottom: 16px;">
-                        Are you sure you want to delete the category 
+                        Are you sure you want to delete the category
                         <strong>"@categoryToDelete.CategoryName"</strong>?
                     </p>
                     @if (categoryToDelete.ReliefGoods.Count > 0)
@@ -282,16 +308,16 @@
                         </p>
                     }
                 </div>
-                <div class="modal-footer">
-                    <button class="btn-cancel" 
-                            @onclick="CloseDeleteModal" 
+                <div class="modal-footer" style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px;">
+                    <button class="btn-cancel"
+                            @onclick="CloseDeleteModal"
                             disabled="@isDeleting"
                             @onclick:stopPropagation="true">
                         Cancel
                     </button>
-                    <button class="btn-danger" 
-                            @onclick="ConfirmDelete" 
-                            disabled="@(isDeleting || categoryToDelete.ReliefGoods.Count > 0)" 
+                    <button class="btn-danger"
+                            @onclick="ConfirmDelete"
+                            disabled="@(isDeleting || categoryToDelete.ReliefGoods.Count > 0)"
                             @onclick:stopPropagation="true">
                         @if (isDeleting)
                         {
@@ -321,6 +347,10 @@
     private Category editModel = new();
     private Category? categoryToDelete = null;
 
+    // Pagination State
+    private int _pageIndex = 0;
+    private int _pageSize = 10;
+
     protected override async Task OnInitializedAsync()
     {
         await LoadDataAsync();
@@ -348,6 +378,7 @@
         }
     }
 
+    // Filters results
     private IEnumerable<Category> FilteredCategories
     {
         get
@@ -361,38 +392,46 @@
         }
     }
 
-    private string GetTypeClass(char typeCode) => typeCode switch
-    {
-        'P' => "st-critical",
-        'N' => "st-active",
-        'M' => "st-med",
-        'O' => "st-contained",
-        _ => "st-contained"
-    };
+    // Pagination Logic
+    private int TotalFiltered => FilteredCategories.Count();
+    private int TotalPages => Math.Max((int)Math.Ceiling(TotalFiltered / (double)_pageSize), 1);
+    private int StartIndex => TotalFiltered == 0 ? 0 : (_pageIndex * _pageSize) + 1;
+    private int EndIndex => Math.Min((_pageIndex + 1) * _pageSize, TotalFiltered);
 
-    private void PreventClose()
+    private IEnumerable<Category> PagedCategories =>
+        FilteredCategories.Skip(_pageIndex * _pageSize).Take(_pageSize);
+
+    private void NextPage()
     {
-        // Prevents modal close when clicking inside
+        if (_pageIndex < TotalPages - 1) _pageIndex++;
+    }
+
+    private void PrevPage()
+    {
+        if (_pageIndex > 0) _pageIndex--;
+    }
+
+    private void ResetPagination()
+    {
+        _pageIndex = 0;
     }
 
     private void OpenAddModal()
     {
-        // Force complete reset
         showModal = false;
         isEditMode = false;
         editModel = null!;
         modalError = string.Empty;
         fieldErrors.Clear();
-        
-        // Create fresh instance
-        editModel = new Category 
-        { 
+
+        editModel = new Category
+        {
             IsActive = true,
             CategoryName = string.Empty,
             Description = null,
             CategoryTypeId = null
         };
-        
+
         showModal = true;
         StateHasChanged();
     }
@@ -417,11 +456,10 @@
     private async Task CloseModal()
     {
         if (saving) return;
-        
-        // Ask for confirmation before closing
+
         var confirmed = await JS.InvokeAsync<bool>("confirm", "Are you sure you want to close this form? Any unsaved changes will be lost.");
         if (!confirmed) return;
-        
+
         showModal = false;
         editModel = new();
         modalError = "";
@@ -429,7 +467,6 @@
         StateHasChanged();
     }
 
-    // ✅ FIX: Use @bind:after instead of @onchange to avoid conflict
     private void OnCategoryTypeChanged()
     {
         ValidateField(nameof(editModel.CategoryTypeId));
@@ -496,9 +533,9 @@
                     StateHasChanged();
                     return;
                 }
-                
+
                 var categoryName = editModel.CategoryName;
-                await CloseModal();
+                showModal = false; // Close directly on success
                 await LoadDataAsync();
                 await JS.InvokeVoidAsync("showToast", $"Category '{categoryName}' updated successfully!", "success");
             }
@@ -506,7 +543,7 @@
             {
                 var categoryName = editModel.CategoryName;
                 var (result, error) = await CategorySvc.CreateAsync(editModel);
-                
+
                 if (error != null)
                 {
                     modalError = error;
@@ -514,15 +551,15 @@
                     StateHasChanged();
                     return;
                 }
-                
-                await CloseModal();
+
+                showModal = false; // Close directly on success
                 await LoadDataAsync();
                 await JS.InvokeVoidAsync("showToast", $"Category '{categoryName}' created successfully!", "success");
             }
         }
         catch (Exception ex)
         {
-            var errorMsg = ex.InnerException != null 
+            var errorMsg = ex.InnerException != null
                 ? $"{ex.Message} - {ex.InnerException.Message}"
                 : ex.Message;
             modalError = $"Error: {errorMsg}";
@@ -553,24 +590,25 @@
         if (categoryToDelete == null || isDeleting) return;
 
         isDeleting = true;
-        modalError = "";
+        // Do NOT clear categoryToDelete here yet, we need it for ID
 
         try
         {
             var (success, error) = await CategorySvc.DeleteAsync(categoryToDelete.CategoryId);
-            
+
             if (!success)
             {
+                // If deletion fails, notify user but also CLOSE the modal because the state might be invalid (e.g., already deleted)
                 await JS.InvokeVoidAsync("showToast", error ?? "Failed to delete category", "error");
-                CloseDeleteModal();
-                isDeleting = false;
-                return;
+            }
+            else
+            {
+                var categoryName = categoryToDelete.CategoryName;
+                await JS.InvokeVoidAsync("showToast", $"Category '{categoryName}' archived successfully!", "success");
             }
 
-            var categoryName = categoryToDelete.CategoryName;
+            // Always reload data to be safe
             await LoadDataAsync();
-            CloseDeleteModal();
-            await JS.InvokeVoidAsync("showToast", $"Category '{categoryName}' archived successfully!", "success");
         }
         catch (Exception ex)
         {
@@ -578,13 +616,17 @@
         }
         finally
         {
+            // ALWAYS close and reset in finally block to ensure UI doesn't get stuck
             isDeleting = false;
+            showDeleteModal = false;
+            categoryToDelete = null;
+            StateHasChanged();
         }
     }
 
     private void CloseDeleteModal()
     {
-        if (isDeleting) return;
+        // FIX: Removed guard clause (if (isDeleting) return;) so modal can always be closed
         showDeleteModal = false;
         categoryToDelete = null;
     }

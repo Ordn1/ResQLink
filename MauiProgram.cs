@@ -57,7 +57,7 @@ namespace ResQLink
 
 #if WINDOWS
             var connectionString =
-                @"Data Source=Karoshi\SQLEXPRESS;Initial Catalog=Resqlink;Integrated Security=True;Encrypt=True;Trust Server Certificate=True";
+                @"Data Source=(localdb)\MSSQLLocalDB;Initial Catalog=resqlink;Integrated Security=True";
             builder.Services.AddDbContextFactory<AppDbContext>(opt =>
             {
                 opt.UseSqlServer(connectionString);

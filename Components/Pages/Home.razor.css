@@ -150,6 +150,8 @@
     padding: 0;
     overflow: hidden;
     transition: transform 0.15s ease, box-shadow 0.15s ease;
+    display: flex;
+    flex-direction: column;
 }
 
     .modern-card:hover {
@@ -375,10 +377,7 @@
 }
 
 /* ===========================================
-   ANALYTICS CONTROLS (ADD THIS SECTION)
-   - pill-styled native selects with icons
-   - prominent themed refresh button
-   - caret indicator + closer refresh spacing
+   ANALYTICS CONTROLS
 =========================================== */
 .analytics-controls {
     display: flex;
@@ -393,7 +392,7 @@
 /* left side (selectors) */
 .ac-left {
     display: flex;
-    gap: 8px; /* tightened gap so refresh sits closer */
+    gap: 8px;
     align-items: center;
 }
 
@@ -495,11 +494,6 @@
     white-space: nowrap;
 }
 
-/* reuse existing spin keyframe */
-.spin {
-    animation: spin 1s linear infinite;
-}
-
 /* ===========================================
    TABLE STYLING
 =========================================== */
@@ -547,6 +541,50 @@
     display: flex;
     align-items: center;
     gap: 8px;
+    margin-top: auto;
+}
+
+/* ===========================================
+   TABLE PAGINATION
+=========================================== */
+.table-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 10px 24px 12px 24px;
+    border-top: 1px solid var(--border-color);
+    background: #fff;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.page-btn {
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--border-color);
+    background: #f8fafc;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-main);
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+    .page-btn:hover:not(:disabled) {
+        background: var(--primary-light);
+        border-color: var(--primary-color);
+        color: var(--primary-color);
+    }
+
+    .page-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+.page-info {
+    font-size: 0.8rem;
+    color: var(--text-muted);
 }
 
 /* ===========================================
@@ -608,6 +646,9 @@
 .inventory-list {
     display: flex;
     flex-direction: column;
+    flex: 1 1 auto;
+    overflow-y: auto;
+    max-height: none;
 }
 
 .inv-item {
@@ -687,6 +728,14 @@
     .summary-stats {
         flex-wrap: wrap;
     }
+
+    .charts-grid {
+        grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    }
+
+    .chart-card.wide {
+        grid-column: span 1;
+    }
 }
 
 @media (max-width: 768px) {
@@ -733,6 +782,14 @@
 
     .ac-right {
         justify-content: flex-end;
+    }
+
+    .charts-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .chart-container {
+        height: 240px;
     }
 }
 
@@ -798,23 +855,3 @@
     .chart-container canvas {
         max-height: 100%;
     }
-
-@media (max-width: 1200px) {
-    .charts-grid {
-        grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-    }
-
-    .chart-card.wide {
-        grid-column: span 1;
-    }
-}
-
-@media (max-width: 768px) {
-    .charts-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .chart-container {
-        height: 240px;
-    }
-}

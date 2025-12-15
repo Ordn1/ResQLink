@@ -13,154 +13,179 @@
 
 <div class="inventory-root">
 
-    <section class="panel">
+    @* --- KPI SECTION --- *@
+    <section class="panel kpi-panel">
         <header class="panel-head">
             <h2 class="panel-title">Inventory — @DisplayCategory</h2>
             <div class="panel-actions">
-                <input class="mini-input"
-                       placeholder="Search name or SKU…"
-                       @bind="search"
-                       @bind:event="oninput" />
-                <select class="mini-input" @bind="stockFilter">
-                    <option value="">Stock</option>
-                    <option value="low">Low</option>
-                    <option value="out">Out</option>
-                    <option value="ok">OK</option>
-                </select>
-                <select class="mini-input" @bind="sortBy">
-                    <option value="name_asc">Name A→Z</option>
-                    <option value="qty_desc">Qty High→Low</option>
-                    <option value="qty_asc">Qty Low→High</option>
-                </select>
-                <button class="mini-btn" @onclick="ToggleView">
-                    View: @(isCardView ? "Cards" : "Table")
-                </button>
-                <button class="mini-btn" @onclick="ClearFilters">Clear</button>
-                <button class="mini-btn" @onclick="GoOverview">Overview</button>
-                <button class="mini-btn" @onclick="Refresh" title="Refresh list">
+                <button class="mini-btn" @onclick="Refresh" title="Refresh">
                     <i class="bi bi-arrow-clockwise"></i>
+                    <span>Refresh</span>
                 </button>
-                <button class="mini-btn btn-primary" @onclick="OpenAddModal">
-                    <i class="bi bi-plus-circle"></i> Add Item
+                <button class="mini-btn" @onclick="GoOverview">
+                    <i class="bi bi-arrow-left"></i> Overview
                 </button>
             </div>
         </header>
 
-        <!-- KPIs for this category -->
         <div class="kpi-grid">
             <div class="kpi-card">
-                <div class="kpi-label">Items</div>
-                <div class="kpi-value text-accent">@BaseItems.Count()</div>
+                <div class="kpi-icon-circle">
+                    <i class="bi bi-box-seam-fill"></i>
+                </div>
+                <div class="kpi-content">
+                    <div class="kpi-label">Total Items</div>
+                    <div class="kpi-value">@BaseItems.Count()</div>
+                </div>
             </div>
+
             <div class="kpi-card">
-                <div class="kpi-label">Low</div>
-                <div class="kpi-value">@LowCount</div>
+                <div class="kpi-icon-circle" style="background: #fffbeb; color: #d97706;">
+                    <i class="bi bi-exclamation-circle-fill"></i>
+                </div>
+                <div class="kpi-content">
+                    <div class="kpi-label" style="color: #92400e;">Low Stock</div>
+                    <div class="kpi-value" style="color: #d97706;">@LowCount</div>
+                </div>
             </div>
+
             <div class="kpi-card">
-                <div class="kpi-label">Out</div>
-                <div class="kpi-value">@OutCount</div>
+                <div class="kpi-icon-circle" style="background: #fef2f2; color: #dc2626;">
+                    <i class="bi bi-x-circle-fill"></i>
+                </div>
+                <div class="kpi-content">
+                    <div class="kpi-label" style="color: #991b1b;">Out of Stock</div>
+                    <div class="kpi-value" style="color: #dc2626;">@OutCount</div>
+                </div>
             </div>
+
+            @* Budget KPI *@
             <div class="kpi-card">
-                <div class="kpi-label">Budget Balance</div>
-                @if (selectedBudgetBalance.HasValue && selectedBudgetId.HasValue)
-                {
-                    var budget = availableBudgets.FirstOrDefault(b => b.BudgetId == selectedBudgetId.Value);
-                    @* FIX: Show the AVAILABLE balance, not the total amount *@
-                    <div class="kpi-value" style="font-size: 1.2rem;">₱@selectedBudgetBalance.Value.ToString("N2")</div>
-                    @if (budget != null)
+                <div class="kpi-icon-circle" style="background: #eff6ff; color: #2563eb;">
+                    <i class="bi bi-wallet2"></i>
+                </div>
+                <div class="kpi-content">
+                    <div class="kpi-label" style="color: #1e40af;">Budget Balance</div>
+                    @if (selectedBudgetBalance.HasValue && selectedBudgetId.HasValue)
                     {
-                        <div class="kpi-sublabel">@budget.BarangayName (@budget.Year)</div>
+                        <div class="kpi-value" style="color: #2563eb; font-size: 1.4rem;">₱@selectedBudgetBalance.Value.ToString("N2")</div>
+                        var budget = availableBudgets.FirstOrDefault(b => b.BudgetId == selectedBudgetId.Value);
+                        @if (budget != null)
+                        {
+                            <div class="kpi-detail">@budget.BarangayName (@budget.Year)</div>
+                        }
                     }
-                }
-                else
-                {
-                    <div class="kpi-value text-muted" style="font-size: 1rem;">No Budget Selected</div>
-                }
+                    else
+                    {
+                        <div class="kpi-value text-muted" style="font-size: 1rem;">No Selection</div>
+                    }
+                </div>
             </div>
         </div>
+    </section>
 
-        @* Add a Budget Selector section right after the KPI grid *@
-        <div style="margin-top: 16px; padding: 16px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;">
-            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
-                <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
-                    <label style="font-size: 0.85rem; font-weight: 600; color: #374151; white-space: nowrap;">
-                        <i class="bi bi-cash-coin"></i> Active Budget:
-                    </label>
-                    <select class="form-control" 
-                            style="max-width: 400px; font-size: 0.85rem;"
-                            @bind="selectedBudgetId"
-                            @bind:after="OnBudgetChanged">
-                        <option value="">-- Select Budget to Track --</option>
-                        @foreach (var budget in availableBudgets)
-                        {
-                            var spent = budgetSpent.ContainsKey(budget.BudgetId) ? budgetSpent[budget.BudgetId] : 0m;
-                            var available = budget.TotalAmount - spent;
-                            var percentUsed = budget.TotalAmount > 0 ? (spent / budget.TotalAmount * 100) : 0;
-                            <option value="@budget.BudgetId">
-                                @budget.BarangayName (@budget.Year) - ₱@available.ToString("N2") available (@percentUsed.ToString("F1")% used)
-                            </option>
-                        }
-                    </select>
-                </div>
-                
-                @if (selectedBudgetId.HasValue && selectedBudgetBalance.HasValue)
-                {
-                    var budget = availableBudgets.FirstOrDefault(b => b.BudgetId == selectedBudgetId.Value);
-                    if (budget != null)
+    @* --- BUDGET SELECTOR --- *@
+    <div style="margin-bottom: 18px; padding: 16px; background: #fff; border-radius: 12px; border: 1px solid #e5e7eb; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+            <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
+                <label style="font-size: 0.8rem; font-weight: 700; color: #374151; white-space: nowrap; text-transform: uppercase;">
+                    <i class="bi bi-cash-coin" style="color: #16a34a; margin-right: 6px;"></i> Active Budget
+                </label>
+                <select class="mini-input"
+                        style="max-width: 400px; width: 100%; border-color: #d1d5db;"
+                        @bind="selectedBudgetId"
+                        @bind:after="OnBudgetChanged">
+                    <option value="">-- Select Budget to Track --</option>
+                    @foreach (var budget in availableBudgets)
                     {
                         var spent = budgetSpent.ContainsKey(budget.BudgetId) ? budgetSpent[budget.BudgetId] : 0m;
+                        var available = budget.TotalAmount - spent;
                         var percentUsed = budget.TotalAmount > 0 ? (spent / budget.TotalAmount * 100) : 0;
-                        
-                        <div style="display: flex; align-items: center; gap: 16px;">
-                            <div style="text-align: right;">
-                                <div style="font-size: 0.7rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Total</div>
-                                <div style="font-size: 0.95rem; font-weight: 700; color: #111827;">₱@budget.TotalAmount.ToString("N2")</div>
-                            </div>
-                            <div style="text-align: right;">
-                                <div style="font-size: 0.7rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Spent</div>
-                                <div style="font-size: 0.95rem; font-weight: 700, color: #dc2626;">₱@spent.ToString("N2")</div>
-                            </div>
-                            <div style="text-align: right;">
-                                <div style="font-size: 0.7rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Available</div>
-                                <div style="font-size: 0.95rem; font-weight: 700; color: #16a34a;">₱@selectedBudgetBalance.Value.ToString("N2")</div>
-                            </div>
-                        </div>
+                        <option value="@budget.BudgetId">
+                            @budget.BarangayName (@budget.Year) - ₱@available.ToString("N2") available (@percentUsed.ToString("F1")% used)
+                        </option>
                     }
-                }
+                </select>
             </div>
-            
+
             @if (selectedBudgetId.HasValue && selectedBudgetBalance.HasValue)
             {
                 var budget = availableBudgets.FirstOrDefault(b => b.BudgetId == selectedBudgetId.Value);
                 if (budget != null)
                 {
                     var spent = budgetSpent.ContainsKey(budget.BudgetId) ? budgetSpent[budget.BudgetId] : 0m;
-                    var percentUsed = budget.TotalAmount > 0 ? (spent / budget.TotalAmount * 100) : 0;
-                    
-                    <div style="margin-top: 12px;">
-                        <div class="progress-shell" style="height: 8px;">
-                            <div class="progress-bar" 
-                                 style="width: @percentUsed%; background: @(percentUsed > 90 ? "#dc2626" : percentUsed > 75 ? "#f59e0b" : "#16a34a");"></div>
+                    <div style="display: flex; gap: 24px;">
+                        <div>
+                            <div style="font-size: 0.65rem; color: #6b7280; text-transform: uppercase; font-weight: 700;">Total</div>
+                            <div style="font-size: 0.9rem; font-weight: 700; color: #111827;">₱@budget.TotalAmount.ToString("N2")</div>
                         </div>
-                        <div style="display: flex; justify-content: space-between; margin-top: 4px;">
-                            <span style="font-size: 0.7rem; color: #6b7280;">@percentUsed.ToString("F1")% Used</span>
-                            @if (percentUsed > 90)
-                            {
-                                <span style="font-size: 0.7rem; color: #dc2626; font-weight: 600;">
-                                    <i class="bi bi-exclamation-triangle-fill"></i> Critical Level
-                                </span>
-                            }
-                            else if (percentUsed > 75)
-                            {
-                                <span style="font-size: 0.7rem; color: #f59e0b; font-weight: 600;">
-                                    <i class="bi bi-exclamation-circle-fill"></i> Warning Level
-                                </span>
-                            }
+                        <div>
+                            <div style="font-size: 0.65rem; color: #6b7280; text-transform: uppercase; font-weight: 700;">Spent</div>
+                            <div style="font-size: 0.9rem; font-weight: 700; color: #dc2626;">₱@spent.ToString("N2")</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.65rem; color: #6b7280; text-transform: uppercase; font-weight: 700;">Available</div>
+                            <div style="font-size: 0.9rem; font-weight: 700; color: #16a34a;">₱@selectedBudgetBalance.Value.ToString("N2")</div>
                         </div>
                     </div>
                 }
             }
         </div>
+
+        @if (selectedBudgetId.HasValue && selectedBudgetBalance.HasValue)
+        {
+            var budget = availableBudgets.FirstOrDefault(b => b.BudgetId == selectedBudgetId.Value);
+            if (budget != null)
+            {
+                var spent = budgetSpent.ContainsKey(budget.BudgetId) ? budgetSpent[budget.BudgetId] : 0m;
+                var percentUsed = budget.TotalAmount > 0 ? (spent / budget.TotalAmount * 100) : 0;
+
+                <div style="margin-top: 10px;">
+                    <div class="progress-shell" style="height: 6px;">
+                        <div class="progress-bar"
+                             style="width: @percentUsed%; background: @(percentUsed > 90 ? "#dc2626" : percentUsed > 75 ? "#f59e0b" : "#16a34a");"></div>
+                    </div>
+                </div>
+            }
+        }
+    </div>
+
+    @* --- MAIN ITEMS LIST --- *@
+    <section class="panel">
+        <header class="panel-head">
+            <h2 class="panel-title">Items List</h2>
+            <div class="panel-actions">
+                <input class="mini-input"
+                       placeholder="Search name or SKU…"
+                       @bind="search"
+                       @bind:event="oninput"
+                       @onkeyup="ResetPagination" />
+
+                <select class="mini-input" @bind="stockFilter" @bind:after="ResetPagination">
+                    <option value="">Stock State</option>
+                    <option value="low">Low</option>
+                    <option value="out">Out</option>
+                    <option value="ok">OK</option>
+                </select>
+
+                <select class="mini-input" @bind="sortBy" @bind:after="ResetPagination">
+                    <option value="name_asc">Name A→Z</option>
+                    <option value="qty_desc">Qty High→Low</option>
+                    <option value="qty_asc">Qty Low→High</option>
+                </select>
+
+                <button class="mini-btn" @onclick="ToggleView">
+                    <i class="bi @(isCardView ? "bi-table" : "bi-grid")"></i>
+                    @(isCardView ? "Table" : "Cards")
+                </button>
+
+                <button class="mini-btn" @onclick="ClearFilters">Clear</button>
+
+                <button class="mini-btn btn-primary" @onclick="OpenAddModal">
+                    <i class="bi bi-plus-circle"></i> Add Item
+                </button>
+            </div>
+        </header>
 
         @if (!isCardView)
         {
@@ -174,24 +199,28 @@
                             <th class="t-right col-qty">Qty</th>
                             <th class="t-right col-reorder">Reorder</th>
                             <th class="col-unit">Unit</th>
-                            <th class="col-status">Status</th>
-                            <th class="col-updated">Updated</th>
-                            <th style="width:100px">Actions</th>
+                            <th class="t-center col-status">Status</th>
+                            <th class="t-right col-updated">Updated</th>
+                            <th class="t-center" style="width:100px">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var it in FilteredItems)
+                        @foreach (var it in PagedItems)
                         {
                             <tr>
                                 <td class="t-center col-sku">@it.Sku</td>
-                                <td class="col-name">@it.Name</td>
-                                <td class="t-right col-qty">@it.Quantity</td>
+                                <td class="col-name"><strong>@it.Name</strong></td>
+                                <td class="t-right col-qty"><span class="amount-text">@it.Quantity</span></td>
                                 <td class="t-right col-reorder">@it.ReorderLevel</td>
                                 <td class="col-unit">@it.Unit</td>
-                                <td class="col-status">
-                                    <span class="status-chip @StatusClass(it)">@StatusText(it)</span>
+
+                                <td class="t-center col-status">
+                                    <span style="font-weight: 700; font-size: 0.7rem; text-transform: uppercase; color: @GetStatusColor(it)">
+                                        @StatusText(it)
+                                    </span>
                                 </td>
-                                <td class="col-updated">@it.LastUpdated.ToString("MMM dd HH:mm")</td>
+
+                                <td class="t-right col-updated text-muted">@it.LastUpdated.ToString("MMM dd HH:mm")</td>
                                 <td class="action-cell">
                                     <button class="action-btn edit"
                                             @onclick="() => OpenEditModal(it)"
@@ -201,10 +230,13 @@
                                 </td>
                             </tr>
                         }
-                        @if (!FilteredItems.Any())
+                        @if (!PagedItems.Any())
                         {
                             <tr>
-                                <td colspan="8" class="t-center text-muted">No items match your filters.</td>
+                                <td colspan="8" class="empty-state">
+                                    <div class="empty-icon"><i class="bi bi-inbox"></i></div>
+                                    <div class="empty-text">No items match your filters</div>
+                                </td>
                             </tr>
                         }
                     </tbody>
@@ -215,7 +247,7 @@
         {
             <!-- CARDS VIEW -->
             <div class="cards-grid">
-                @foreach (var it in FilteredItems)
+                @foreach (var it in PagedItems)
                 {
                     <div class="item-card @(IsOut(it) ? "card-out" : IsLow(it) ? "card-low" : "card-ok")">
                         <div class="ic-top">
@@ -223,7 +255,9 @@
                             <div class="ic-sku">@it.Sku</div>
                         </div>
                         <div class="ic-row">
-                            <span class="status-chip @StatusClass(it)">@StatusText(it)</span>
+                            <span style="font-weight: 700; font-size: 0.65rem; text-transform: uppercase; color: @GetStatusColor(it)">
+                                @StatusText(it)
+                            </span>
                             <span class="ic-unit">@it.Unit</span>
                         </div>
                         <div class="ic-row ic-qty">
@@ -232,34 +266,49 @@
                             <span>reorder <strong>@it.ReorderLevel</strong></span>
                         </div>
                         <div class="progress-shell thin" aria-label="Stock %">
-                            <div class="progress-bar" style="width:@(StockPercent(it))%"></div>
+                            <div class="progress-bar" style="width:@(StockPercent(it))%; background: @GetStatusColor(it)"></div>
                         </div>
                         <div class="ic-meta">
                             <span class="time">@it.LastUpdated.ToString("MMM dd HH:mm")</span>
+                            <button class="mini-btn" style="padding: 2px 8px; height: 24px;" @onclick="() => OpenEditModal(it)">Edit</button>
                         </div>
                     </div>
                 }
-                @if (!FilteredItems.Any())
+                @if (!PagedItems.Any())
                 {
-                    <div class="text-muted" style="padding:10px;font-size:.75rem;">
-                        No items match your filters.
+                    <div class="empty-state">
+                        <div class="empty-text">No items found</div>
                     </div>
                 }
             </div>
         }
 
+        <!-- PAGINATION FOOTER -->
         <footer class="panel-foot">
-            <div>
-                Showing @FilteredItems.Count() of @BaseItems.Count() items in @DisplayCategory
+            <div class="foot-left">
+                <i class="bi bi-info-circle"></i>
+                Showing @StartIndex–@EndIndex of @TotalFiltered items
+            </div>
+            <div class="foot-right">
+                <label class="foot-label">Rows</label>
+                <select class="mini-input" @bind="_pageSize" style="width: auto; min-width: 60px;" @bind:after="ResetPagination">
+                    <option>10</option>
+                    <option>20</option>
+                    <option>50</option>
+                </select>
+                <button class="mini-btn" @onclick="PrevPage" disabled="@(_pageIndex == 0)">Prev</button>
+                <span class="page-indicator">Page @(_pageIndex + 1) / @TotalPages</span>
+                <button class="mini-btn" @onclick="NextPage" disabled="@(_pageIndex >= TotalPages - 1)">Next</button>
             </div>
         </footer>
     </section>
 
-    @* Add Inventory Item modal – Enhanced with cost and budget *@
+    @* --- ADD MODAL (CLEAN - NO CLICK HANDLERS ON CONTAINERS) --- *@
     @if (showAdd)
     {
-        <div class="modal-overlay" @onclick="async () => await CloseAdd()" @onclick:stopPropagation="false">
-            <div class="modal-dialog" @onclick:stopPropagation="true" style="max-width: 600px;">
+        @* FIX: No @onclick on overlay. No @onclick on dialog. Inputs will work. *@
+        <div class="modal-overlay">
+            <div class="modal-dialog" style="max-width: 600px;">
                 <div class="modal-header">
                     <h3>Add Inventory Item</h3>
                     <button class="modal-close" @onclick="async () => await CloseAdd()">&times;</button>
@@ -349,9 +398,9 @@
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="invQty">Initial Quantity *</label>
-                                <input id="invQty" 
-                                       type="number" 
-                                       class="form-control" 
+                                <input id="invQty"
+                                       type="number"
+                                       class="form-control"
                                        @bind="newQty"
                                        @bind:event="oninput"
                                        @onchange="CalculateTotalCost"
@@ -366,10 +415,10 @@
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="invUnitCost">Unit Cost (₱) *</label>
-                                <input id="invUnitCost" 
-                                       type="number" 
-                                       step="0.01" 
-                                       class="form-control" 
+                                <input id="invUnitCost"
+                                       type="number"
+                                       step="0.01"
+                                       class="form-control"
                                        @bind="newUnitCost"
                                        @bind:event="oninput"
                                        @onchange="CalculateTotalCost"
@@ -379,8 +428,8 @@
                             </div>
                             <div class="form-group">
                                 <label for="invBudget">Barangay Budget</label>
-                                <select id="invBudget" 
-                                        class="form-control" 
+                                <select id="invBudget"
+                                        class="form-control"
                                         @bind="selectedBudgetId"
                                         @bind:after="OnBudgetChanged">
                                     <option value="">-- No Budget --</option>
@@ -419,7 +468,7 @@
                                     @if (selectedBudgetBalance.Value - totalCost < 0)
                                     {
                                         <div class="alert-warning" style="margin-top: 8px; padding: 8px; background: #fef3c7; border: 1px solid #fde68a; border-radius: 6px; font-size: 0.75rem;">
-                                            <i class="bi bi-exclamation-triangle"></i> Insufficient budget! 
+                                            <i class="bi bi-exclamation-triangle"></i> Insufficient budget!
                                             Short by ₱@((totalCost - selectedBudgetBalance.Value).ToString("N2"))
                                         </div>
                                     }
@@ -427,20 +476,6 @@
                             </div>
                         }
                     </div>
-
-                    @if (newQty > 0 && newMaxCapacity > 0)
-                    {
-                        var pct = Math.Round((newQty * 100.0m) / newMaxCapacity, 1);
-                        var status = pct == 0 ? "Empty" : pct <= 25 ? "Low" : pct < 75 ? "Medium" : "High";
-                        <div class="form-row" style="margin-top: 12px;">
-                            <div class="form-group">
-                                <label>Predicted Stock Status</label>
-                                <div>
-                                    <span class="status-chip st-@status.ToLower()">@status (@pct%)</span>
-                                </div>
-                            </div>
-                        </div>
-                    }
 
                     @if (!string.IsNullOrEmpty(addError))
                     {
@@ -472,11 +507,12 @@
         </div>
     }
 
-    @* Edit Inventory Item modal *@
+    @* --- EDIT MODAL (CLEAN - NO CLICK HANDLERS ON CONTAINERS) --- *@
     @if (showEdit)
     {
-        <div class="modal-overlay" @onclick="async () => await CloseEdit()" @onclick:stopPropagation="false">
-            <div class="modal-dialog" @onclick:stopPropagation="true" style="max-width: 600px;">
+        @* FIX: No @onclick on overlay. No @onclick on dialog. Inputs will work. *@
+        <div class="modal-overlay">
+            <div class="modal-dialog" style="max-width: 600px;">
                 <div class="modal-header">
                     <h3>Edit Inventory Item</h3>
                     <button class="modal-close" @onclick="async () => await CloseEdit()">&times;</button>
@@ -651,6 +687,10 @@
     private string sortBy = "name_asc";
     private bool isCardView = false;
 
+    // Pagination state (ADDED)
+    private int _pageIndex = 0;
+    private int _pageSize = 10;
+
     // Add modal state
     private bool showAdd;
     private bool saving;
@@ -699,7 +739,6 @@
             c.CategoryType != null &&
             (c.CategoryType.TypeCode == 'P' || c.CategoryType.TypeCode == 'M'));
 
-    // FIX: Add a semaphore to prevent concurrent DbContext access
     private readonly SemaphoreSlim _loadSemaphore = new(1, 1);
 
     protected override async Task OnInitializedAsync()
@@ -707,25 +746,22 @@
         allCategories = await CategorySvc.GetAllAsync();
         await LoadBudgetsAsync();
         await LoadItemsAsync();
-        
-        // Subscribe to budget changes
         BudgetState.OnBudgetChanged += HandleBudgetChanged;
     }
 
     protected override async Task OnParametersSetAsync()
     {
+        _pageIndex = 0; // Reset page on category change
         await LoadItemsAsync();
     }
 
-    // FIX: Use DbContextFactory to create isolated DbContext instances
     private async Task LoadBudgetsAsync()
     {
-        await _loadSemaphore.WaitAsync(); // Prevent concurrent execution
+        await _loadSemaphore.WaitAsync();
         try
         {
-            await using var db = await DbFactory.CreateDbContextAsync(); // Create new isolated context
-            
-            // Load Approved and Draft budgets
+            await using var db = await DbFactory.CreateDbContextAsync();
+
             availableBudgets = await db.BarangayBudgets
                 .Where(b => b.Status == "Approved" || b.Status == "Draft")
                 .OrderByDescending(b => b.Year)
@@ -733,7 +769,6 @@
                 .AsNoTracking()
                 .ToListAsync();
 
-            // Calculate spent amount for each budget
             budgetSpent.Clear();
             foreach (var budget in availableBudgets)
             {
@@ -741,12 +776,9 @@
                     .Where(i => i.BudgetId == budget.BudgetId)
                     .SumAsync(i => i.Amount);
                 budgetSpent[budget.BudgetId] = spent;
-                
-                // Update shared state
+
                 BudgetState.UpdateBudgetBalance(budget.BudgetId, budget.TotalAmount - spent);
             }
-            
-            System.Diagnostics.Debug.WriteLine($"Loaded {availableBudgets.Count} budgets successfully");
         }
         catch (Exception ex)
         {
@@ -755,7 +787,7 @@
         }
         finally
         {
-            _loadSemaphore.Release(); // Release the semaphore
+            _loadSemaphore.Release();
         }
     }
 
@@ -860,6 +892,28 @@
         }
     }
 
+    // Pagination Properties
+    private int TotalFiltered => FilteredItems.Count();
+    private int TotalPages => Math.Max((int)Math.Ceiling(TotalFiltered / (double)_pageSize), 1);
+    private int StartIndex => TotalFiltered == 0 ? 0 : (_pageIndex * _pageSize) + 1;
+    private int EndIndex => Math.Min((_pageIndex + 1) * _pageSize, TotalFiltered);
+    private IEnumerable<Item> PagedItems => FilteredItems.Skip(_pageIndex * _pageSize).Take(_pageSize);
+
+    private void NextPage()
+    {
+        if (_pageIndex < TotalPages - 1) _pageIndex++;
+    }
+
+    private void PrevPage()
+    {
+        if (_pageIndex > 0) _pageIndex--;
+    }
+
+    private void ResetPagination()
+    {
+        _pageIndex = 0;
+    }
+
     private int LowCount => BaseItems.Count(IsLow);
     private int OutCount => BaseItems.Count(IsOut);
 
@@ -877,9 +931,11 @@
         IsOut(i) ? "OUT" :
         IsLow(i) ? "LOW" : "OK";
 
-    private string StatusClass(Item i) =>
-        IsOut(i) ? "st-out" :
-        IsLow(i) ? "st-low" : "st-ok";
+    // Replaces StatusClass - returns color hex
+    private string GetStatusColor(Item i) =>
+        IsOut(i) ? "#dc2626" :
+        IsLow(i) ? "#d97706" :
+        "#16a34a";
 
     private void ToggleView() => isCardView = !isCardView;
 
@@ -888,6 +944,7 @@
         search = string.Empty;
         stockFilter = string.Empty;
         sortBy = "name_asc";
+        ResetPagination();
     }
 
     private void GoOverview() => Nav.NavigateTo("/inventory");
@@ -899,18 +956,9 @@
     {
         showAdd = true;
         addError = string.Empty;
-        newName = "";
-        newSku = "";
-        newUnit = "";
-        newDesc = "";
-        newQty = 0;
-        newMaxCapacity = 1000;
-        newExpirationDate = null;
-        newUnitCost = 0m;
-        selectedBudgetId = null;
-        totalCost = 0m;
-        selectedBudgetBalance = null;
-
+        newName = ""; newSku = ""; newUnit = ""; newDesc = "";
+        newQty = 0; newMaxCapacity = 1000; newExpirationDate = null;
+        newUnitCost = 0m; selectedBudgetId = null; totalCost = 0m; selectedBudgetBalance = null;
         selectedCategoryId = null;
 
         var slug = categorySlug.ToLowerInvariant();
@@ -922,36 +970,22 @@
                 (slug == "medical" && c.CategoryType.TypeCode == 'M') ||
                 (slug == "others" && c.CategoryType.TypeCode == 'O')
             ));
-            if (autoCat != null)
-                selectedCategoryId = autoCat.CategoryId;
+            if (autoCat != null) selectedCategoryId = autoCat.CategoryId;
         }
     }
-    
-    // Add method to get filtered categories for the current type
+
     private IEnumerable<Category> GetFilteredCategoriesForModal()
     {
         var typeCode = CurrentCategoryTypeCode;
-        
-        // If we're on a specific category type page, only show categories of that type
-        if (typeCode.HasValue)
-        {
-            return allCategories.Where(c => 
-                c.CategoryType != null && 
-                c.CategoryType.TypeCode == typeCode.Value);
-        }
-        
-        // Otherwise show all categories
+        if (typeCode.HasValue) return allCategories.Where(c => c.CategoryType != null && c.CategoryType.TypeCode == typeCode.Value);
         return allCategories;
     }
 
     private async Task CloseAdd()
     {
         if (saving) return;
-        
-        // Ask for confirmation before closing
         var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "Are you sure you want to close this form? Any unsaved changes will be lost.");
         if (!confirmed) return;
-        
         showAdd = false;
     }
 
@@ -961,7 +995,6 @@
         StateHasChanged();
     }
 
-    // FIX: Make OnBudgetChanged synchronous to avoid race conditions
     private void OnBudgetChanged()
     {
         try
@@ -973,101 +1006,37 @@
                 {
                     var spent = budgetSpent[selectedBudgetId.Value];
                     selectedBudgetBalance = budget.TotalAmount - spent;
-                    
-                    System.Diagnostics.Debug.WriteLine($"Budget: {budget.BarangayName}");
-                    System.Diagnostics.Debug.WriteLine($"Total: ₱{budget.TotalAmount:N2}");
-                    System.Diagnostics.Debug.WriteLine($"Spent: ₱{spent:N2}");
-                    System.Diagnostics.Debug.WriteLine($"Available: ₱{selectedBudgetBalance.Value:N2}");
                 }
-                else
-                {
-                    selectedBudgetBalance = null;
-                }
+                else selectedBudgetBalance = null;
             }
-            else
-            {
-                selectedBudgetBalance = null;
-            }
+            else selectedBudgetBalance = null;
         }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"Error in OnBudgetChanged: {ex.Message}");
-        }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Error in OnBudgetChanged: {ex.Message}"); }
     }
 
     private async Task SaveNew()
     {
         if (saving) return;
-        
-        // Use semaphore to prevent concurrent saves
-        if (!await _loadSemaphore.WaitAsync(0)) // Try to acquire immediately
-        {
-            addError = "Another operation is in progress. Please wait...";
-            return;
-        }
-
+        if (!await _loadSemaphore.WaitAsync(0)) { addError = "Another operation is in progress. Please wait..."; return; }
         addError = string.Empty;
-
         try
         {
             saving = true;
-
-            // Validation
-            if (string.IsNullOrWhiteSpace(newName) || string.IsNullOrWhiteSpace(newUnit))
-            {
-                addError = "Name and Unit are required.";
-                return;
-            }
-
-            if (!selectedCategoryId.HasValue)
-            {
-                addError = "Please select a category.";
-                return;
-            }
-
-            // ✅ NEW: Validate category type matches current page type
+            if (string.IsNullOrWhiteSpace(newName) || string.IsNullOrWhiteSpace(newUnit)) { addError = "Name and Unit are required."; return; }
+            if (!selectedCategoryId.HasValue) { addError = "Please select a category."; return; }
             var typeCode = CurrentCategoryTypeCode;
             if (typeCode.HasValue)
             {
                 var selectedCategory = allCategories.FirstOrDefault(c => c.CategoryId == selectedCategoryId.Value);
                 if (selectedCategory?.CategoryType == null || selectedCategory.CategoryType.TypeCode != typeCode.Value)
                 {
-                    var typeName = typeCode.Value switch
-                    {
-                        'P' => "Perishable",
-                        'N' => "Non-Perishable",
-                        'M' => "Medical",
-                        'O' => "Others",
-                        _ => "this type"
-                    };
-                    addError = $"You can only add {typeName} items on this page. The selected category does not match the required type.";
-                    return;
+                    addError = $"Category type mismatch."; return;
                 }
             }
-
-            if (RequiresExpiration && !newExpirationDate.HasValue)
-            {
-                addError = "Expiration date is required for this item.";
-                return;
-            }
-
-            if (newExpirationDate.HasValue && newExpirationDate.Value < DateTime.Today)
-            {
-                addError = "Expiration date cannot be in the past.";
-                return;
-            }
-
-            if (newQty > 0 && newUnitCost <= 0)
-            {
-                addError = "Unit cost is required when adding initial quantity.";
-                return;
-            }
-
-            if (selectedBudgetId.HasValue && selectedBudgetBalance.HasValue && totalCost > selectedBudgetBalance.Value)
-            {
-                addError = $"Insufficient budget. Available: ₱{selectedBudgetBalance.Value:N2}, Required: ₱{totalCost:N2}";
-                return;
-            }
+            if (RequiresExpiration && !newExpirationDate.HasValue) { addError = "Expiration date is required."; return; }
+            if (newExpirationDate.HasValue && newExpirationDate.Value < DateTime.Today) { addError = "Expiration date cannot be in the past."; return; }
+            if (newQty > 0 && newUnitCost <= 0) { addError = "Unit cost is required when adding initial quantity."; return; }
+            if (selectedBudgetId.HasValue && selectedBudgetBalance.HasValue && totalCost > selectedBudgetBalance.Value) { addError = "Insufficient budget."; return; }
 
             var rg = new ReliefGood
             {
@@ -1078,247 +1047,95 @@
                 ExpirationDate = RequiresExpiration ? newExpirationDate : null,
                 RequiresExpiration = RequiresExpiration
             };
-
             var catIds = new List<int> { selectedCategoryId.Value };
-            
-            // Use the enhanced CreateAsync with cost and budget support
-            var result = await InventorySvc.CreateAsync(
-                rg, 
-                catIds, 
-                newQty, 
-                newUnitCost, 
-                selectedBudgetId
-            );
+            var result = await InventorySvc.CreateAsync(rg, catIds, newQty, newUnitCost, selectedBudgetId);
 
-            if (result.error != null)
-            {
-                addError = result.error;
-                return;
-            }
+            if (result.error != null) { addError = result.error; return; }
 
-            // Reload budgets and notify all components
             await LoadBudgetsAsync();
-            BudgetState.NotifyBudgetChanged(); // 🔔 Notify all components
-            
-            if (selectedBudgetId.HasValue)
-            {
-                OnBudgetChanged();
-                
-                var budget = availableBudgets.FirstOrDefault(b => b.BudgetId == selectedBudgetId.Value);
-                if (budget != null)
-                {
-                    var message = $"✅ Inventory Item Added Successfully!\n\n" +
-                                 $"Item: {newName}\n" +
-                                 $"Quantity: {newQty} {newUnit}\n" +
-                                 $"Unit Cost: ₱{newUnitCost:N2}\n" +
-                                 $"Total Cost: ₱{totalCost:N2}\n\n" +
-                                 $"📊 Budget Update:\n" +
-                                 $"Budget: {budget.BarangayName} ({budget.Year})\n" +
-                                 $"Amount Deducted: ₱{totalCost:N2}\n" +
-                                 $"New Balance: ₱{selectedBudgetBalance?.ToString("N2") ?? "N/A"}";
-                    
-                    await JSRuntime.InvokeVoidAsync("showToast", 
-                        $"Item '{newName}' added! ₱{totalCost:N2} deducted from {budget.BarangayName} budget.", 
-                        "success");
-                }
-            }
-            else
-            {
-                await JSRuntime.InvokeVoidAsync("showToast", $"Item '{newName}' added successfully!", "success");
-            }
-            
+            BudgetState.NotifyBudgetChanged();
+            if (selectedBudgetId.HasValue) OnBudgetChanged();
             await LoadItemsAsync();
-            showAdd = false;
-            saving = false;
-            _loadSemaphore.Release();
-            StateHasChanged();
+            showAdd = false; saving = false; _loadSemaphore.Release(); StateHasChanged();
         }
-        catch (Exception ex)
-        {
-            addError = $"Error: {ex.Message}";
-            System.Diagnostics.Debug.WriteLine($"SaveNew error: {ex}");
-            saving = false;
-            _loadSemaphore.Release();
-            StateHasChanged();
-        }
+        catch (Exception ex) { addError = $"Error: {ex.Message}"; saving = false; _loadSemaphore.Release(); StateHasChanged(); }
     }
 
-    private void HandleBudgetChanged()
-    {
-        // Reload budgets when notified of changes
-        InvokeAsync(async () =>
-        {
-            await LoadBudgetsAsync();
-            StateHasChanged();
-        });
-    }
+    private void HandleBudgetChanged() { InvokeAsync(async () => { await LoadBudgetsAsync(); StateHasChanged(); }); }
 
     private async void OpenEditModal(Item item)
     {
-        showEdit = true;
-        editError = string.Empty;
-
-        // Parse RG ID from SKU (format: "RG-3002")
+        showEdit = true; editError = string.Empty;
         if (int.TryParse(item.Sku.Replace("RG-", ""), out int rgId))
         {
             editRgId = rgId;
             var reliefGood = await InventorySvc.GetByIdAsync(rgId);
-            
             if (reliefGood != null)
             {
-                editName = reliefGood.Name;
-                editSku = item.Sku;
-                editUnit = reliefGood.Unit;
-                editDesc = reliefGood.Description ?? "";
-                editCategoryId = reliefGood.Categories.FirstOrDefault()?.CategoryId;
+                editName = reliefGood.Name; editSku = item.Sku; editUnit = reliefGood.Unit;
+                editDesc = reliefGood.Description ?? ""; editCategoryId = reliefGood.Categories.FirstOrDefault()?.CategoryId;
                 editExpirationDate = reliefGood.ExpirationDate;
             }
-            else
-            {
-                editError = "Item not found.";
-            }
+            else editError = "Item not found.";
         }
-        
         StateHasChanged();
     }
 
     private async Task CloseEdit()
     {
         if (saving) return;
-        
-        // Ask for confirmation before closing
-        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "Are you sure you want to close this form? Any unsaved changes will be lost.");
+        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "Are you sure you want to close? Unsaved changes will be lost.");
         if (!confirmed) return;
-        
-        showEdit = false;
-        editError = string.Empty;
+        showEdit = false; editError = string.Empty;
     }
 
     private async Task SaveEdit()
     {
         if (saving) return;
         editError = string.Empty;
-
-        // Validation
-        if (string.IsNullOrWhiteSpace(editName) || string.IsNullOrWhiteSpace(editUnit))
-        {
-            editError = "Name and Unit are required.";
-            return;
-        }
-
-        if (!editCategoryId.HasValue)
-        {
-            editError = "Please select a category.";
-            return;
-        }
-
-        if (editRequiresExpiration && !editExpirationDate.HasValue)
-        {
-            editError = "Expiration date is required for this item.";
-            return;
-        }
-
-        if (editExpirationDate.HasValue && editExpirationDate.Value < DateTime.Today)
-        {
-            editError = "Expiration date cannot be in the past.";
-            return;
-        }
-
+        if (string.IsNullOrWhiteSpace(editName) || string.IsNullOrWhiteSpace(editUnit)) { editError = "Name/Unit required."; return; }
+        if (!editCategoryId.HasValue) { editError = "Category required."; return; }
+        if (editRequiresExpiration && !editExpirationDate.HasValue) { editError = "Expiration required."; return; }
         saving = true;
         try
         {
             var reliefGood = await InventorySvc.GetByIdAsync(editRgId);
-            if (reliefGood == null)
-            {
-                editError = "Item not found.";
-                return;
-            }
-
-            reliefGood.Name = editName.Trim();
-            reliefGood.Unit = editUnit.Trim();
-            reliefGood.Description = string.IsNullOrWhiteSpace(editDesc) ? null : editDesc.Trim();
-            reliefGood.ExpirationDate = editExpirationDate;
-            reliefGood.RequiresExpiration = editRequiresExpiration;
-
+            if (reliefGood == null) { editError = "Item not found."; return; }
+            reliefGood.Name = editName.Trim(); reliefGood.Unit = editUnit.Trim(); reliefGood.Description = editDesc?.Trim();
+            reliefGood.ExpirationDate = editExpirationDate; reliefGood.RequiresExpiration = editRequiresExpiration;
             var catIds = new List<int> { editCategoryId.Value };
             var result = await InventorySvc.UpdateAsync(editRgId, reliefGood, catIds);
-
-            if (result.error != null)
-            {
-                editError = result.error;
-                return;
-            }
-
-            await LoadItemsAsync();
-            showEdit = false;
+            if (result.error != null) { editError = result.error; return; }
+            await LoadItemsAsync(); showEdit = false;
         }
-        catch (Exception ex)
-        {
-            editError = $"Error: {ex.Message}";
-        }
-        finally
-        {
-            saving = false;
-            await InvokeAsync(StateHasChanged);
-        }
+        catch (Exception ex) { editError = $"Error: {ex.Message}"; }
+        finally { saving = false; await InvokeAsync(StateHasChanged); }
     }
 
     private async Task DeleteItem()
     {
         if (saving) return;
-        
-        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", 
-            $"Are you sure you want to delete '{editName}'? This action cannot be undone.");
-        
+        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", $"Delete '{editName}'?");
         if (!confirmed) return;
-
         saving = true;
         try
         {
             var (ok, error) = await InventorySvc.DeleteAsync(editRgId, softIfStock: true);
-
-            if (!ok && error != null)
-            {
-                editError = error;
-                return;
-            }
-
-            await LoadItemsAsync();
-            showEdit = false;
+            if (!ok && error != null) { editError = error; return; }
+            await LoadItemsAsync(); showEdit = false;
         }
-        catch (Exception ex)
-        {
-            editError = $"Error: {ex.Message}";
-        }
-        finally
-        {
-            saving = false;
-            await InvokeAsync(StateHasChanged);
-        }
+        catch (Exception ex) { editError = $"Error: {ex.Message}"; }
+        finally { saving = false; await InvokeAsync(StateHasChanged); }
     }
 
     private char? CurrentCategoryTypeCode
     {
         get
         {
-            if (string.IsNullOrWhiteSpace(categorySlug))
-                return null;
-                
+            if (string.IsNullOrWhiteSpace(categorySlug)) return null;
             var slug = categorySlug.ToLowerInvariant();
-            
-            return slug switch
-            {
-                "perishable" => 'P',
-                "medical" => 'M',
-                "non-perishable" => 'N',
-                "others" => 'O',
-                _ => null
-            };
+            return slug switch { "perishable" => 'P', "medical" => 'M', "non-perishable" => 'N', "others" => 'O', _ => null };
         }
     }
-
-    public void Dispose()
-    {
-        // Add cleanup logic here if needed.
-    }
+    public void Dispose() { }
 }

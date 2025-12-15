@@ -19,16 +19,31 @@
         </header>
         <div class="kpi-grid">
             <div class="kpi-card">
-                <div class="kpi-label">Active</div>
-                <div class="kpi-value text-accent">@ActiveCount</div>
+                <div class="kpi-icon">
+                    <i class="bi bi-exclamation-triangle"></i>
+                </div>
+                <div class="kpi-content">
+                    <div class="kpi-label">Active</div>
+                    <div class="kpi-value">@ActiveCount</div>
+                </div>
             </div>
             <div class="kpi-card">
-                <div class="kpi-label">Total</div>
-                <div class="kpi-value">@AllDisasters.Count</div>
+                <div class="kpi-icon">
+                    <i class="bi bi-collection"></i>
+                </div>
+                <div class="kpi-content">
+                    <div class="kpi-label">Total</div>
+                    <div class="kpi-value">@AllDisasters.Count</div>
+                </div>
             </div>
             <div class="kpi-card">
-                <div class="kpi-label">Open / Active</div>
-                <div class="kpi-value">@OpenOrActiveCount</div>
+                <div class="kpi-icon">
+                    <i class="bi bi-hourglass-split"></i>
+                </div>
+                <div class="kpi-content">
+                    <div class="kpi-label">Open / Active</div>
+                    <div class="kpi-value">@OpenOrActiveCount</div>
+                </div>
             </div>
         </div>
     </section>
@@ -54,6 +69,10 @@
                     <option value="Contained">Contained</option>
                     <option value="Closed">Closed</option>
                 </select>
+                <select class="mini-input" @bind="sortBy">
+                    <option value="start_desc">Start: Newest</option>
+                    <option value="title_asc">Title: A → Z</option>
+                </select>
                 <button class="mini-btn" @onclick="ClearFilters">Clear</button>
             </div>
         </header>
@@ -62,7 +81,6 @@
             <table class="dash-table">
                 <thead>
                     <tr>
-                        <th style="width:60px">ID</th>
                         <th>Title</th>
                         <th>Type</th>
                         <th>Severity</th>
@@ -74,10 +92,9 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var disaster in FilteredDisasters)
+                    @foreach (var disaster in PagedDisasters)
                     {
                         <tr>
-                            <td class="t-center">#@disaster.DisasterId</td>
                             <td><strong>@disaster.Title</strong></td>
                             <td>@disaster.DisasterType</td>
                             <td><span class="sev @SevClass(disaster.Severity)">@disaster.Severity</span></td>
@@ -98,11 +115,31 @@
                             </td>
                         </tr>
                     }
+                    @if (!PagedDisasters.Any())
+                    {
+                        <tr>
+                            <td colspan="8" class="t-center text-muted">No results.</td>
+                        </tr>
+                    }
                 </tbody>
             </table>
         </div>
+
         <footer class="panel-foot">
-            <span>Showing @FilteredDisasters.Count() of @AllDisasters.Count disasters</span>
+            <div class="foot-left">
+                Showing @StartIndex–@EndIndex of @TotalFiltered disasters
+            </div>
+            <div class="foot-right">
+                <label class="foot-label">Rows</label>
+                <select class="mini-input" @bind="pageSize">
+                    <option>10</option>
+                    <option>20</option>
+                    <option>50</option>
+                </select>
+                <button class="mini-btn" @onclick="PrevPage" disabled="@(_pageIndex == 0)">Prev</button>
+                <span class="page-indicator">Page @(_pageIndex + 1) / @TotalPages</span>
+                <button class="mini-btn" @onclick="NextPage" disabled="@(_pageIndex >= TotalPages - 1)">Next</button>
+            </div>
         </footer>
     </section>
 </div>
@@ -306,6 +343,11 @@
     private string search = string.Empty;
     private string severityFilter = string.Empty;
     private string statusFilter = string.Empty;
+    private string sortBy = "start_desc";
+
+    // Pagination - matching Evacuees style
+    private int _pageIndex = 0;
+    private int pageSize = 10;
 
     // Modal states
     private bool showModal = false;
@@ -334,14 +376,39 @@
         }
     }
 
-    private IEnumerable<Disaster> FilteredDisasters => AllDisasters
-        .Where(d => string.IsNullOrWhiteSpace(search)
-                    || d.Title.Contains(search, StringComparison.OrdinalIgnoreCase)
-                    || d.DisasterType.Contains(search, StringComparison.OrdinalIgnoreCase)
-                    || d.Location.Contains(search, StringComparison.OrdinalIgnoreCase))
-        .Where(d => string.IsNullOrWhiteSpace(severityFilter) || d.Severity.Equals(severityFilter, StringComparison.OrdinalIgnoreCase))
-        .Where(d => string.IsNullOrWhiteSpace(statusFilter) || d.Status.Equals(statusFilter, StringComparison.OrdinalIgnoreCase))
-        .OrderByDescending(d => d.StartDate);
+    private IEnumerable<Disaster> Query
+    {
+        get
+        {
+            var q = AllDisasters.AsEnumerable();
+            
+            if (!string.IsNullOrWhiteSpace(search))
+                q = q.Where(d => d.Title.Contains(search, StringComparison.OrdinalIgnoreCase)
+                            || d.DisasterType.Contains(search, StringComparison.OrdinalIgnoreCase)
+                            || d.Location.Contains(search, StringComparison.OrdinalIgnoreCase));
+            
+            if (!string.IsNullOrWhiteSpace(severityFilter))
+                q = q.Where(d => d.Severity.Equals(severityFilter, StringComparison.OrdinalIgnoreCase));
+            
+            if (!string.IsNullOrWhiteSpace(statusFilter))
+                q = q.Where(d => d.Status.Equals(statusFilter, StringComparison.OrdinalIgnoreCase));
+            
+            return Sort(q);
+        }
+    }
+
+    private IEnumerable<Disaster> Sort(IEnumerable<Disaster> source) =>
+        sortBy switch
+        {
+            "title_asc" => source.OrderBy(d => d.Title),
+            _ => source.OrderByDescending(d => d.StartDate)
+        };
+
+    private int TotalFiltered => Query.Count();
+    private int TotalPages => Math.Max((int)Math.Ceiling(TotalFiltered / (double)pageSize), 1);
+    private int StartIndex => TotalFiltered == 0 ? 0 : (_pageIndex * pageSize) + 1;
+    private int EndIndex => Math.Min((_pageIndex + 1) * pageSize, TotalFiltered);
+    private IEnumerable<Disaster> PagedDisasters => Query.Skip(_pageIndex * pageSize).Take(pageSize);
 
     private int ActiveCount => AllDisasters.Count(d => d.Status.Equals("Active", StringComparison.OrdinalIgnoreCase));
     private int OpenOrActiveCount => AllDisasters.Count(d => d.Status.Equals("Open", StringComparison.OrdinalIgnoreCase) || d.Status.Equals("Active", StringComparison.OrdinalIgnoreCase));
@@ -363,6 +430,17 @@
         "closed" => "st-monitoring",
         _ => ""
     };
+
+    // Pagination methods - matching Evacuees style
+    private void PrevPage()
+    {
+        if (_pageIndex > 0) _pageIndex--;
+    }
+
+    private void NextPage()
+    {
+        if (_pageIndex < TotalPages - 1) _pageIndex++;
+    }
 
     // Event handler to prevent modal from closing when clicking inside
     private void PreventClose()
@@ -465,6 +543,10 @@
                 await JS.InvokeVoidAsync("alert", "Disaster deleted successfully!");
                 await LoadDisastersAsync();
                 CloseDeleteModal();
+                
+                // Adjust current page if needed
+                if (_pageIndex >= TotalPages && TotalPages > 0)
+                    _pageIndex = TotalPages - 1;
             }
             else
             {
@@ -509,6 +591,7 @@
     private async void Refresh()
     {
         await LoadDisastersAsync();
+        _pageIndex = 0;
         StateHasChanged();
     }
 
@@ -517,5 +600,7 @@
         search = string.Empty;
         severityFilter = string.Empty;
         statusFilter = string.Empty;
+        sortBy = "start_desc";
+        _pageIndex = 0;
     }
 }

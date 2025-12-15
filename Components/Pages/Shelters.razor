@@ -19,16 +19,31 @@
         </header>
         <div class="kpi-grid">
             <div class="kpi-card">
-                <div class="kpi-label">Total Shelters</div>
-                <div class="kpi-value">@All.Count</div>
+                <div class="kpi-icon">
+                    <i class="bi bi-houses"></i>
+                </div>
+                <div class="kpi-content">
+                    <div class="kpi-label">Total Shelters</div>
+                    <div class="kpi-value">@All.Count</div>
+                </div>
             </div>
             <div class="kpi-card">
-                <div class="kpi-label">Active</div>
-                <div class="kpi-value text-accent">@All.Count(s => s.IsActive)</div>
+                <div class="kpi-icon">
+                    <i class="bi bi-check-circle"></i>
+                </div>
+                <div class="kpi-content">
+                    <div class="kpi-label">Active</div>
+                    <div class="kpi-value">@All.Count(s => s.IsActive)</div>
+                </div>
             </div>
             <div class="kpi-card">
-                <div class="kpi-label">Inactive</div>
-                <div class="kpi-value">@All.Count(s => !s.IsActive)</div>
+                <div class="kpi-icon">
+                    <i class="bi bi-x-circle"></i>
+                </div>
+                <div class="kpi-content">
+                    <div class="kpi-label">Inactive</div>
+                    <div class="kpi-value">@All.Count(s => !s.IsActive)</div>
+                </div>
             </div>
         </div>
     </section>
@@ -69,7 +84,6 @@
             <table class="dash-table">
                 <thead>
                     <tr>
-                        <th style="width:60px">ID</th>
                         <th>Name</th>
                         <th>Location</th>
                         <th>Disaster</th>
@@ -83,7 +97,6 @@
                     @foreach (var s in PagedShelters)
                     {
                         <tr>
-                            <td class="t-center">#@s.Id</td>
                             <td>@s.Name</td>
                             <td>@s.Location</td>
                             <td>@s.Disaster</td>
@@ -112,7 +125,7 @@
                     @if (!PagedShelters.Any())
                     {
                         <tr>
-                            <td colspan="8" class="t-center text-muted">No results.</td>
+                            <td colspan="7" class="t-center text-muted">No results.</td>
                         </tr>
                     }
                 </tbody>
@@ -144,7 +157,7 @@
     <div class="modal-overlay" @onclick="CancelForm" @onclick:stopPropagation="false">
         <div class="modal-dialog" @onclick="PreventClose" @onclick:stopPropagation="true">
             <div class="modal-header">
-                <h3>@(editModel.ShelterId == 0 ? "Add Shelter" : $"Edit Shelter #{editModel.ShelterId}")</h3>
+                <h3>@(editModel.ShelterId == 0 ? "Add Shelter" : "Edit Shelter")</h3>
                 <button class="modal-close" @onclick="CancelForm" @onclick:stopPropagation="true">&times;</button>
             </div>
             <div class="modal-body">

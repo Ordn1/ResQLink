@@ -216,48 +216,49 @@ else
                     </div>
                 }
 
+                <!-- Sticky Page Title Bar -->
                 <div class="page-title-bar">
                     <h1 class="page-title">@GetCurrentTitle()</h1>
-                    @if (Auth.CurrentRole != null)
-                    {
-                        <span class="user-role-badge">@Auth.CurrentRole</span>
-                    }
+                    <span class="user-role-badge">@(Auth.CurrentRole ?? "User")</span>
                 </div>
 
-                <ErrorBoundary>
-                    <ChildContent>
-                        @Body
-                    </ChildContent>
-                    <ErrorContent Context="exception">
-                        <div class="error-container">
-                            <div class="error-icon">
-                                <i class="bi bi-exclamation-triangle-fill"></i>
+                <!-- Page Content Wrapper -->
+                <div class="page-content-wrapper">
+                    <ErrorBoundary>
+                        <ChildContent>
+                            @Body
+                        </ChildContent>
+                        <ErrorContent Context="exception">
+                            <div class="error-container">
+                                <div class="error-icon">
+                                    <i class="bi bi-exclamation-triangle-fill"></i>
+                                </div>
+                                <h2 class="error-title">Something went wrong</h2>
+                                <p class="error-message">
+                                    We encountered an unexpected error while loading this page.
+                                    Please try refreshing or contact support if the problem persists.
+                                </p>
+                                <div class="error-actions">
+                                    <button class="btn-primary" @onclick="ReloadPage">
+                                        <i class="bi bi-arrow-clockwise"></i> Refresh Page
+                                    </button>
+                                    <button class="btn-secondary" @onclick='() => SafeNavigate("/home")'>
+                                        <i class="bi bi-house-fill"></i> Go to Dashboard
+                                    </button>
+                                </div>
+                                @if (!string.IsNullOrEmpty(exception?.Message))
+                                {
+                                    <details class="error-details">
+                                        <summary>Technical Details</summary>
+                                        <code>@exception.Message</code>
+                                    </details>
+                                }
                             </div>
-                            <h2 class="error-title">Something went wrong</h2>
-                            <p class="error-message">
-                                We encountered an unexpected error while loading this page.
-                                Please try refreshing or contact support if the problem persists.
-                            </p>
-                            <div class="error-actions">
-                                <button class="btn-primary" @onclick="ReloadPage">
-                                    <i class="bi bi-arrow-clockwise"></i> Refresh Page
-                                </button>
-                                <button class="btn-secondary" @onclick='() => SafeNavigate("/home")'>
-                                    <i class="bi bi-house-fill"></i> Go to Dashboard
-                                </button>
-                            </div>
-                            @if (!string.IsNullOrEmpty(exception?.Message))
-                            {
-                                <details class="error-details">
-                                    <summary>Technical Details</summary>
-                                    <code>@exception.Message</code>
-                                </details>
-                            }
-                        </div>
-                    </ErrorContent>
-                </ErrorBoundary>
+                        </ErrorContent>
+                    </ErrorBoundary>
 
-                <footer class="shell-footer">© 2024 ResQLink System</footer>
+                    <footer class="shell-footer">© 2024 ResQLink System</footer>
+                </div>
             </main>
         </section>
     </div>

@@ -6,9 +6,16 @@
 <div class="reports-root">
     <!-- Header -->
     <section class="panel">
-        <header class="panel-head">
+        <header class="panel-head panel-head-inline">
             <h2 class="panel-title">Operations Report</h2>
-            <div class="panel-actions">
+
+            <div class="panel-actions-right">
+                <button class="mini-btn"
+                        @onclick="RefreshDataAsync"
+                        disabled="@_loading">
+                    <i class="bi bi-arrow-clockwise"></i>
+                    <span>Refresh</span>
+                </button>
                 <button class="mini-btn btn-primary"
                         @onclick="GenerateOperationsReportAsync"
                         disabled="@_loading">
@@ -18,10 +25,6 @@
                     }
                     <i class="bi bi-file-earmark-pdf"></i>
                     <span class="btn-label">Generate PDF Report</span>
-                </button>
-                <button class="mini-btn" @onclick="RefreshDataAsync" disabled="@_loading">
-                    <i class="bi bi-arrow-clockwise"></i>
-                    <span>Refresh</span>
                 </button>
             </div>
         </header>
@@ -34,32 +37,82 @@
             <header class="panel-head">
                 <h3 class="panel-title">1. Executive Summary</h3>
             </header>
-            <div class="kpi-grid" style="padding: 16px;">
-                <div class="kpi-card">
-                    <div class="kpi-label">Active Disasters</div>
-                    <div class="kpi-value text-accent">@_reportData.Summary.ActiveDisasters</div>
+
+            <!-- Standardized KPI Grid -->
+            <div class="kpi-grid">
+                <!-- Active Disasters -->
+                <div class="kpi-card kpi-danger">
+                    <div class="kpi-header">
+                        <div class="kpi-label">ACTIVE DISASTERS</div>
+                        <div class="kpi-icon-circle">
+                            <i class="bi bi-exclamation-triangle-fill"></i>
+                        </div>
+                    </div>
+                    <div class="kpi-value">
+                        @_reportData.Summary.ActiveDisasters
+                    </div>
+                    <div class="kpi-footer">
+                        <span class="trend-badge trend-neutral">Ongoing</span>
+                    </div>
                 </div>
-                <div class="kpi-card">
-                    <div class="kpi-label">Total Evacuees</div>
-                    <div class="kpi-value">@_reportData.Summary.TotalEvacuees</div>
+
+                <!-- Total Evacuees -->
+                <div class="kpi-card kpi-info">
+                    <div class="kpi-header">
+                        <div class="kpi-label">TOTAL EVACUEES</div>
+                        <div class="kpi-icon-circle">
+                            <i class="bi bi-people-fill"></i>
+                        </div>
+                    </div>
+                    <div class="kpi-value">
+                        @_reportData.Summary.TotalEvacuees
+                    </div>
+                    <div class="kpi-footer">
+                        <span class="trend-badge trend-up">Registered</span>
+                    </div>
                 </div>
-                <div class="kpi-card">
-                    <div class="kpi-label">Active Shelters</div>
-                    <div class="kpi-value">@_reportData.Summary.ActiveShelters</div>
+
+                <!-- Active Shelters -->
+                <div class="kpi-card kpi-primary">
+                    <div class="kpi-header">
+                        <div class="kpi-label">ACTIVE SHELTERS</div>
+                        <div class="kpi-icon-circle">
+                            <i class="bi bi-house-fill"></i>
+                        </div>
+                    </div>
+                    <div class="kpi-value">
+                        @_reportData.Summary.ActiveShelters
+                    </div>
+                    <div class="kpi-footer">
+                        <span class="trend-badge trend-neutral">Operational</span>
+                    </div>
                 </div>
-                <div class="kpi-card">
-                    <div class="kpi-label">Total Volunteers</div>
-                    <div class="kpi-value">@_reportData.Summary.TotalVolunteers</div>
+
+                <!-- Total Volunteers -->
+                <div class="kpi-card kpi-success">
+                    <div class="kpi-header">
+                        <div class="kpi-label">TOTAL VOLUNTEERS</div>
+                        <div class="kpi-icon-circle">
+                            <i class="bi bi-person-heart"></i>
+                        </div>
+                    </div>
+                    <div class="kpi-value">
+                        @_reportData.Summary.TotalVolunteers
+                    </div>
+                    <div class="kpi-footer">
+                        <span class="trend-badge trend-neutral">Available</span>
+                    </div>
                 </div>
             </div>
+
             @if (!string.IsNullOrEmpty(_reportData.Summary.CurrentDisasterOverview))
             {
-                <div style="padding: 16px; border-top: 1px solid #e5e7eb; background: #f0f9ff;">
-                    <h4 style="font-size: 0.9rem; margin-bottom: 8px;">
+                <div style="padding: 16px; border-top: 1px solid var(--border); background: #f0f9ff; margin: 0 16px 16px 16px; border-radius: 8px;">
+                    <h4 style="font-size: 0.9rem; margin-bottom: 8px; color: #0369a1;">
                         <i class="bi bi-info-circle" style="margin-right: 6px;"></i>
                         Current Disaster Overview
                     </h4>
-                    <p style="margin: 0; font-size: 0.85rem; line-height: 1.6;">
+                    <p style="margin: 0; font-size: 0.85rem; line-height: 1.6; color: #0c4a6e;">
                         @_reportData.Summary.CurrentDisasterOverview
                     </p>
                 </div>
@@ -67,12 +120,12 @@
         </section>
 
         <!-- Pagination Controls -->
-        <div class="pagination-break" style="padding: 20px; text-align: center; border-top: 2px solid #e5e7eb; border-bottom: 2px solid #e5e7eb; background: #f9fafb; margin: 20px 0;">
-            <div style="display: flex; justify-content: space-between; align-items: center; max-width: 700px; margin: 0 auto;">
-                <button class="mini-btn" onclick="window.scrollTo({top: 0, behavior: 'smooth'})" style="background: transparent; border: 1px solid #d1d5db;">
+        <div class="pagination-break">
+            <div class="pagination-content">
+                <button class="mini-btn btn-ghost" onclick="window.scrollTo({top: 0, behavior: 'smooth'})">
                     <i class="bi bi-arrow-up"></i> Top
                 </button>
-                <span style="color: #666; font-size: 0.85rem; font-weight: 600;">📋 End of Executive Summary</span>
+                <span class="pagination-label">📋 End of Executive Summary</span>
                 <button class="mini-btn btn-primary" onclick="document.querySelector('[id=disaster-overview]')?.scrollIntoView({behavior: 'smooth'})">
                     Next Section <i class="bi bi-arrow-right"></i>
                 </button>
@@ -103,7 +156,7 @@
                                 <td><strong>@disaster.Title</strong></td>
                                 <td>@disaster.DisasterType</td>
                                 <td>
-                                    <span class="severity-@disaster.Severity.ToLower()">
+                                    <span class="severity-badge severity-@disaster.Severity.ToLower()">
                                         @disaster.Severity
                                     </span>
                                 </td>
@@ -118,12 +171,12 @@
         </section>
 
         <!-- Pagination Controls -->
-        <div class="pagination-break" style="padding: 20px; text-align: center; border-top: 2px solid #e5e7eb; border-bottom: 2px solid #e5e7eb; background: #f9fafb; margin: 20px 0;">
-            <div style="display: flex; justify-content: space-between; align-items: center; max-width: 700px; margin: 0 auto;">
-                <button class="mini-btn" onclick="document.querySelector('[id=executive-summary]')?.scrollIntoView({behavior: 'smooth'})" style="background: transparent; border: 1px solid #d1d5db;">
+        <div class="pagination-break">
+            <div class="pagination-content">
+                <button class="mini-btn btn-ghost" onclick="document.querySelector('[id=executive-summary]')?.scrollIntoView({behavior: 'smooth'})">
                     <i class="bi bi-arrow-left"></i> Previous
                 </button>
-                <span style="color: #666; font-size: 0.85rem; font-weight: 600;">📊 End of Disaster Overview Table</span>
+                <span class="pagination-label">📊 End of Disaster Overview Table</span>
                 <button class="mini-btn btn-primary" onclick="document.querySelector('[id=evacuee-stats]')?.scrollIntoView({behavior: 'smooth'})">
                     Next Section <i class="bi bi-arrow-right"></i>
                 </button>
@@ -135,23 +188,28 @@
             <header class="panel-head">
                 <h3 class="panel-title">3. Evacuee Statistics</h3>
             </header>
-            <div class="kpi-grid" style="padding: 16px;">
+            <div class="kpi-grid">
                 <div class="kpi-card">
-                    <div class="kpi-label">Total Evacuees</div>
+                    <div class="kpi-header">
+                        <div class="kpi-label">TOTAL EVACUEES</div>
+                        <div class="kpi-icon-circle">
+                            <i class="bi bi-people"></i>
+                        </div>
+                    </div>
                     <div class="kpi-value">@_reportData.EvacueeStats.TotalEvacuees</div>
                 </div>
             </div>
 
             @if (_reportData.EvacueeStats.ByStatus.Any())
             {
-                <div style="padding: 16px; border-top: 1px solid #e5e7eb;">
+                <div style="padding: 16px; border-top: 1px solid var(--border);">
                     <h4 style="font-size: 0.9rem; margin-bottom: 10px;">Distribution by Status</h4>
                     <div style="display: flex; gap: 16px; flex-wrap: wrap;">
                         @foreach (var status in _reportData.EvacueeStats.ByStatus)
                         {
-                            <div style="padding: 12px 20px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;">
-                                <div style="font-size: 0.75rem; color: #666; margin-bottom: 4px;">@status.Key</div>
-                                <div style="font-size: 1.5rem; font-weight: 700;">@status.Value</div>
+                            <div class="stat-pill">
+                                <div class="stat-label">@status.Key</div>
+                                <div class="stat-num">@status.Value</div>
                             </div>
                         }
                     </div>
@@ -160,14 +218,14 @@
 
             @if (_reportData.EvacueeStats.ByShelter.Any())
             {
-                <div style="padding: 16px; border-top: 1px solid #e5e7eb;">
+                <div style="padding: 16px; border-top: 1px solid var(--border);">
                     <h4 style="font-size: 0.9rem; margin-bottom: 10px;">Distribution by Shelter</h4>
                     <div style="display: flex; gap: 16px; flex-wrap: wrap;">
                         @foreach (var shelter in _reportData.EvacueeStats.ByShelter)
                         {
-                            <div style="padding: 12px 20px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;">
-                                <div style="font-size: 0.75rem; color: #666; margin-bottom: 4px;">@shelter.Key</div>
-                                <div style="font-size: 1.5rem; font-weight: 700;">@shelter.Value</div>
+                            <div class="stat-pill">
+                                <div class="stat-label">@shelter.Key</div>
+                                <div class="stat-num">@shelter.Value</div>
                             </div>
                         }
                     </div>
@@ -176,12 +234,12 @@
         </section>
 
         <!-- Pagination Controls -->
-        <div class="pagination-break" style="padding: 20px; text-align: center; border-top: 2px solid #e5e7eb; border-bottom: 2px solid #e5e7eb; background: #f9fafb; margin: 20px 0;">
-            <div style="display: flex; justify-content: space-between; align-items: center; max-width: 700px; margin: 0 auto;">
-                <button class="mini-btn" onclick="document.querySelector('[id=disaster-overview]')?.scrollIntoView({behavior: 'smooth'})" style="background: transparent; border: 1px solid #d1d5db;">
+        <div class="pagination-break">
+            <div class="pagination-content">
+                <button class="mini-btn btn-ghost" onclick="document.querySelector('[id=disaster-overview]')?.scrollIntoView({behavior: 'smooth'})">
                     <i class="bi bi-arrow-left"></i> Previous
                 </button>
-                <span style="color: #666; font-size: 0.85rem; font-weight: 600;">👥 End of Evacuee Statistics</span>
+                <span class="pagination-label">👥 End of Evacuee Statistics</span>
                 <button class="mini-btn btn-primary" onclick="document.querySelector('[id=shelter-ops]')?.scrollIntoView({behavior: 'smooth'})">
                     Next Section <i class="bi bi-arrow-right"></i>
                 </button>
@@ -223,11 +281,11 @@
 
             @if (_reportData.ShelterOps.Needs.Any())
             {
-                <div style="padding: 16px; border-top: 1px solid #e5e7eb;">
+                <div style="padding: 16px; border-top: 1px solid var(--border);">
                     <h4 style="font-size: 0.9rem; margin-bottom: 10px;">Shelter Needs Assessment</h4>
                     @foreach (var need in _reportData.ShelterOps.Needs)
                     {
-                        <div style="padding: 8px; margin-bottom: 8px; border-left: 3px solid #ef4444; background: #fef2f2;">
+                        <div class="needs-alert">
                             <strong>[@need.Priority]</strong> @need.ShelterName - @need.ItemName:
                             Current: @need.CurrentQuantity, Need: @need.RequiredQuantity
                         </div>
@@ -237,39 +295,56 @@
         </section>
 
         <!-- Pagination Controls -->
-        <div class="pagination-break" style="padding: 20px; text-align: center; border-top: 2px solid #e5e7eb; border-bottom: 2px solid #e5e7eb; background: #f9fafb; margin: 20px 0;">
-            <div style="display: flex; justify-content: space-between; align-items: center; max-width: 700px; margin: 0 auto;">
-                <button class="mini-btn" onclick="document.querySelector('[id=evacuee-stats]')?.scrollIntoView({behavior: 'smooth'})" style="background: transparent; border: 1px solid #d1d5db;">
+        <div class="pagination-break">
+            <div class="pagination-content">
+                <button class="mini-btn btn-ghost" onclick="document.querySelector('[id=evacuee-stats]')?.scrollIntoView({behavior: 'smooth'})">
                     <i class="bi bi-arrow-left"></i> Previous
                 </button>
-                <span style="color: #666; font-size: 0.85rem; font-weight: 600;">🏠 End of Shelter Operations Table</span>
+                <span class="pagination-label">🏠 End of Shelter Operations Table</span>
                 <button class="mini-btn btn-primary" onclick="document.querySelector('[id=financial-summary]')?.scrollIntoView({behavior: 'smooth'})">
                     Next Section <i class="bi bi-arrow-right"></i>
                 </button>
             </div>
         </div>
 
-        <!-- Financial Summary Section - RENUMBERED from 4.5 to 5 -->
+        <!-- Financial Summary -->
         <section class="panel" id="financial-summary">
             <header class="panel-head">
                 <h3 class="panel-title">5. Financial Summary</h3>
             </header>
 
             <!-- Financial KPIs -->
-            <div class="kpi-grid" style="padding: 16px;">
+            <div class="kpi-grid">
                 <div class="kpi-card">
-                    <div class="kpi-label">Funds Received (Procurement)</div>
+                    <div class="kpi-header">
+                        <div class="kpi-label">FUNDS RECEIVED</div>
+                        <div class="kpi-icon-circle" style="background: #dcfce7; color: #16a34a;">
+                            <i class="bi bi-cash-coin"></i>
+                        </div>
+                    </div>
                     <div class="kpi-value" style="color: #16a34a;">₱@_reportData.FinancialInfo.TotalFundsReceived.ToString("N2")</div>
                 </div>
                 <div class="kpi-card">
-                    <div class="kpi-label">Total Expenditures</div>
+                    <div class="kpi-header">
+                        <div class="kpi-label">EXPENDITURES</div>
+                        <div class="kpi-icon-circle" style="background: #fee2e2; color: #dc2626;">
+                            <i class="bi bi-graph-down-arrow"></i>
+                        </div>
+                    </div>
                     <div class="kpi-value" style="color: #dc2626;">₱@_reportData.FinancialInfo.TotalExpenditures.ToString("N2")</div>
                 </div>
                 <div class="kpi-card">
-                    <div class="kpi-label">Balance</div>
-                    <div class="kpi-value text-accent">₱@_reportData.FinancialInfo.Balance.ToString("N2")</div>
-                    <div class="kpi-trend @((_reportData.FinancialInfo.Balance >= 0) ? "up" : "down")">
-                        @((_reportData.FinancialInfo.Balance >= 0) ? "Surplus" : "Deficit")
+                    <div class="kpi-header">
+                        <div class="kpi-label">BALANCE</div>
+                        <div class="kpi-icon-circle" style="background: #e0e7ff; color: #4338ca;">
+                            <i class="bi bi-wallet2"></i>
+                        </div>
+                    </div>
+                    <div class="kpi-value">₱@_reportData.FinancialInfo.Balance.ToString("N2")</div>
+                    <div class="kpi-footer">
+                        <span class="trend-badge @((_reportData.FinancialInfo.Balance >= 0) ? "trend-down" : "trend-up")">
+                            @((_reportData.FinancialInfo.Balance >= 0) ? "Surplus" : "Deficit")
+                        </span>
                     </div>
                 </div>
             </div>
@@ -277,7 +352,7 @@
             <!-- Procurement Breakdown -->
             @if (_reportData.FinancialInfo.ProcurementBreakdown.Any())
             {
-                <div style="padding: 16px; border-top: 1px solid #e5e7eb;">
+                <div style="padding: 16px; border-top: 1px solid var(--border);">
                     <h4 style="font-size: 0.9rem; margin-bottom: 10px;">
                         <i class="bi bi-cart3" style="margin-right: 6px;"></i>
                         Procurement Requests Breakdown
@@ -328,7 +403,7 @@
             <!-- Expenditures Breakdown -->
             @if (_reportData.FinancialInfo.ExpenditureBreakdown.Any())
             {
-                <div style="padding: 16px; border-top: 1px solid #e5e7eb;">
+                <div style="padding: 16px; border-top: 1px solid var(--border);">
                     <h4 style="font-size: 0.9rem; margin-bottom: 10px;">
                         <i class="bi bi-wallet2" style="margin-right: 6px;"></i>
                         Expenditures Breakdown
@@ -371,7 +446,7 @@
             }
 
             <!-- Balance Summary -->
-            <div style="padding: 16px; border-top: 2px solid #e5e7eb; background: #f9fafb;">
+            <div style="padding: 16px; border-top: 2px solid var(--border); background: #f9fafb;">
                 <div style="display: flex; justify-content: space-between; align-items: center; max-width: 600px; margin: 0 auto;">
                     <div>
                         <div style="font-size: 0.75rem; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">
@@ -390,30 +465,22 @@
                     </div>
                 </div>
             </div>
-
-            @if (_reportData.FinancialInfo.ProcurementBreakdown.Count == 0 && _reportData.FinancialInfo.ExpenditureBreakdown.Count == 0)
-            {
-                <div style="padding: 40px; text-align: center; color: #666; font-style: italic;">
-                    <i class="bi bi-inbox" style="font-size: 2rem; display: block; margin-bottom: 10px; opacity: 0.5;"></i>
-                    No financial transactions recorded for this reporting period.
-                </div>
-            }
         </section>
 
         <!-- Pagination Controls -->
-        <div class="pagination-break" style="padding: 20px; text-align: center; border-top: 2px solid #e5e7eb; border-bottom: 2px solid #e5e7eb; background: #f9fafb; margin: 20px 0;">
-            <div style="display: flex; justify-content: space-between; align-items: center; max-width: 700px; margin: 0 auto;">
-                <button class="mini-btn" onclick="document.querySelector('[id=shelter-ops]')?.scrollIntoView({behavior: 'smooth'})" style="background: transparent; border: 1px solid #d1d5db;">
+        <div class="pagination-break">
+            <div class="pagination-content">
+                <button class="mini-btn btn-ghost" onclick="document.querySelector('[id=shelter-ops]')?.scrollIntoView({behavior: 'smooth'})">
                     <i class="bi bi-arrow-left"></i> Previous
                 </button>
-                <span style="color: #666; font-size: 0.85rem; font-weight: 600;">💰 End of Financial Summary Tables</span>
+                <span class="pagination-label">💰 End of Financial Summary Tables</span>
                 <button class="mini-btn btn-primary" onclick="document.querySelector('[id=volunteer-deployment]')?.scrollIntoView({behavior: 'smooth'})">
                     Next Section <i class="bi bi-arrow-right"></i>
                 </button>
             </div>
         </div>
 
-        <!-- Volunteer Deployment - RENUMBERED from 5 to 6 -->
+        <!-- Volunteer Deployment -->
         <section class="panel" id="volunteer-deployment">
             <header class="panel-head">
                 <h3 class="panel-title">6. Volunteer Deployment Report</h3>
@@ -443,26 +510,26 @@
         </section>
 
         <!-- Pagination Controls -->
-        <div class="pagination-break" style="padding: 20px; text-align: center; border-top: 2px solid #e5e7eb; border-bottom: 2px solid #e5e7eb; background: #f9fafb; margin: 20px 0;">
-            <div style="display: flex; justify-content: space-between; align-items: center; max-width: 700px; margin: 0 auto;">
-                <button class="mini-btn" onclick="document.querySelector('[id=financial-summary]')?.scrollIntoView({behavior: 'smooth'})" style="background: transparent; border: 1px solid #d1d5db;">
+        <div class="pagination-break">
+            <div class="pagination-content">
+                <button class="mini-btn btn-ghost" onclick="document.querySelector('[id=financial-summary]')?.scrollIntoView({behavior: 'smooth'})">
                     <i class="bi bi-arrow-left"></i> Previous
                 </button>
-                <span style="color: #666; font-size: 0.85rem; font-weight: 600;">👷 End of Volunteer Deployment Table</span>
+                <span class="pagination-label">👷 End of Volunteer Deployment Table</span>
                 <button class="mini-btn btn-primary" onclick="document.querySelector('[id=inventory-report]')?.scrollIntoView({behavior: 'smooth'})">
                     Next Section <i class="bi bi-arrow-right"></i>
                 </button>
             </div>
         </div>
 
-        <!-- Inventory Report - RENUMBERED from 6 to 7 -->
+        <!-- Inventory Report -->
         <section class="panel" id="inventory-report">
             <header class="panel-head">
                 <h3 class="panel-title">7. Inventory Report</h3>
             </header>
 
             <!-- 7.1 Executive Summary -->
-            <div style="padding: 16px; background: #f9fafb; border-bottom: 1px solid #e5e7eb;">
+            <div style="padding: 16px; background: #f9fafb; border-bottom: 1px solid var(--border);">
                 <h4 style="font-size: 0.95rem; margin-bottom: 12px; font-weight: 600;">
                     <i class="bi bi-clipboard-data" style="margin-right: 6px;"></i>
                     Executive Summary
@@ -470,20 +537,40 @@
 
                 <div class="kpi-grid">
                     <div class="kpi-card">
-                        <div class="kpi-label">Total Items in Stock</div>
+                        <div class="kpi-header">
+                            <div class="kpi-label">ITEMS IN STOCK</div>
+                            <div class="kpi-icon-circle" style="background: #f3f4f6;">
+                                <i class="bi bi-box-seam"></i>
+                            </div>
+                        </div>
                         <div class="kpi-value">@_reportData.InventoryInfo.ExecutiveSummary.TotalItemsInStock</div>
                     </div>
                     <div class="kpi-card">
-                        <div class="kpi-label">Stock Received (Period)</div>
+                        <div class="kpi-header">
+                            <div class="kpi-label">STOCK RECEIVED</div>
+                            <div class="kpi-icon-circle" style="background: #dcfce7; color: #16a34a;">
+                                <i class="bi bi-arrow-down"></i>
+                            </div>
+                        </div>
                         <div class="kpi-value" style="color: #16a34a;">@_reportData.InventoryInfo.ExecutiveSummary.TotalStockReceived</div>
                     </div>
                     <div class="kpi-card">
-                        <div class="kpi-label">Stock Released (Period)</div>
+                        <div class="kpi-header">
+                            <div class="kpi-label">STOCK RELEASED</div>
+                            <div class="kpi-icon-circle" style="background: #fee2e2; color: #dc2626;">
+                                <i class="bi bi-arrow-up"></i>
+                            </div>
+                        </div>
                         <div class="kpi-value" style="color: #dc2626;">@_reportData.InventoryInfo.ExecutiveSummary.TotalStockReleased</div>
                     </div>
                     <div class="kpi-card">
-                        <div class="kpi-label">Overall Condition</div>
-                        <div class="kpi-value text-accent">@_reportData.InventoryInfo.ExecutiveSummary.OverallCondition</div>
+                        <div class="kpi-header">
+                            <div class="kpi-label">CONDITION</div>
+                            <div class="kpi-icon-circle" style="background: #e0e7ff; color: #4338ca;">
+                                <i class="bi bi-activity"></i>
+                            </div>
+                        </div>
+                        <div class="kpi-value">@_reportData.InventoryInfo.ExecutiveSummary.OverallCondition</div>
                     </div>
                 </div>
 
@@ -507,33 +594,14 @@
                         </div>
                     </div>
                 </div>
-
-                @if (_reportData.InventoryInfo.ExecutiveSummary.ImmediateProcurementNeeds.Any())
-                {
-                    <div style="margin-top: 12px; padding: 12px; background: #fef2f2; border-radius: 8px;">
-                        <strong style="font-size: 0.85rem; display: block; margin-bottom: 8px;">
-                            <i class="bi bi-cart-plus" style="margin-right: 4px;"></i>
-                            Immediate Procurement Requirements:
-                        </strong>
-                        <div style="display: flex; flex-wrap: wrap; gap: 8px;">
-                            @foreach (var item in _reportData.InventoryInfo.ExecutiveSummary.ImmediateProcurementNeeds)
-                            {
-                                <span style="padding: 4px 12px; background: white; border-radius: 16px; font-size: 0.75rem; border: 1px solid #ef4444; color: #ef4444;">
-                                    @item
-                                </span>
-                            }
-                        </div>
-                    </div>
-                }
             </div>
 
             <!-- 7.2 Current Inventory Status -->
-            <div style="padding: 16px; border-bottom: 1px solid #e5e7eb;">
+            <div style="padding: 16px; border-bottom: 1px solid var(--border);">
                 <h4 style="font-size: 0.95rem; margin-bottom: 12px; font-weight: 600;">
                     <i class="bi bi-box-seam" style="margin-right: 6px;"></i>
                     Current Inventory Status
                 </h4>
-
                 @if (_reportData.InventoryInfo.CurrentInventory.Any())
                 {
                     <div class="table-wrap">
@@ -587,19 +655,16 @@
                 }
                 else
                 {
-                    <p style="color: #666; font-style: italic; text-align: center; padding: 20px;">
-                        No inventory items found.
-                    </p>
+                    <p class="empty-text">No inventory items found.</p>
                 }
             </div>
 
             <!-- 7.3 Stock-In Summary -->
-            <div style="padding: 16px; border-bottom: 1px solid #e5e7eb;">
+            <div style="padding: 16px; border-bottom: 1px solid var(--border);">
                 <h4 style="font-size: 0.95rem; margin-bottom: 12px; font-weight: 600;">
                     <i class="bi bi-arrow-down-circle" style="margin-right: 6px; color: #16a34a;"></i>
-                    Stock-In Summary (Recent Transactions)
+                    Stock-In Summary
                 </h4>
-
                 @if (_reportData.InventoryInfo.StockInSummary.Any())
                 {
                     <div class="table-wrap">
@@ -610,8 +675,7 @@
                                     <th>Item Name</th>
                                     <th>Quantity</th>
                                     <th>Supplier</th>
-                                    <th>Batch Number</th>
-                                    <th>Expiration</th>
+                                    <th>Batch</th>
                                     <th>Received Date</th>
                                     <th>Received By</th>
                                 </tr>
@@ -625,16 +689,6 @@
                                         <td style="color: #16a34a; font-weight: 600;">+@transaction.Quantity @transaction.Unit</td>
                                         <td>@transaction.Supplier</td>
                                         <td style="font-family: monospace; font-size: 0.8rem;">@transaction.BatchNumber</td>
-                                        <td style="font-size: 0.85rem;">
-                                            @if (transaction.ExpirationDate.HasValue)
-                                            {
-                                                @transaction.ExpirationDate.Value.ToString("MMM dd, yyyy")
-                                            }
-                                            else
-                                            {
-                                                <span style="color: #666;">N/A</span>
-                                            }
-                                        </td>
                                         <td>@transaction.ReceivedDate.ToString("MMM dd, yyyy")</td>
                                         <td>@transaction.ReceivedBy</td>
                                     </tr>
@@ -645,9 +699,7 @@
                 }
                 else
                 {
-                    <p style="color: #666; font-style: italic; text-align: center; padding: 20px;">
-                        No stock-in transactions recorded.
-                    </p>
+                    <p class="empty-text">No stock-in transactions recorded.</p>
                 }
             </div>
 
@@ -655,9 +707,8 @@
             <div style="padding: 16px;">
                 <h4 style="font-size: 0.95rem; margin-bottom: 12px; font-weight: 600;">
                     <i class="bi bi-arrow-up-circle" style="margin-right: 6px; color: #dc2626;"></i>
-                    Stock-Out Summary (Recent Transactions)
+                    Stock-Out Summary
                 </h4>
-
                 @if (_reportData.InventoryInfo.StockOutSummary.Any())
                 {
                     <div class="table-wrap">
@@ -671,7 +722,6 @@
                                     <th>Purpose</th>
                                     <th>Release Date</th>
                                     <th>Released By</th>
-                                    <th>Remaining</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -689,7 +739,6 @@
                                         </td>
                                         <td>@transaction.ReleaseDate.ToString("MMM dd, yyyy")</td>
                                         <td>@transaction.ReleasedBy</td>
-                                        <td style="font-weight: 600;">@transaction.RemainingBalance</td>
                                     </tr>
                                 }
                             </tbody>
@@ -698,27 +747,25 @@
                 }
                 else
                 {
-                    <p style="color: #666; font-style: italic; text-align: center; padding: 20px;">
-                        No stock-out transactions recorded.
-                    </p>
+                    <p class="empty-text">No stock-out transactions recorded.</p>
                 }
             </div>
         </section>
 
         <!-- Pagination Controls -->
-        <div class="pagination-break" style="padding: 20px; text-align: center; border-top: 2px solid #e5e7eb; border-bottom: 2px solid #e5e7eb; background: #f9fafb; margin: 20px 0;">
-            <div style="display: flex; justify-content: space-between; align-items: center; max-width: 700px; margin: 0 auto;">
-                <button class="mini-btn" onclick="document.querySelector('[id=volunteer-deployment]')?.scrollIntoView({behavior: 'smooth'})" style="background: transparent; border: 1px solid #d1d5db;">
+        <div class="pagination-break">
+            <div class="pagination-content">
+                <button class="mini-btn btn-ghost" onclick="document.querySelector('[id=volunteer-deployment]')?.scrollIntoView({behavior: 'smooth'})">
                     <i class="bi bi-arrow-left"></i> Previous
                 </button>
-                <span style="color: #666; font-size: 0.85rem; font-weight: 600;">📦 End of Inventory Report Tables</span>
+                <span class="pagination-label">📦 End of Inventory Report Tables</span>
                 <button class="mini-btn btn-primary" onclick="document.querySelector('[id=operational-issues]')?.scrollIntoView({behavior: 'smooth'})">
                     Next Section <i class="bi bi-arrow-right"></i>
                 </button>
             </div>
         </div>
 
-        <!-- Operational Issues - RENUMBERED from 7 to 8 -->
+        <!-- Operational Issues -->
         <section class="panel" id="operational-issues">
             <header class="panel-head">
                 <h3 class="panel-title">8. Operational Issues & Recommendations</h3>
@@ -746,7 +793,7 @@
                         <label>Concerns</label>
                         <textarea class="form-control" rows="3" @bind="_reportData.Issues.Concerns"></textarea>
                     </div>
-                    <button class="btn-primary" @onclick="SaveIssuesAsync">
+                    <button class="btn-primary" @onclick="SaveIssuesAsync" style="margin-top: 12px;">
                         <i class="bi bi-save"></i> Save Changes
                     </button>
                 }
@@ -754,19 +801,19 @@
                 {
                     @if (!string.IsNullOrEmpty(_reportData.Issues.NeededSupport))
                     {
-                        <div><strong>Needed Support:</strong> @_reportData.Issues.NeededSupport</div>
+                        <div class="issue-item"><strong>Needed Support:</strong> @_reportData.Issues.NeededSupport</div>
                     }
                     @if (!string.IsNullOrEmpty(_reportData.Issues.UrgentSupplies))
                     {
-                        <div><strong>Urgent Supplies:</strong> @_reportData.Issues.UrgentSupplies</div>
+                        <div class="issue-item"><strong>Urgent Supplies:</strong> @_reportData.Issues.UrgentSupplies</div>
                     }
                     @if (!string.IsNullOrEmpty(_reportData.Issues.FundingRequests))
                     {
-                        <div><strong>Funding Requests:</strong> @_reportData.Issues.FundingRequests</div>
+                        <div class="issue-item"><strong>Funding Requests:</strong> @_reportData.Issues.FundingRequests</div>
                     }
                     @if (!string.IsNullOrEmpty(_reportData.Issues.Concerns))
                     {
-                        <div><strong>Concerns:</strong> @_reportData.Issues.Concerns</div>
+                        <div class="issue-item"><strong>Concerns:</strong> @_reportData.Issues.Concerns</div>
                     }
 
                     @if (string.IsNullOrEmpty(_reportData.Issues.NeededSupport) &&
@@ -774,7 +821,7 @@
                                 string.IsNullOrEmpty(_reportData.Issues.FundingRequests) &&
                                 string.IsNullOrEmpty(_reportData.Issues.Concerns))
                     {
-                        <p style="color: #666; font-style: italic;">No operational issues reported at this time.</p>
+                        <p class="empty-text">No operational issues reported at this time.</p>
                     }
                 }
             </div>
@@ -792,10 +839,35 @@
     }
 </div>
 
+@if (showPopup)
+{
+    <div class="popup-backdrop" @onclick="() => showPopup = false">
+        <div class="popup-card" @onclick:stopPropagation="true">
+            <div class="popup-header">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <i class="bi bi-check-circle-fill" style="color: #000;"></i>
+                    <span>PDF Generated</span>
+                </div>
+                <button class="btn-close-icon" @onclick="() => showPopup = false">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+            <div class="popup-body">
+                <p>Operations Report PDF generated successfully!</p>
+            </div>
+            <div class="popup-footer">
+                <button class="mini-btn btn-primary" @onclick="() => showPopup = false">OK</button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private OperationsReportData? _reportData;
     private bool _loading = false;
     private bool isEditingIssues = false;
+    private bool showPopup = false;
+
 
     protected override async Task OnInitializedAsync()
     {
@@ -847,7 +919,8 @@
                 link.click();
             ");
 
-            await JS.InvokeVoidAsync("alert", "Operations Report PDF generated successfully!");
+            showPopup = true;
+
         }
         catch (Exception ex)
         {

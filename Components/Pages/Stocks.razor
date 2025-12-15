@@ -26,23 +26,43 @@
         </header>
         <div class="kpi-grid">
             <div class="kpi-card">
-                <div class="kpi-label">Total Records</div>
-                <div class="kpi-value text-accent">@_stocks.Count</div>
+                <div class="kpi-icon-circle">
+                    <i class="bi bi-inbox-fill"></i>
+                </div>
+                <div class="kpi-content">
+                    <div class="kpi-label">Total Records</div>
+                    <div class="kpi-value">@_stocks.Count</div>
+                </div>
             </div>
             <div class="kpi-card">
-                <div class="kpi-label">Active</div>
-                <div class="kpi-value">@_stocks.Count(s => s.IsActive)</div>
+                <div class="kpi-icon-circle">
+                    <i class="bi bi-check-circle-fill"></i>
+                </div>
+                <div class="kpi-content">
+                    <div class="kpi-label">Active</div>
+                    <div class="kpi-value">@_stocks.Count(s => s.IsActive)</div>
+                </div>
             </div>
-            <div class="kpi-card">
-                <div class="kpi-label">Inactive</div>
-                <div class="kpi-value">@_stocks.Count(s => !s.IsActive)</div>
+            <div class="kpi-card kpi-inactive">
+                <div class="kpi-icon-circle">
+                    <i class="bi bi-x-circle-fill"></i>
+                </div>
+                <div class="kpi-content">
+                    <div class="kpi-label">Inactive</div>
+                    <div class="kpi-value">@_stocks.Count(s => !s.IsActive)</div>
+                </div>
             </div>
-            <div class="kpi-card">
-                <div class="kpi-label">Low / Empty</div>
-                <div class="kpi-value">
-                    @_stocks.Count(s => GetStatus(s) == "Low")
-                    /
-                    @_stocks.Count(s => GetStatus(s) == "Empty")
+            <div class="kpi-card kpi-warning">
+                <div class="kpi-icon-circle">
+                    <i class="bi bi-exclamation-circle-fill"></i>
+                </div>
+                <div class="kpi-content">
+                    <div class="kpi-label">Low / Empty</div>
+                    <div class="kpi-value">
+                        @_stocks.Count(s => GetStatus(s) == "Low")
+                        /
+                        @_stocks.Count(s => GetStatus(s) == "Empty")
+                    </div>
                 </div>
             </div>
         </div>

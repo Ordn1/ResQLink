@@ -4,41 +4,74 @@
 @using ResQLink.Data.Entities
 
 <div class="inventory-root">
+
+    @* --- KPI SECTION --- *@
     <section class="panel kpi-panel">
         <header class="panel-head">
             <h2 class="panel-title">Inventory Overview</h2>
             <div class="panel-actions">
-                <!-- Primary green pill like other pages -->
                 <button class="mini-btn" @onclick="Refresh" title="Refresh">
                     <i class="bi bi-arrow-clockwise"></i>
                     <span>Refresh</span>
                 </button>
             </div>
         </header>
+
         <div class="kpi-grid">
             <div class="kpi-card">
-                <div class="kpi-label">Total Goods</div>
-                <div class="kpi-value text-accent">@ReliefGoods.Count</div>
+                <div class="kpi-icon-circle">
+                    <i class="bi bi-box-seam-fill"></i>
+                </div>
+                <div class="kpi-content">
+                    <div class="kpi-label">Total Goods</div>
+                    <div class="kpi-value">@ReliefGoods.Count</div>
+                </div>
             </div>
+
             <div class="kpi-card">
-                <div class="kpi-label">Tracked Stocks</div>
-                <div class="kpi-value">@Stocks.Count</div>
+                <div class="kpi-icon-circle">
+                    <i class="bi bi-clipboard-data-fill"></i>
+                </div>
+                <div class="kpi-content">
+                    <div class="kpi-label">Tracked Stocks</div>
+                    <div class="kpi-value">@Stocks.Count</div>
+                </div>
             </div>
+
+            @* Warning KPI *@
             <div class="kpi-card">
-                <div class="kpi-label">Low / Out</div>
-                <div class="kpi-value">@LowCount / @OutCount</div>
+                <div class="kpi-icon-circle" style="background: #fff7ed; color: #ea580c;">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                </div>
+                <div class="kpi-content">
+                    <div class="kpi-label" style="color: #9a3412;">Low / Out</div>
+                    <div class="kpi-value" style="color: #ea580c;">@LowCount / @OutCount</div>
+                </div>
             </div>
+
             <div class="kpi-card">
-                <div class="kpi-label">Categories</div>
-                <div class="kpi-value">@DistinctCategories.Count()</div>
+                <div class="kpi-icon-circle">
+                    <i class="bi bi-tags-fill"></i>
+                </div>
+                <div class="kpi-content">
+                    <div class="kpi-label">Categories</div>
+                    <div class="kpi-value">@DistinctCategories.Count()</div>
+                </div>
             </div>
+
             <div class="kpi-card">
-                <div class="kpi-label">Total Qty</div>
-                <div class="kpi-value">@TotalQuantity</div>
+                <div class="kpi-icon-circle">
+                    <i class="bi bi-layers-fill"></i>
+                </div>
+                <div class="kpi-content">
+                    <div class="kpi-label">Total Qty</div>
+                    <div class="kpi-value">@TotalQuantity</div>
+                </div>
             </div>
         </div>
     </section>
 
+    @* --- MAIN INVENTORY TABLE --- *@
     <section class="panel">
         <header class="panel-head">
             <h2 class="panel-title">Inventory Items</h2>
@@ -65,8 +98,7 @@
                     <option value="qty_desc">Qty High→Low</option>
                     <option value="qty_asc">Qty Low→High</option>
                 </select>
-                <!-- Clear as subtle pill, but with color -->
-                <button class="mini-btn mini-btn-ghost" @onclick="ClearFilters">Clear</button>
+                <button class="mini-btn" @onclick="ClearFilters">Clear</button>
             </div>
         </header>
 
@@ -74,12 +106,12 @@
             <table class="dash-table">
                 <thead>
                     <tr>
-                        <th style="width:70px">ID</th>
+                        <th style="width:70px" class="t-center">ID</th>
                         <th>Name</th>
                         <th>Category</th>
                         <th class="t-right">Qty</th>
                         <th class="t-right">Last Updated</th>
-                        <th>Status</th>
+                        <th class="t-center">Status</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -87,19 +119,24 @@
                     {
                         <tr>
                             <td class="t-center">@i.RgId</td>
-                            <td>@i.Name (@i.Unit)</td>
+                            <td><strong>@i.Name</strong> <span class="text-muted" style="font-size:0.65rem">(@i.Unit)</span></td>
                             <td>@i.Category</td>
-                            <td class="t-right">@i.Quantity</td>
-                            <td class="t-right">@i.LastUpdated.ToString("MMM dd HH:mm")</td>
-                            <td>
-                                <span class="status-chip @StatusClass(i)">@StatusText(i)</span>
+                            <td class="t-right"><span class="amount-text">@i.Quantity</span></td>
+                            <td class="t-right text-muted">@i.LastUpdated.ToString("MMM dd HH:mm")</td>
+                            <td class="t-center">
+                                <span style="font-weight: 700; font-size: 0.7rem; text-transform: uppercase; color: @GetStatusColor(i)">
+                                    @StatusText(i)
+                                </span>
                             </td>
                         </tr>
                     }
                     @if (!PagedItems.Any())
                     {
                         <tr>
-                            <td colspan="6" class="t-center text-muted">No results.</td>
+                            <td colspan="6" class="empty-state">
+                                <div class="empty-icon"><i class="bi bi-inbox"></i></div>
+                                <div class="empty-text">No results found</div>
+                            </td>
                         </tr>
                     }
                 </tbody>
@@ -108,76 +145,109 @@
 
         <footer class="panel-foot">
             <div class="foot-left">
+                <i class="bi bi-info-circle"></i>
                 Showing @StartIndex–@EndIndex of @Filtered.Count() items
             </div>
             <div class="foot-right">
                 <label class="foot-label">Rows</label>
-                <select class="mini-input" @bind="pageSize">
+                <select class="mini-input" @bind="pageSize" style="width: auto; min-width: 60px;">
                     <option>10</option>
                     <option>20</option>
                     <option>50</option>
                 </select>
-                <!-- Prev / Next colored mini buttons -->
-                <button class="mini-btn mini-btn-outline" @onclick="PrevPage" disabled="@(_pageIndex == 0)">Prev</button>
+                <button class="mini-btn" @onclick="PrevPage" disabled="@(_pageIndex == 0)">Prev</button>
                 <span class="page-indicator">Page @(_pageIndex + 1) / @TotalPages</span>
-                <button class="mini-btn mini-btn-outline" @onclick="NextPage" disabled="@(_pageIndex >= TotalPages - 1)">Next</button>
+                <button class="mini-btn" @onclick="NextPage" disabled="@(_pageIndex >= TotalPages - 1)">Next</button>
             </div>
         </footer>
     </section>
 
+    @* --- BOTTOM COLUMNS --- *@
     <div class="two-col">
+
+        <!-- Category Summary Section -->
         <section class="panel">
             <header class="panel-head">
-                <h2 class="panel-title">Category Summary</h2>
+                <h2 class="panel-title">Category Health</h2>
             </header>
             <div class="category-grid">
                 @foreach (var c in CategorySummaries)
                 {
-                    <div class="category-card">
-                        <div class="cat-name">@c.Category</div>
-                        <div class="cat-line">
-                            <strong>@c.ItemCount</strong>
-                            <span class="muted">goods</span>
+                    // Determine health color
+                    var healthColor = (c.OutCount > 0) ? "#dc2626" : (c.LowCount > 0) ? "#f59e0b" : "#16a34a";
+
+                    <div class="category-card" style="border-top: 3px solid @healthColor;">
+                        <div class="cat-header">
+                            <span class="cat-name">@c.Category</span>
+                            <span class="cat-badge" style="background:@healthColor; color:white;">@c.ItemCount</span>
                         </div>
-                        <div class="cat-line">
-                            Qty <strong>@c.TotalQuantity</strong>
+
+                        <div class="cat-metric">
+                            <span class="metric-label">Total Stock</span>
+                            <span class="metric-value">@c.TotalQuantity.ToString("N0")</span>
                         </div>
-                        <div class="progress-shell thin" aria-label="Low/out percent">
-                            <div class="progress-bar" style="width:@($"{c.LowPercent}%")"></div>
+
+                        <div class="progress-shell thin">
+                            <div class="progress-bar" style="width:@($"{c.LowPercent}%"); background: @healthColor"></div>
                         </div>
-                        <div class="cat-meta">
-                            <span class="low-meta">@c.LowCount low</span>
-                            <span class="sep">|</span>
-                            <span class="out-meta">@c.OutCount out</span>
+
+                        <div class="cat-footer">
+                            <div class="@(c.LowCount > 0 ? "text-warn" : "text-dim")">
+                                <strong>@c.LowCount</strong> Low
+                            </div>
+                            <div class="vr-sep"></div>
+                            <div class="@(c.OutCount > 0 ? "text-danger" : "text-dim")">
+                                <strong>@c.OutCount</strong> Out
+                            </div>
                         </div>
                     </div>
                 }
             </div>
         </section>
 
+        <!-- Restock Attention Section -->
         <section class="panel">
             <header class="panel-head">
-                <h2 class="panel-title">Restock Attention</h2>
+                <h2 class="panel-title" style="color: #dc2626;">Restock Attention</h2>
             </header>
             <div class="attention-list">
-                @foreach (var i in AttentionItems)
+                @if (AttentionItems.Any())
                 {
-                    <div class="att-row">
-                        <div class="att-left">
-                            <div class="att-name">@i.Name</div>
-                            <div class="att-cat">@i.Category</div>
-                        </div>
-                        <div class="att-mid">
-                            <div class="progress-shell tiny" aria-label="Stock %">
-                                <div class="progress-bar" style="width:@($"{StockPercent(i)}%")"></div>
+                    <div class="att-header-row">
+                        <div style="flex:1">Item</div>
+                        <div style="width: 80px; text-align: right;">Stock Level</div>
+                        <div style="width: 60px; text-align: center;">Status</div>
+                    </div>
+                    @foreach (var i in AttentionItems)
+                    {
+                        <div class="att-row">
+                            <div class="att-info">
+                                <div class="att-name">@i.Name</div>
+                                <div class="att-sub">@i.Category</div>
                             </div>
-                            <div class="att-stats">
-                                <span>Qty @i.Quantity</span>
+
+                            <div class="att-visual">
+                                <div class="progress-shell tiny">
+                                    <div class="progress-bar" style="width:@($"{StockPercent(i)}%"); background: @GetStatusColor(i)"></div>
+                                </div>
+                                <div class="att-qty">
+                                    <span style="color: @GetStatusColor(i)">@i.Quantity</span> / @i.Unit
+                                </div>
+                            </div>
+
+                            <div class="att-status">
+                                <span style="color: @GetStatusColor(i); font-weight:800; font-size:0.7rem;">
+                                    @StatusText(i)
+                                </span>
                             </div>
                         </div>
-                        <div class="att-right">
-                            <span class="status-chip @StatusClass(i)">@StatusText(i)</span>
-                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="empty-state">
+                        <div class="empty-icon" style="font-size: 1.5rem; color: #16a34a;"><i class="bi bi-check-circle"></i></div>
+                        <div class="empty-text">All stocks are adequate.</div>
                     </div>
                 }
             </div>
@@ -323,9 +393,10 @@
         IsOut(i) ? "OUT" :
         IsLow(i) ? "LOW" : "OK";
 
-    private string StatusClass(InventoryRow i) =>
-        IsOut(i) ? "st-out" :
-        IsLow(i) ? "st-low" : "st-ok";
+    private string GetStatusColor(InventoryRow i) =>
+        IsOut(i) ? "#dc2626" :
+        IsLow(i) ? "#d97706" :
+        "#16a34a";
 
     private async void Refresh()
     {

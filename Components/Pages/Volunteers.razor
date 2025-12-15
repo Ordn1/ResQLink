@@ -23,16 +23,31 @@
         </header>
         <div class="kpi-grid">
             <div class="kpi-card">
-                <div class="kpi-label">Total Volunteers</div>
-                <div class="kpi-value">@AllVolunteers.Count</div>
+                <div class="kpi-icon">
+                    <i class="bi bi-people-fill"></i>
+                </div>
+                <div class="kpi-content">
+                    <div class="kpi-label">Total Volunteers</div>
+                    <div class="kpi-value">@AllVolunteers.Count</div>
+                </div>
             </div>
             <div class="kpi-card">
-                <div class="kpi-label">Active</div>
-                <div class="kpi-value text-accent">@ActiveCount</div>
+                <div class="kpi-icon">
+                    <i class="bi bi-person-check-fill"></i>
+                </div>
+                <div class="kpi-content">
+                    <div class="kpi-label">Active</div>
+                    <div class="kpi-value">@ActiveCount</div>
+                </div>
             </div>
             <div class="kpi-card">
-                <div class="kpi-label">Available</div>
-                <div class="kpi-value">@AvailableCount</div>
+                <div class="kpi-icon">
+                    <i class="bi bi-calendar-check"></i>
+                </div>
+                <div class="kpi-content">
+                    <div class="kpi-label">Available</div>
+                    <div class="kpi-value">@AvailableCount</div>
+                </div>
             </div>
         </div>
     </section>
@@ -61,7 +76,6 @@
             <table class="dash-table">
                 <thead>
                     <tr>
-                        <th style="width:60px">ID</th>
                         <th>Name</th>
                         <th>Email</th>
                         <th>Contact</th>
@@ -76,7 +90,6 @@
                     @foreach (var v in PagedVolunteers)
                     {
                         <tr>
-                            <td class="t-center">#@v.Id</td>
                             <td>@v.Name</td>
                             <td>@v.Email</td>
                             <td>@v.ContactNumber</td>
@@ -104,7 +117,7 @@
                     @if (!PagedVolunteers.Any())
                     {
                         <tr>
-                            <td colspan="9" class="t-center text-muted">No results.</td>
+                            <td colspan="8" class="t-center text-muted">No results.</td>
                         </tr>
                     }
                 </tbody>
@@ -136,7 +149,7 @@
     <div class="modal-overlay" @onclick="HandleOverlayClick">
         <div class="modal-dialog" @onclick:stopPropagation="true">
             <div class="modal-header">
-                <h3>@(editModel.VolunteerId == 0 ? "Register Volunteer" : $"Edit Volunteer #{editModel.VolunteerId}")</h3>
+                <h3>@(editModel.VolunteerId == 0 ? "Register Volunteer" : "Edit Volunteer")</h3>
                 <button class="modal-close" @onclick="CancelForm">&times;</button>
             </div>
             <div class="modal-body" @onclick:stopPropagation="true">
