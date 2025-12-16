@@ -4,6 +4,7 @@
 @inject ResQLink.Services.ProcurementService ProcSvc
 @inject ResQLink.Services.SupplierService SupplierSvc
 @inject ResQLink.Services.BudgetStateService BudgetState
+@inject ResQLink.Services.ArchiveService ArchiveService
 @inject IDbContextFactory<AppDbContext> DbFactory
 @inject IJSRuntime JS
 @implements IDisposable
@@ -699,6 +700,60 @@ else
             </div>
         </div>
     }
+
+    @* Archive Confirmation Modal *@
+    @if (showArchiveModal)
+    {
+        <div class="modal-overlay" @onclick="CloseArchiveModal" @onclick:stopPropagation="false">
+            <div class="modal-dialog small" @onclick="PreventClose" @onclick:stopPropagation="true">
+                <div class="modal-header">
+                    <h3>Confirm Archive</h3>
+                    <button class="modal-close" @onclick="CloseArchiveModal" @onclick:stopPropagation="true">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p>Are you sure you want to archive <strong>"@requestToArchiveName"</strong>?</p>
+                    <p class="warning-text">This procurement request will be moved to the archives and can be restored later by an administrator.</p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-cancel" @onclick="CloseArchiveModal" @onclick:stopPropagation="true">Cancel</button>
+                    <button class="btn-danger" @onclick="ConfirmArchiveAsync" disabled="@isArchiving" @onclick:stopPropagation="true">
+                        @if (isArchiving)
+                        {
+                            <span class="spinner"></span>
+                        }
+                        Archive
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* Budget Archive modal *@
+    @if (showBudgetArchiveModal)
+    {
+        <div class="modal-overlay" @onclick="CloseBudgetArchiveModal" @onclick:stopPropagation="false">
+            <div class="modal-dialog small" @onclick="PreventClose" @onclick:stopPropagation="true">
+                <div class="modal-header">
+                    <h3>Confirm Archive</h3>
+                    <button class="modal-close" @onclick="CloseBudgetArchiveModal" @onclick:stopPropagation="true">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p>Are you sure you want to archive budget <strong>"@budgetToArchiveName"</strong>?</p>
+                    <p class="warning-text">This budget will be moved to the archives and can be restored later by an administrator.</p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-cancel" @onclick="CloseBudgetArchiveModal" @onclick:stopPropagation="true">Cancel</button>
+                    <button class="btn-danger" @onclick="ConfirmBudgetArchiveAsync" disabled="@isBudgetArchiving" @onclick:stopPropagation="true">
+                        @if (isBudgetArchiving)
+                        {
+                            <span class="spinner"></span>
+                        }
+                        Archive
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
 </div>
 }
 
@@ -759,6 +814,18 @@ else
     private List<ProcurementRequestItem> requestItems = new();
     private ProcurementRequestItem newReqItem = new();
     private ProcurementRequestItem? editReqItem;
+
+    // Archive-related state
+    private bool showArchiveModal = false;
+    private bool isArchiving = false;
+    private int requestToArchiveId = 0;
+    private string requestToArchiveName = string.Empty;
+
+    // Budget Archive state
+    private bool showBudgetArchiveModal = false;
+    private bool isBudgetArchiving = false;
+    private int budgetToArchiveId = 0;
+    private string budgetToArchiveName = string.Empty;
 
     // NEW: Get approved procurement requests
     private IEnumerable<ProcurementRequest> ApprovedProcurementRequests => 
@@ -866,6 +933,66 @@ else
 
     private void RequestPrevPage() { if (_requestPageIndex > 0) _requestPageIndex--; }
     private void RequestNextPage() { if (_requestPageIndex < RequestTotalPages - 1) _requestPageIndex++; }
+
+    // Filters - Requests
+    private IEnumerable<ProcurementRequest> FilteredRequestsToArchive => Requests
+        .Where(r => r.Status == "Archived")
+        .OrderByDescending(r => r.RequestDate);
+
+    // Pagination - Requests
+    private int ArchiveTotalFiltered => FilteredRequestsToArchive.Count();
+    private int ArchiveTotalPages => Math.Max((int)Math.Ceiling(ArchiveTotalFiltered / (double)requestPageSize), 1);
+    private int ArchiveStartIndex => ArchiveTotalFiltered == 0 ? 0 : (_requestPageIndex * requestPageSize) + 1;
+    private int ArchiveEndIndex => Math.Min((_requestPageIndex + 1) * requestPageSize, ArchiveTotalFiltered);
+    private IEnumerable<ProcurementRequest> PagedRequestsToArchive => FilteredRequestsToArchive.Skip(_requestPageIndex * requestPageSize).Take(requestPageSize);
+
+    private void ArchivePrevPage() { if (_requestPageIndex > 0) _requestPageIndex--; }
+    private void ArchiveNextPage() { if (_requestPageIndex < ArchiveTotalPages - 1) _requestPageIndex++; }
+
+    // Filters - Requests
+    private IEnumerable<ProcurementRequest> FilteredOpenRequests => Requests
+        .Where(r => r.Status != "Archived")
+        .OrderByDescending(r => r.RequestDate);
+
+    // Pagination - Requests
+    private int OpenRequestTotalFiltered => FilteredOpenRequests.Count();
+    private int OpenRequestTotalPages => Math.Max((int)Math.Ceiling(OpenRequestTotalFiltered / (double)requestPageSize), 1);
+    private int OpenRequestStartIndex => OpenRequestTotalFiltered == 0 ? 0 : (_requestPageIndex * requestPageSize) + 1;
+    private int OpenRequestEndIndex => Math.Min((_requestPageIndex + 1) * requestPageSize, OpenRequestTotalFiltered);
+    private IEnumerable<ProcurementRequest> PagedOpenRequests => FilteredOpenRequests.Skip(_requestPageIndex * requestPageSize).Take(requestPageSize);
+
+    private void OpenRequestPrevPage() { if (_requestPageIndex > 0) _requestPageIndex--; }
+    private void OpenRequestNextPage() { if (_requestPageIndex < OpenRequestTotalPages - 1) _requestPageIndex++; }
+
+    // Filters - Requests
+    private IEnumerable<ProcurementRequest> FilteredDraftRequests => Requests
+        .Where(r => r.Status == "Draft")
+        .OrderByDescending(r => r.RequestDate);
+
+    // Pagination - Requests
+    private int DraftRequestTotalFiltered => FilteredDraftRequests.Count();
+    private int DraftRequestTotalPages => Math.Max((int)Math.Ceiling(DraftRequestTotalFiltered / (double)requestPageSize), 1);
+    private int DraftRequestStartIndex => DraftRequestTotalFiltered == 0 ? 0 : (_requestPageIndex * requestPageSize) + 1;
+    private int DraftRequestEndIndex => Math.Min((_requestPageIndex + 1) * requestPageSize, DraftRequestTotalFiltered);
+    private IEnumerable<ProcurementRequest> PagedDraftRequests => FilteredDraftRequests.Skip(_requestPageIndex * requestPageSize).Take(requestPageSize);
+
+    private void DraftRequestPrevPage() { if (_requestPageIndex > 0) _requestPageIndex--; }
+    private void DraftRequestNextPage() { if (_requestPageIndex < DraftRequestTotalPages - 1) _requestPageIndex++; }
+
+    // Filters - Requests
+    private IEnumerable<ProcurementRequest> FilteredSubmittedRequests => Requests
+        .Where(r => r.Status == "Submitted")
+        .OrderByDescending(r => r.RequestDate);
+
+    // Pagination - Requests
+    private int SubmittedRequestTotalFiltered => FilteredSubmittedRequests.Count();
+    private int SubmittedRequestTotalPages => Math.Max((int)Math.Ceiling(SubmittedRequestTotalFiltered / (double)requestPageSize), 1);
+    private int SubmittedRequestStartIndex => SubmittedRequestTotalFiltered == 0 ? 0 : (_requestPageIndex * requestPageSize) + 1;
+    private int SubmittedRequestEndIndex => Math.Min((_requestPageIndex + 1) * requestPageSize, SubmittedRequestTotalFiltered);
+    private IEnumerable<ProcurementRequest> PagedSubmittedRequests => FilteredSubmittedRequests.Skip(_requestPageIndex * requestPageSize).Take(requestPageSize);
+
+    private void SubmittedRequestPrevPage() { if (_requestPageIndex > 0) _requestPageIndex--; }
+    private void SubmittedRequestNextPage() { if (_requestPageIndex < SubmittedRequestTotalPages - 1) _requestPageIndex++; }
 
     // Budget actions
     private void NewBudget()
@@ -1271,7 +1398,7 @@ else
         saving = true;
         try
         {
-            // NEW: Calculate new total with the updated item
+            // NEW: Calculate new total with the edited item
             var editedItemTotal = editReqItem.UnitPrice * editReqItem.Quantity;
             var currentTotal = requestItems.Where(i => i.RequestItemId != editReqItem.RequestItemId)
                                           .Sum(i => i.UnitPrice * i.Quantity);
@@ -1326,4 +1453,148 @@ else
     }
 
     private Task RefreshAll() => LoadAll();
+
+    // Archive functions
+    private void ShowArchiveConfirmation(int requestId, string name)
+    {
+        requestToArchiveId = requestId;
+        requestToArchiveName = name;
+        showArchiveModal = true;
+    }
+
+    private void CloseArchiveModal()
+    {
+        showArchiveModal = false;
+        requestToArchiveId = 0;
+        requestToArchiveName = string.Empty;
+        isArchiving = false;
+    }
+
+    private async Task ConfirmArchiveAsync()
+    {
+        if (isArchiving) return;
+        if (requestToArchiveId == 0) return;
+
+        isArchiving = true;
+
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            
+            var entity = await db.ProcurementRequests
+                .Include(pr => pr.Items)
+                .Include(pr => pr.Supplier)
+                .FirstOrDefaultAsync(pr => pr.RequestId == requestToArchiveId);
+            
+            if (entity == null)
+            {
+                await JS.InvokeVoidAsync("alert", "Procurement request not found.");
+                return;
+            }
+
+            var itemCount = entity.Items.Count;
+            var reason = itemCount > 0
+                ? $"Archived with {itemCount} item(s)"
+                : "Archived by user";
+
+            var entityName = $"Request #{entity.RequestId} - {entity.BarangayName}";
+
+            var result = await ArchiveService.ArchiveAsync<ProcurementRequest>(
+                requestToArchiveId,
+                reason,
+                entityName);
+
+            if (!result.success)
+            {
+                await JS.InvokeVoidAsync("alert", result.error ?? "Failed to archive procurement request.");
+                return;
+            }
+
+            await JS.InvokeVoidAsync("alert", "Procurement request archived successfully!");
+            CloseArchiveModal();
+            await LoadAll();
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Archive failed: {ex.Message}");
+        }
+        finally
+        {
+            isArchiving = false;
+        }
+    }
+
+    @* Budget Archive functions *@
+    private void ShowBudgetArchiveConfirmation(int budgetId, string name)
+    {
+        budgetToArchiveId = budgetId;
+        budgetToArchiveName = name;
+        showBudgetArchiveModal = true;
+    }
+
+    private void CloseBudgetArchiveModal()
+    {
+        showBudgetArchiveModal = false;
+        budgetToArchiveId = 0;
+        budgetToArchiveName = string.Empty;
+        isBudgetArchiving = false;
+    }
+
+    private async Task ConfirmBudgetArchiveAsync()
+    {
+        if (isBudgetArchiving) return;
+        if (budgetToArchiveId == 0) return;
+
+        isBudgetArchiving = true;
+
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            
+            var entity = await db.BarangayBudgets
+                .Include(b => b.Items)
+                .FirstOrDefaultAsync(b => b.BudgetId == budgetToArchiveId);
+            
+            if (entity == null)
+            {
+                await JS.InvokeVoidAsync("alert", "Budget not found.");
+                return;
+            }
+
+            var itemCount = entity.Items.Count;
+            var reason = itemCount > 0
+                ? $"Archived with {itemCount} budget item(s)"
+                : "Archived by user";
+
+            var entityName = $"{entity.BarangayName} ({entity.Year})";
+
+            var result = await ArchiveService.ArchiveAsync<BarangayBudget>(
+                budgetToArchiveId,
+                reason,
+                entityName);
+
+            if (!result.success)
+            {
+                await JS.InvokeVoidAsync("alert", result.error ?? "Failed to archive budget.");
+                return;
+            }
+
+            await JS.InvokeVoidAsync("alert", "Budget archived successfully!");
+            CloseBudgetArchiveModal();
+            await LoadAll();
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Archive failed: {ex.Message}");
+        }
+        finally
+        {
+            isBudgetArchiving = false;
+        }
+    }
+
+    private void PreventClose()
+    {
+        // Intentionally empty: stops click from bubbling to overlay
+    }
 }

@@ -16,43 +16,82 @@ else
     <div class="app-shell @( _sidebarCollapsed ? "sidebar-collapsed" : "" )" @onclick="CloseTransientMenus">
         <aside class="shell-sidebar">
             <div class="sidebar-brand">
-                <img src="images/ResQLinkLogoFull.png"
-                     alt="ResQLink"
-                     class="brand-logo"
-                     @onerror="HandleImageError" />
+                @if (_sidebarCollapsed)
+                {
+                    <!-- Show only icon/initial when collapsed -->
+                    <div class="brand-logo-collapsed">
+                        <span class="brand-initial">R</span>
+                    </div>
+                }
+                else
+                {
+                    <!-- Show full logo when expanded -->
+                    <img src="images/ResQLinkLogoFull.png"
+                         alt="ResQLink"
+                         class="brand-logo"
+                         @onerror="HandleImageError" />
+                }
             </div>
 
             <nav class="nav-stack">
 
-                <!-- Header Label -->
-                <div class="nav-header-label">Menu</div>
+                <!-- Header Label - hide when collapsed -->
+                @if (!_sidebarCollapsed)
+                {
+                    <div class="nav-header-label">Menu</div>
+                }
 
-                <button class='nav-btn @ActiveClass("/home")' @onclick='() => Go("/home")'>
+                <button class='nav-btn @ActiveClass("/home")' 
+                        @onclick='() => Go("/home")'
+                        title="Dashboard">
                     <i class="bi bi-grid-fill nav-icon"></i>
-                    <span class="nav-text">Dashboard</span>
+                    @if (!_sidebarCollapsed)
+                    {
+                        <span class="nav-text">Dashboard</span>
+                    }
                 </button>
 
                 @* Show Disasters, Evacuees, Shelters, Volunteers for Operation Officer only (NOT Admin) *@
                 @if (Auth.CanAccessDisasterResponse() && !Auth.IsAdmin())
                 {
-                    <button class='nav-btn @ActiveClass("/disasters")' @onclick='() => Go("/disasters")'>
+                    <button class='nav-btn @ActiveClass("/disasters")' 
+                            @onclick='() => Go("/disasters")'
+                            title="Disasters">
                         <i class="bi bi-exclamation-triangle-fill nav-icon"></i>
-                        <span class="nav-text">Disasters</span>
+                        @if (!_sidebarCollapsed)
+                        {
+                            <span class="nav-text">Disasters</span>
+                        }
                     </button>
 
-                    <button class='nav-btn @ActiveClass("/evacuees")' @onclick='() => Go("/evacuees")'>
+                    <button class='nav-btn @ActiveClass("/evacuees")' 
+                            @onclick='() => Go("/evacuees")'
+                            title="Evacuees">
                         <i class="bi bi-people-fill nav-icon"></i>
-                        <span class="nav-text">Evacuees</span>
+                        @if (!_sidebarCollapsed)
+                        {
+                            <span class="nav-text">Evacuees</span>
+                        }
                     </button>
 
-                    <button class='nav-btn @ActiveClass("/shelters")' @onclick='() => Go("/shelters")'>
+                    <button class='nav-btn @ActiveClass("/shelters")' 
+                            @onclick='() => Go("/shelters")'
+                            title="Shelters">
                         <i class="bi bi-house-heart-fill nav-icon"></i>
-                        <span class="nav-text">Shelters</span>
+                        @if (!_sidebarCollapsed)
+                        {
+                            <span class="nav-text">Shelters</span>
+                        }
                     </button>
 
-                    <button class='nav-btn @ActiveClass("/volunteers")' @onclick='() => Go("/volunteers")'>
+                    <button class='nav-btn @ActiveClass("/volunteers")' 
+                            @onclick='() => Go("/volunteers")'
+                            title="Volunteers">
                         <i class="bi bi-person-badge nav-icon"></i>
-                        <span class="nav-text">Volunteers</span>
+                        @if (!_sidebarCollapsed)
+                        {
+                            <span class="nav-text">Volunteers</span>
+                        }
                     </button>
                 }
 
@@ -62,13 +101,23 @@ else
                     @if (Auth.IsFinanceManager())
                     {
                         @* Finance Manager: Only show Inventory Overview (read-only) *@
-                        <button class='nav-btn @ActiveClass("/inventory")' @onclick='() => Go("/inventory")'>
+                        <button class='nav-btn @ActiveClass("/inventory")' 
+                                @onclick='() => Go("/inventory")'
+                                title="Inventory Overview">
                             <i class="bi bi-box-seam-fill nav-icon"></i>
-                            <span class="nav-text">Inventory Overview</span>
+                            @if (!_sidebarCollapsed)
+                            {
+                                <span class="nav-text">Inventory Overview</span>
+                            }
                         </button>
-                        <button class='nav-btn @ActiveClass("/finance")' @onclick='() => Go("/finance")'>
+                        <button class='nav-btn @ActiveClass("/finance")' 
+                                @onclick='() => Go("/finance")'
+                                title="Finance">
                             <i class="bi bi-cash-coin nav-icon"></i>
-                            <span class="nav-text">Finance</span>
+                            @if (!_sidebarCollapsed)
+                            {
+                                <span class="nav-text">Finance</span>
+                            }
                         </button>
                     }
                     else if (Auth.IsInventoryManager())
@@ -78,15 +127,20 @@ else
 
                             <!-- Parent button -->
                             <button class='nav-btn @(IsInventoryActive ? "active" : "")'
-                                    @onclick="ToggleInventoryMenu" @onclick:stopPropagation="true">
+                                    @onclick="ToggleInventoryMenu" 
+                                    @onclick:stopPropagation="true"
+                                    title="Inventory">
                                 <i class="bi bi-box-seam-fill nav-icon"></i>
-                                <span class="nav-text">
-                                    Inventory
-                                    <i class="bi @(InventoryOpen ? "bi-chevron-up" : "bi-chevron-down")" style="font-size: 0.7rem;"></i>
-                                </span>
+                                @if (!_sidebarCollapsed)
+                                {
+                                    <span class="nav-text">
+                                        Inventory
+                                        <i class="bi @(InventoryOpen ? "bi-chevron-up" : "bi-chevron-down")" style="font-size: 0.7rem;"></i>
+                                    </span>
+                                }
                             </button>
 
-                            @if (InventoryOpen)
+                            @if (InventoryOpen && !_sidebarCollapsed)
                             {
                                 <div class="inventory-dropdown" @onclick:stopPropagation="true">
 
@@ -117,15 +171,25 @@ else
                         </div>
 
                         <!-- Stocks -->
-                        <button class='nav-btn @ActiveClass("/stocks")' @onclick='() => Go("/stocks")'>
+                        <button class='nav-btn @ActiveClass("/stocks")' 
+                                @onclick='() => Go("/stocks")'
+                                title="Stocks">
                             <i class="bi bi-graph-up-arrow nav-icon"></i>
-                            <span class="nav-text">Stocks</span>
+                            @if (!_sidebarCollapsed)
+                            {
+                                <span class="nav-text">Stocks</span>
+                            }
                         </button>
 
                         <!-- Suppliers -->
-                        <button class='nav-btn @ActiveClass("/suppliers")' @onclick='() => Go("/suppliers")'>
+                        <button class='nav-btn @ActiveClass("/suppliers")' 
+                                @onclick='() => Go("/suppliers")'
+                                title="Suppliers">
                             <i class="bi bi-truck nav-icon"></i>
-                            <span class="nav-text">Suppliers</span>
+                            @if (!_sidebarCollapsed)
+                            {
+                                <span class="nav-text">Suppliers</span>
+                            }
                         </button>
                     }
                 }
@@ -133,37 +197,72 @@ else
                 @* Show Reports for Finance Manager, Inventory Manager, Admin, and Operation Officer *@
                 @if (Auth.CanAccessReports())
                 {
-                    <button class='nav-btn @ActiveClass("/reports")' @onclick='() => Go("/reports")'>
+                    <button class='nav-btn @ActiveClass("/reports")' 
+                            @onclick='() => Go("/reports")'
+                            title="Reports">
                         <i class="bi bi-file-text-fill nav-icon"></i>
-                        <span class="nav-text">Reports</span>
+                        @if (!_sidebarCollapsed)
+                        {
+                            <span class="nav-text">Reports</span>
+                        }
                     </button>
                 }
 
                 @* Admin-only section *@
                 @if (Auth.IsAdmin())
                 {
-                    <button class='nav-btn @ActiveClass("/admin/audit-logs")' @onclick='() => Go("/admin/audit-logs")'>
+                    <button class='nav-btn @ActiveClass("/admin/audit-logs")' 
+                            @onclick='() => Go("/admin/audit-logs")'
+                            title="Audit Logs">
                         <i class="bi bi-clock-history nav-icon"></i>
-                        <span class="nav-text">Audit Logs</span>
+                        @if (!_sidebarCollapsed)
+                        {
+                            <span class="nav-text">Audit Logs</span>
+                        }
                     </button>
 
-                    <button class='nav-btn @ActiveClass("/admin/archives")' @onclick='() => Go("/admin/archives")'>
+                    <button class='nav-btn @ActiveClass("/admin/archives")' 
+                            @onclick='() => Go("/admin/archives")'
+                            title="Archives">
                         <i class="bi bi-archive-fill nav-icon"></i>
-                        <span class="nav-text">Archives</span>
+                        @if (!_sidebarCollapsed)
+                        {
+                            <span class="nav-text">Archives</span>
+                        }
                     </button>
 
-                    <button class='nav-btn @ActiveClass("/manage-users")' @onclick='() => Go("/manage-users")'>
+                    <button class='nav-btn @ActiveClass("/manage-users")' 
+                            @onclick='() => Go("/manage-users")'
+                            title="Manage Users">
                         <i class="bi bi-person-badge-fill nav-icon"></i>
-                        <span class="nav-text">Manage Users</span>
+                        @if (!_sidebarCollapsed)
+                        {
+                            <span class="nav-text">Manage Users</span>
+                        }
                     </button>
                 }
 
                 @* Settings available to all non-volunteer roles *@
-                <button class='nav-btn @ActiveClass("/settings")' @onclick='() => Go("/settings")'>
+                <button class='nav-btn @ActiveClass("/settings")' 
+                        @onclick='() => Go("/settings")'
+                        title="Settings">
                     <i class="bi bi-gear-fill nav-icon"></i>
-                    <span class="nav-text">Settings</span>
+                    @if (!_sidebarCollapsed)
+                    {
+                        <span class="nav-text">Settings</span>
+                    }
                 </button>
             </nav>
+
+            <!-- Collapse Toggle Button at bottom of sidebar -->
+            <div class="sidebar-footer">
+                <button class="collapse-toggle-btn" 
+                        @onclick="ToggleSidebar" 
+                        @onclick:stopPropagation="true"
+                        title="@(_sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")">
+                    <i class="bi @(_sidebarCollapsed ? "bi-chevron-right" : "bi-chevron-left")"></i>
+                </button>
+            </div>
         </aside>
 
         <section class="shell-body">
@@ -324,13 +423,22 @@ else
     private void ToggleSidebar()
     {
         _sidebarCollapsed = !_sidebarCollapsed;
+        // Close inventory dropdown when collapsing
+        if (_sidebarCollapsed)
+        {
+            InventoryOpen = false;
+        }
     }
 
     private void ToggleInventoryMenu()
     {
         try
         {
-            InventoryOpen = !InventoryOpen;
+            // Don't toggle if sidebar is collapsed
+            if (!_sidebarCollapsed)
+            {
+                InventoryOpen = !InventoryOpen;
+            }
         }
         catch (Exception ex)
         {

@@ -110,34 +110,115 @@ public class ArchiveService
             if (archive.EntityType != entityType)
                 return (false, $"Archive type mismatch. Expected {entityType}, found {archive.EntityType}");
 
-            // Deserialize entity from JSON
-            var entity = JsonSerializer.Deserialize<T>(archive.ArchivedData);
+            // Deserialize entity from JSON with proper options
+            var jsonOptions = new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+                ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles,
+                DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+            };
+
+            var entity = JsonSerializer.Deserialize<T>(archive.ArchivedData, jsonOptions);
             if (entity == null)
                 return (false, "Failed to deserialize archived data.");
 
-            // Add entity back to its table
-            var dbSet = db.Set<T>();
-            dbSet.Add(entity);
+            // Get table name and primary key
+            var tableName = GetTableName<T>();
+            var primaryKeyName = GetPrimaryKeyName<T>();
+            var entityId = (int)typeof(T).GetProperty(primaryKeyName)!.GetValue(entity)!;
+            
+            Console.WriteLine($"Restoring {entityType} ID {entityId} to table {tableName}");
+            
+            // Check if entity with this ID already exists
+            var existingEntity = await db.Set<T>()
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(e => EF.Property<int>(e, primaryKeyName) == entityId);
 
-            // Remove archive record
-            db.Archives.Remove(archive);
+            // Open connection before starting transaction
+            await db.Database.OpenConnectionAsync();
+            
+            using var transaction = await db.Database.BeginTransactionAsync();
+            
+            try
+            {
+                // Enable IDENTITY_INSERT for this table
+                var enableIdentityInsert = $"SET IDENTITY_INSERT {tableName} ON";
+                Console.WriteLine($"Executing: {enableIdentityInsert}");
+                await db.Database.ExecuteSqlRawAsync(enableIdentityInsert);
 
-            await db.SaveChangesAsync();
+                if (existingEntity != null)
+                {
+                    Console.WriteLine($"Updating existing entity ID {entityId}");
+                    // Entity exists - update it
+                    db.Entry(existingEntity).CurrentValues.SetValues(entity);
+                    db.Entry(existingEntity).State = EntityState.Modified;
+                }
+                else
+                {
+                    Console.WriteLine($"Inserting new entity ID {entityId}");
+                    // Entity doesn't exist - insert it with explicit ID
+                    db.Set<T>().Attach(entity);
+                    db.Entry(entity).State = EntityState.Added;
+                }
 
-            var userId = _authState?.UserId ?? 0;
-            await _auditService.LogAsync(
-                action: "Restore",
-                entityType: entityType,
-                entityId: archive.EntityId,
-                userId: userId,
-                description: $"Restored {entityType} from archive (Archive ID: {archiveId})",
-                newValues: new { RestoredFrom = archiveId }
-            );
+                // Remove archive record
+                db.Archives.Remove(archive);
 
-            return (true, null);
+                // Save changes while IDENTITY_INSERT is ON
+                await db.SaveChangesAsync();
+
+                // Disable IDENTITY_INSERT
+                var disableIdentityInsert = $"SET IDENTITY_INSERT {tableName} OFF";
+                Console.WriteLine($"Executing: {disableIdentityInsert}");
+                await db.Database.ExecuteSqlRawAsync(disableIdentityInsert);
+
+                // Commit transaction
+                await transaction.CommitAsync();
+
+                var userId = _authState?.UserId ?? 0;
+                await _auditService.LogAsync(
+                    action: "Restore",
+                    entityType: entityType,
+                    entityId: archive.EntityId,
+                    userId: userId,
+                    description: $"Restored {entityType} from archive (Archive ID: {archiveId})",
+                    newValues: new { RestoredFrom = archiveId }
+                );
+
+                return (true, null);
+            }
+            catch (Exception ex)
+            {
+                // Rollback transaction on error
+                await transaction.RollbackAsync();
+                
+                // Try to disable IDENTITY_INSERT even on error
+                try
+                {
+                    await db.Database.ExecuteSqlRawAsync($"SET IDENTITY_INSERT {tableName} OFF");
+                }
+                catch
+                {
+                    // Ignore errors when disabling
+                }
+                
+                throw;
+            }
+        }
+        catch (DbUpdateException ex)
+        {
+            var innerMessage = ex.InnerException?.Message ?? ex.Message;
+            Console.WriteLine($"DbUpdateException during restore: {innerMessage}");
+            return (false, $"Database error during restore: {innerMessage}");
+        }
+        catch (JsonException ex)
+        {
+            Console.WriteLine($"JsonException during restore: {ex.Message}");
+            return (false, $"Failed to deserialize archived data: {ex.Message}");
         }
         catch (Exception ex)
         {
+            Console.WriteLine($"Exception during restore: {ex.Message}\nStack: {ex.StackTrace}");
             return (false, $"Failed to restore: {ex.Message}");
         }
     }
@@ -237,8 +318,58 @@ public class ArchiveService
             "Stock" => "StockId",
             "ProcurementRequest" => "RequestId",
             "BarangayBudget" => "BudgetId",
+            "Evacuee" => "EvacueeId",
+            "Shelter" => "ShelterId",
+            "Volunteer" => "VolunteerId",
+            "User" => "UserId",
             _ => $"{type.Name}Id"
         };
+    }
+
+    /// <summary>
+    /// Get the database table name for an entity type
+    /// </summary>
+    private string GetTableName<T>() where T : class
+    {
+        try
+        {
+            using var db = _contextFactory.CreateDbContext();
+            var entityType = db.Model.FindEntityType(typeof(T));
+            
+            if (entityType != null)
+            {
+                var schema = entityType.GetSchema() ?? "dbo";
+                var tableName = entityType.GetTableName();
+                var result = $"[{schema}].[{tableName}]";
+                Console.WriteLine($"GetTableName<{typeof(T).Name}>() = {result}");
+                return result;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error getting table name from EF: {ex.Message}");
+        }
+        
+        // Fallback to naming convention
+        var type = typeof(T);
+        var fallback = type.Name switch
+        {
+            "ReliefGood" => "[dbo].[Relief_Goods]",
+            "Category" => "[dbo].[Categories]",
+            "Disaster" => "[dbo].[Disasters]",
+            "Supplier" => "[dbo].[Suppliers]",
+            "Stock" => "[dbo].[Stocks]",
+            "ProcurementRequest" => "[dbo].[ProcurementRequests]",
+            "BarangayBudget" => "[dbo].[BarangayBudgets]",
+            "Evacuee" => "[dbo].[Evacuees]",
+            "Shelter" => "[dbo].[Shelters]",
+            "Volunteer" => "[dbo].[Volunteers]",
+            "User" => "[dbo].[Users]",
+            _ => $"[dbo].[{type.Name}s]"
+        };
+        
+        Console.WriteLine($"GetTableName<{typeof(T).Name}>() = {fallback} (fallback)");
+        return fallback;
     }
 
     /// <summary>
@@ -248,12 +379,44 @@ public class ArchiveService
     {
         var type = entity.GetType();
         
+        // Special handling for specific entity types
+        switch (type.Name)
+        {
+            case "Evacuee":
+            case "Volunteer":
+            case "User":
+                var firstName = type.GetProperty("FirstName")?.GetValue(entity)?.ToString();
+                var lastName = type.GetProperty("LastName")?.GetValue(entity)?.ToString();
+                if (!string.IsNullOrEmpty(firstName) || !string.IsNullOrEmpty(lastName))
+                {
+                    return $"{firstName} {lastName}".Trim();
+                }
+                break;
+                
+            case "Shelter":
+                var shelterName = type.GetProperty("Name")?.GetValue(entity)?.ToString();
+                var location = type.GetProperty("Location")?.GetValue(entity)?.ToString();
+                if (!string.IsNullOrEmpty(shelterName))
+                {
+                    return !string.IsNullOrEmpty(location) ? $"{shelterName} ({location})" : shelterName;
+                }
+                break;
+                
+            case "ProcurementRequest":
+                var requestId = type.GetProperty("RequestId")?.GetValue(entity)?.ToString();
+                var barangayName = type.GetProperty("BarangayName")?.GetValue(entity)?.ToString();
+                return !string.IsNullOrEmpty(barangayName) 
+                    ? $"Request #{requestId} - {barangayName}" 
+                    : $"Request #{requestId}";
+        }
+        
         // Try common name properties
         var nameProperty = type.GetProperty("Name") 
             ?? type.GetProperty("Title") 
             ?? type.GetProperty("ItemName")
             ?? type.GetProperty("SupplierName")
-            ?? type.GetProperty("BarangayName");
+            ?? type.GetProperty("BarangayName")
+            ?? type.GetProperty("Username");
 
         return nameProperty?.GetValue(entity)?.ToString();
     }

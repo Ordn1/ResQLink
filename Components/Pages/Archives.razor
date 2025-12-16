@@ -85,8 +85,12 @@
                             <option value="Category">Categories</option>
                             <option value="Supplier">Suppliers</option>
                             <option value="Stock">Stocks</option>
-                            <option value="ProcurementRequest">Procurement</option>
+                            <option value="ProcurementRequest">Procurement Requests</option>
                             <option value="BarangayBudget">Budgets</option>
+                            <option value="Evacuee">Evacuees</option>
+                            <option value="Shelter">Shelters</option>
+                            <option value="Volunteer">Volunteers</option>
+                            <option value="User">Users</option>
                         </select>
                     </div>
 
@@ -401,6 +405,10 @@
                 "Stock" => await ArchiveService.RestoreAsync<Stock>(archive.ArchiveId),
                 "ProcurementRequest" => await ArchiveService.RestoreAsync<ProcurementRequest>(archive.ArchiveId),
                 "BarangayBudget" => await ArchiveService.RestoreAsync<BarangayBudget>(archive.ArchiveId),
+                "Evacuee" => await ArchiveService.RestoreAsync<Evacuee>(archive.ArchiveId),
+                "Shelter" => await ArchiveService.RestoreAsync<Shelter>(archive.ArchiveId),
+                "Volunteer" => await ArchiveService.RestoreAsync<Volunteer>(archive.ArchiveId),
+                "User" => await ArchiveService.RestoreAsync<User>(archive.ArchiveId),
                 _ => (false, "Unknown entity type")
             };
 
@@ -413,7 +421,7 @@
             }
             else
             {
-                await JS.InvokeVoidAsync("alert", "Failed to restore item. It may have been deleted.");
+                await JS.InvokeVoidAsync("alert", $"Failed to restore: {error ?? "Unknown error"}");
             }
         }
         catch (Exception ex)
@@ -462,12 +470,16 @@
     private string GetFriendlyTypeName(string entityType) => entityType switch
     {
         "ReliefGood" => "Relief Goods",
-        "Disaster" => "Disasters",
-        "Category" => "Categories",
-        "Supplier" => "Suppliers",
-        "Stock" => "Stocks",
-        "ProcurementRequest" => "Procurement",
-        "BarangayBudget" => "Budgets",
+        "Disaster" => "Disaster",
+        "Category" => "Category",
+        "Supplier" => "Supplier",
+        "Stock" => "Stock",
+        "ProcurementRequest" => "Procurement Request",
+        "BarangayBudget" => "Budget",
+        "Evacuee" => "Evacuee",
+        "Shelter" => "Shelter",
+        "Volunteer" => "Volunteer",
+        "User" => "User",
         _ => entityType
     };
 
@@ -480,6 +492,10 @@
         "Stock" => "bi bi-inbox-fill",
         "ProcurementRequest" => "bi bi-cart-fill",
         "BarangayBudget" => "bi bi-cash-coin",
+        "Evacuee" => "bi bi-person-fill",
+        "Shelter" => "bi bi-house-heart-fill",
+        "Volunteer" => "bi bi-person-badge-fill",
+        "User" => "bi bi-person-circle",
         _ => "bi bi-folder-fill"
     };
 

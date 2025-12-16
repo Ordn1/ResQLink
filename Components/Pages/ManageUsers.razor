@@ -4,6 +4,8 @@
 @inject IUserService UserService
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
+@inject ResQLink.Services.ArchiveService ArchiveService
+@inject ResQLink.Services.AuthState Auth
 
 <div class="manage-users-container">
     <!-- Page header, matching other admin pages -->
@@ -338,12 +340,40 @@
     </div>
 }
 
+@* Archive Confirmation Modal *@
+@if (showArchiveConfirmation && userToArchive is not null)
+{
+    <div class="modal-overlay" @onclick="CloseArchiveModal" @onclick:stopPropagation="false">
+        <div class="modal-content modal-small" @onclick="PreventClose" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3>Confirm Archive</h3>
+                <button class="btn-close" @onclick="CloseArchiveModal" @onclick:stopPropagation="true">×</button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to archive the user <strong>"@userToArchive.Username"</strong>?</p>
+                <p class="warning-text">This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" @onclick="CloseArchiveModal" @onclick:stopPropagation="true">Cancel</button>
+                <button class="btn-warning" @onclick="ConfirmArchive" disabled="@isArchiving" @onclick:stopPropagation="true">
+                    @if (isArchiving)
+                    {
+                        <span class="spinner"></span>
+                    }
+                    Archive
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private List<User> Users = new();
     private List<UserRole> Roles = new();
     private bool Loading = true;
     private bool Saving = false;
     private bool isDeleting = false;
+    private bool isArchiving = false;
     private string ErrorMessage = "";
     private string SuccessMessage = "";
     private string ModalError = "";
@@ -362,8 +392,10 @@
     private bool ShowCreateModal = false;
     private bool ShowResetPasswordModal = false;
     private bool showDeleteConfirmation = false;
+    private bool showArchiveConfirmation = false;
     private User? SelectedUser = null;
     private User? userToDelete = null;
+    private User? userToArchive = null;
 
     // Edit form fields
     private string EditEmail = "";
@@ -498,6 +530,19 @@
         showDeleteConfirmation = false;
         userToDelete = null;
         isDeleting = false;
+    }
+
+    private void ShowArchiveConfirmation(User user)
+    {
+        userToArchive = user;
+        showArchiveConfirmation = true;
+    }
+
+    private void CloseArchiveModal()
+    {
+        showArchiveConfirmation = false;
+        userToArchive = null;
+        isArchiving = false;
     }
 
     private async Task CloseModals()
@@ -665,5 +710,11 @@
         {
             isDeleting = false;
         }
+    }
+
+    private void ConfirmArchive()
+    {
+        // Implement archive confirmation logic here
+        // Example: isArchiving = true;
     }
 }

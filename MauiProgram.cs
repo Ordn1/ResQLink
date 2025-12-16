@@ -188,7 +188,7 @@ namespace ResQLink
             var syncSettings = new SyncSettings
             {
                 RemoteEnabled = true, // Disabled by default until connection is verified
-                RemoteConnectionString = "Server=db32781.public.databaseasp.net; Database=db32781; User Id=db32781; Password=7Cb#g8_X-Q5n; Encrypt=True; TrustServerCertificate=True; MultipleActiveResultSets=True;las",
+                RemoteConnectionString = "Server=db35465.public.databaseasp.net; Database=db35465; User Id=db35465; Password=4Ex?f5=G!D2z; Encrypt=True; TrustServerCertificate=True; MultipleActiveResultSets=True;",
                 IntervalMinutes = 5
             };
             builder.Services.AddSingleton(syncSettings);

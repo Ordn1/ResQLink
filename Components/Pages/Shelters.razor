@@ -1,5 +1,7 @@
 ﻿@page "/shelters"
 @inject ResQLink.Data.AppDbContext Db
+@inject ResQLink.Services.ArchiveService ArchiveService
+@inject ResQLink.Services.AuthState Auth
 @inject NavigationManager Nav
 @inject IJSRuntime JS
 @using Microsoft.EntityFrameworkCore
@@ -618,7 +620,7 @@
         if (editModel.ShelterId == 0 || saving) return;
 
         var confirmed = await JS.InvokeAsync<bool>("confirm", 
-            $"Are you sure you want to delete shelter '{editModel.Name}'? This action cannot be undone.");
+            $"Are you sure you want to archive shelter '{editModel.Name}'?");
         
         if (!confirmed) return;
 
@@ -637,26 +639,39 @@
                 return;
             }
 
-            if (entity.Evacuees.Any())
+            // Use centralized ArchiveService instead of permanent deletion
+            var evacueeCount = entity.Evacuees.Count;
+            var reason = evacueeCount > 0
+                ? $"Archived with {evacueeCount} evacuee(s) assigned"
+                : "Archived by user";
+
+            var entityName = !string.IsNullOrEmpty(entity.Location)
+                ? $"{entity.Name} ({entity.Location})"
+                : entity.Name;
+
+            var result = await ArchiveService.ArchiveAsync<Shelter>(
+                editModel.ShelterId,
+                reason,
+                entityName);
+
+            if (!result.success)
             {
-                formError = $"Cannot delete: {entity.Evacuees.Count} evacuee(s) are currently assigned to this shelter";
+                formError = result.error ?? "Failed to archive shelter.";
                 return;
             }
 
-            Db.Shelters.Remove(entity);
-            await Db.SaveChangesAsync();
-            await JS.InvokeVoidAsync("alert", "Shelter deleted successfully!");
+            await JS.InvokeVoidAsync("alert", "Shelter archived successfully!");
             showForm = false;
             await LoadAsync();
         }
         catch (DbUpdateException ex)
         {
-            formError = $"Cannot delete: This shelter may have related records. {ex.InnerException?.Message ?? ex.Message}";
+            formError = $"Archive failed: {ex.InnerException?.Message ?? ex.Message}";
             await LogErrorAsync("ConfirmDeleteAsync", ex);
         }
         catch (Exception ex)
         {
-            formError = $"Delete failed: {ex.Message}";
+            formError = $"Archive failed: {ex.Message}";
             await LogErrorAsync("ConfirmDeleteAsync", ex);
         }
         finally

@@ -405,16 +405,17 @@ WHERE o.type = 'U'
                         }
                         else
                         {
+                            // **FIX: Detach the found entity immediately to prevent tracking conflicts**
+                            remote.Entry(exists).State = EntityState.Detached;
+                            
                             if (!AreEntitiesEqual(remote, row, exists))
                             {
-                                remote.Entry(exists).CurrentValues.SetValues(row);
-                                toUpdate.Add(exists);
+                                // Create a new tracked instance for update
+                                remote.Attach(row);
+                                remote.Entry(row).State = EntityState.Modified;
+                                toUpdate.Add(row);
                             }
-                            else
-                            {
-                                // Detach if not modified to prevent tracking conflicts
-                                remote.Entry(exists).State = EntityState.Detached;
-                            }
+                            // else: entity unchanged, no action needed
                         }
                     }
 
@@ -422,6 +423,9 @@ WHERE o.type = 'U'
                     {
                         _logger.LogDebug("Updating {Count} {Entity} records", toUpdate.Count, tableIdent);
                         await remote.SaveChangesAsync(ct);
+                        
+                        // **FIX: Clear the tracker after save to prevent accumulation**
+                        remote.ChangeTracker.Clear();
                     }
 
                     if (toInsert.Count > 0)
@@ -458,6 +462,7 @@ WHERE o.type = 'U'
                                 remote.Entry(r).State = EntityState.Added;
                             }
                             await remote.SaveChangesAsync(ct);
+                            remote.ChangeTracker.Clear(); // **FIX: Clear after insert**
                         }
 
                         if (withExplicitKey.Count > 0)
@@ -472,6 +477,7 @@ WHERE o.type = 'U'
                                     remote.Entry(r).State = EntityState.Added;
                                 }
                                 await remote.SaveChangesAsync(ct);
+                                remote.ChangeTracker.Clear(); // **FIX: Clear after insert**
                             }
                             finally
                             {
