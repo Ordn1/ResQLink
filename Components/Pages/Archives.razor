@@ -3,12 +3,73 @@
 @inject AuditService AuditService
 @inject AuthState Auth
 @inject NavigationManager Navigation
-@inject IJSRuntime JS
 @using ResQLink.Data.Entities
 @using ResQLink.Services
 @using System.Text.Json
+@using ResQLink.Components.Shared
 
 <PageTitle>Archive Management - ResQLink</PageTitle>
+
+@* ========== ALERT MODALS - ADD AT TOP ========== *@
+
+@* Success Alerts *@
+<AlertModal @bind-IsVisible="showRestoreSuccess"
+            Title="Restore Successful"
+            Message="@successMessage"
+            Type="AlertModal.AlertType.Success" />
+
+<AlertModal @bind-IsVisible="showDeleteSuccess"
+            Title="Permanently Deleted"
+            Message="Archive record has been permanently deleted."
+            Type="AlertModal.AlertType.Success" />
+
+@* Error Alerts *@
+<AlertModal @bind-IsVisible="showLoadError"
+            Title="Error Loading Archives"
+            Message="@errorMessage"
+            Type="AlertModal.AlertType.Error" />
+
+<AlertModal @bind-IsVisible="showRestoreError"
+            Title="Error Restoring Archive"
+            Message="@errorMessage"
+            Type="AlertModal.AlertType.Error" />
+
+<AlertModal @bind-IsVisible="showDeleteError"
+            Title="Error Deleting Archive"
+            Message="@errorMessage"
+            Type="AlertModal.AlertType.Error" />
+
+@* Confirmation Dialogs *@
+<AlertModal @bind-IsVisible="showRestoreConfirm"
+            Title="Confirm Restore"
+            Message="@restoreConfirmMessage"
+            DetailMessage="This will restore the archived record back to its original table."
+            Type="AlertModal.AlertType.Warning"
+            ShowCancel="true"
+            ConfirmText="Restore"
+            CancelText="Cancel"
+            IsProcessing="isRestoring"
+            OnConfirm="ExecuteRestore"
+            OnCancel="CancelRestore" />
+
+<AlertModal @bind-IsVisible="showDeleteConfirm"
+            Title="Confirm Permanent Delete"
+            Message="@deleteConfirmMessage"
+            DetailMessage="⚠️ WARNING: This will PERMANENTLY delete this record. This action cannot be undone!"
+            Type="AlertModal.AlertType.Error"
+            ShowCancel="true"
+            ConfirmText="Permanently Delete"
+            CancelText="Cancel"
+            IsProcessing="isDeleting"
+            OnConfirm="ExecuteDelete"
+            OnCancel="CancelDelete" />
+
+<AlertModal @bind-IsVisible="showAccessDenied"
+            Title="Access Denied"
+            Message="You must be an administrator to view archived records."
+            Type="AlertModal.AlertType.Warning" />
+
+@* ========== END ALERT MODALS ========== *@
 
 <div class="archives-root">
     @if (!Auth.IsAdmin())
@@ -91,6 +152,7 @@
                             <option value="Shelter">Shelters</option>
                             <option value="Volunteer">Volunteers</option>
                             <option value="User">Users</option>
+                            <option value="UserRole">User Roles</option>
                         </select>
                     </div>
 
@@ -163,10 +225,10 @@
                                 <button class="btn-icon" @onclick="() => ViewArchiveDetails(archive)" title="View Details">
                                     <i class="bi bi-eye-fill"></i>
                                 </button>
-                                <button class="btn-icon" @onclick="() => RestoreArchive(archive)" title="Restore">
+                                <button class="btn-icon" @onclick="() => ShowRestoreConfirmation(archive)" title="Restore">
                                     <i class="bi bi-arrow-counterclockwise"></i>
                                 </button>
-                                <button class="btn-icon btn-danger-outline" @onclick="() => DeletePermanently(archive)" title="Delete Permanently">
+                                <button class="btn-icon btn-danger-outline" @onclick="() => ShowDeleteConfirmation(archive)" title="Delete Permanently">
                                     <i class="bi bi-trash-fill"></i>
                                 </button>
                             </td>
@@ -256,7 +318,7 @@
 
                 <div class="modal-footer">
                     <button class="btn-secondary" @onclick="CloseModal">Close</button>
-                    <button class="btn-primary" @onclick="() => RestoreArchive(selectedArchive)">
+                    <button class="btn-primary" @onclick="() => ShowRestoreConfirmation(selectedArchive)">
                         <i class="bi bi-arrow-counterclockwise"></i> Restore Record
                     </button>
                 </div>
@@ -276,6 +338,8 @@
     private List<Archive> filteredArchives = new();
     private Dictionary<string, int> typeCounts = new();
     private Archive? selectedArchive = null;
+    private Archive? archiveToRestore = null;
+    private Archive? archiveToDelete = null;
 
     private int TotalArchived => allArchives.Count;
 
@@ -288,8 +352,30 @@
     private int EndIndex => Math.Min((_pageIndex + 1) * pageSize, TotalFiltered);
     private IEnumerable<Archive> PagedArchives => filteredArchives.Skip(_pageIndex * pageSize).Take(pageSize);
 
+    // NEW: Alert modal state variables
+    private bool showAccessDenied = false;
+    private bool showLoadError = false;
+    private bool showRestoreSuccess = false;
+    private bool showRestoreError = false;
+    private bool showDeleteSuccess = false;
+    private bool showDeleteError = false;
+    private bool showRestoreConfirm = false;
+    private bool showDeleteConfirm = false;
+    private bool isRestoring = false;
+    private bool isDeleting = false;
+    private string errorMessage = "";
+    private string successMessage = "";
+    private string restoreConfirmMessage = "";
+    private string deleteConfirmMessage = "";
+
     protected override async Task OnInitializedAsync()
     {
+        if (!Auth.IsAdmin())
+        {
+            showAccessDenied = true;
+            return;
+        }
+
         await LoadArchives();
         await LoadTypeCounts();
     }
@@ -304,7 +390,8 @@
         }
         catch (Exception ex)
         {
-            await JS.InvokeVoidAsync("alert", $"Error loading archives: {ex.Message}");
+            errorMessage = $"Error loading archives: {ex.Message}";
+            showLoadError = true;
         }
         finally
         {
@@ -355,7 +442,7 @@
         }
 
         filteredArchives = filteredArchives.OrderByDescending(x => x.ArchivedAt).ToList();
-        _pageIndex = 0; // Reset to first page on filter
+        _pageIndex = 0;
     }
 
     private void ApplyFilters()
@@ -372,7 +459,6 @@
         ApplyFiltersInternal();
     }
 
-    // Pagination Methods
     private void PrevPage()
     {
         if (_pageIndex > 0) _pageIndex--;
@@ -388,79 +474,124 @@
         _pageIndex = 0;
     }
 
-    private async Task RestoreArchive(Archive archive)
+    private void ShowRestoreConfirmation(Archive archive)
     {
-        var confirmed = await JS.InvokeAsync<bool>("confirm", $"Are you sure you want to restore this {GetFriendlyTypeName(archive.EntityType)}?\n\n{archive.EntityName}");
-        if (!confirmed) return;
+        archiveToRestore = archive;
+        restoreConfirmMessage = $"Are you sure you want to restore this {GetFriendlyTypeName(archive.EntityType)}?\n\n{archive.EntityName}";
+        showRestoreConfirm = true;
+    }
 
-        isLoading = true;
+    private void CancelRestore()
+    {
+        showRestoreConfirm = false;
+        archiveToRestore = null;
+        isRestoring = false;
+    }
+
+    private async Task ExecuteRestore()
+    {
+        if (archiveToRestore == null || isRestoring) return;
+
+        isRestoring = true;
+        errorMessage = "";
+
         try
         {
-            var (success, error) = archive.EntityType switch
+            var (success, error) = archiveToRestore.EntityType switch
             {
-                "ReliefGood" => await ArchiveService.RestoreAsync<ReliefGood>(archive.ArchiveId),
-                "Disaster" => await ArchiveService.RestoreAsync<Disaster>(archive.ArchiveId),
-                "Category" => await ArchiveService.RestoreAsync<Category>(archive.ArchiveId),
-                "Supplier" => await ArchiveService.RestoreAsync<Supplier>(archive.ArchiveId),
-                "Stock" => await ArchiveService.RestoreAsync<Stock>(archive.ArchiveId),
-                "ProcurementRequest" => await ArchiveService.RestoreAsync<ProcurementRequest>(archive.ArchiveId),
-                "BarangayBudget" => await ArchiveService.RestoreAsync<BarangayBudget>(archive.ArchiveId),
-                "Evacuee" => await ArchiveService.RestoreAsync<Evacuee>(archive.ArchiveId),
-                "Shelter" => await ArchiveService.RestoreAsync<Shelter>(archive.ArchiveId),
-                "Volunteer" => await ArchiveService.RestoreAsync<Volunteer>(archive.ArchiveId),
-                "User" => await ArchiveService.RestoreAsync<User>(archive.ArchiveId),
+                "ReliefGood" => await ArchiveService.RestoreAsync<ReliefGood>(archiveToRestore.ArchiveId),
+                "Disaster" => await ArchiveService.RestoreAsync<Disaster>(archiveToRestore.ArchiveId),
+                "Category" => await ArchiveService.RestoreAsync<Category>(archiveToRestore.ArchiveId),
+                "Supplier" => await ArchiveService.RestoreAsync<Supplier>(archiveToRestore.ArchiveId),
+                "Stock" => await ArchiveService.RestoreAsync<Stock>(archiveToRestore.ArchiveId),
+                "ProcurementRequest" => await ArchiveService.RestoreAsync<ProcurementRequest>(archiveToRestore.ArchiveId),
+                "BarangayBudget" => await ArchiveService.RestoreAsync<BarangayBudget>(archiveToRestore.ArchiveId),
+                "Evacuee" => await ArchiveService.RestoreAsync<Evacuee>(archiveToRestore.ArchiveId),
+                "Shelter" => await ArchiveService.RestoreAsync<Shelter>(archiveToRestore.ArchiveId),
+                "Volunteer" => await ArchiveService.RestoreAsync<Volunteer>(archiveToRestore.ArchiveId),
+                "User" => await ArchiveService.RestoreAsync<User>(archiveToRestore.ArchiveId),
                 _ => (false, "Unknown entity type")
             };
 
             if (success)
             {
-                await JS.InvokeVoidAsync("alert", $"✓ {GetFriendlyTypeName(archive.EntityType)} restored successfully!");
+                successMessage = $"✓ {GetFriendlyTypeName(archiveToRestore.EntityType)} '{archiveToRestore.EntityName}' restored successfully!";
+                showRestoreConfirm = false;
                 selectedArchive = null;
                 await LoadArchives();
                 await LoadTypeCounts();
+                showRestoreSuccess = true;
             }
             else
             {
-                await JS.InvokeVoidAsync("alert", $"Failed to restore: {error ?? "Unknown error"}");
+                errorMessage = $"Failed to restore: {error ?? "Unknown error"}";
+                showRestoreConfirm = false;
+                showRestoreError = true;
             }
         }
         catch (Exception ex)
         {
-            await JS.InvokeVoidAsync("alert", $"Error: {ex.Message}");
+            errorMessage = $"Error: {ex.Message}";
+            showRestoreConfirm = false;
+            showRestoreError = true;
         }
         finally
         {
-            isLoading = false;
+            isRestoring = false;
+            archiveToRestore = null;
         }
     }
 
-    private async Task DeletePermanently(Archive archive)
+    private void ShowDeleteConfirmation(Archive archive)
     {
-        var confirmed = await JS.InvokeAsync<bool>("confirm", $"⚠️ WARNING: This will PERMANENTLY delete this record.\n\nEntity: {GetFriendlyTypeName(archive.EntityType)}\nName: {archive.EntityName}\n\nThis cannot be undone. Continue?");
-        if (!confirmed) return;
+        archiveToDelete = archive;
+        deleteConfirmMessage = $"Are you sure you want to PERMANENTLY delete this record?\n\nEntity: {GetFriendlyTypeName(archive.EntityType)}\nName: {archive.EntityName}";
+        showDeleteConfirm = true;
+    }
 
-        isLoading = true;
+    private void CancelDelete()
+    {
+        showDeleteConfirm = false;
+        archiveToDelete = null;
+        isDeleting = false;
+    }
+
+    private async Task ExecuteDelete()
+    {
+        if (archiveToDelete == null || isDeleting) return;
+
+        isDeleting = true;
+        errorMessage = "";
+
         try
         {
-            var (success, error) = await ArchiveService.DeletePermanentlyAsync(archive.ArchiveId);
+            var (success, error) = await ArchiveService.DeletePermanentlyAsync(archiveToDelete.ArchiveId);
+            
             if (success)
             {
+                showDeleteConfirm = false;
                 selectedArchive = null;
                 await LoadArchives();
                 await LoadTypeCounts();
+                showDeleteSuccess = true;
             }
             else
             {
-                await JS.InvokeVoidAsync("alert", "Failed to delete archive.");
+                errorMessage = "Failed to delete archive.";
+                showDeleteConfirm = false;
+                showDeleteError = true;
             }
         }
         catch (Exception ex)
         {
-            await JS.InvokeVoidAsync("alert", $"Error: {ex.Message}");
+            errorMessage = $"Error: {ex.Message}";
+            showDeleteConfirm = false;
+            showDeleteError = true;
         }
         finally
         {
-            isLoading = false;
+            isDeleting = false;
+            archiveToDelete = null;
         }
     }
 
@@ -469,7 +600,7 @@
 
     private string GetFriendlyTypeName(string entityType) => entityType switch
     {
-        "ReliefGood" => "Relief Goods",
+        "ReliefGood" => "Relief Good",
         "Disaster" => "Disaster",
         "Category" => "Category",
         "Supplier" => "Supplier",
@@ -480,6 +611,7 @@
         "Shelter" => "Shelter",
         "Volunteer" => "Volunteer",
         "User" => "User",
+        "UserRole" => "User Role",
         _ => entityType
     };
 

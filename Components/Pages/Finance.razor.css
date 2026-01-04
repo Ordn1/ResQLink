@@ -386,7 +386,7 @@ select.mini-input {
 }
 
 .text-muted {
-    color: var(--text-muted);
+    color: #9ca3af !important;
 }
 
 /* Badges */
@@ -671,13 +671,20 @@ select.mini-input {
 
 /* Validation / error */
 .form-error {
-    background: var(--danger-soft);
+    padding: 12px;
+    background: #fef2f2;
     border: 1px solid #fecaca;
-    border-radius: 8px;
-    padding: 8px 10px;
-    color: var(--danger);
-    font-size: .75rem;
-    margin-top: 12px;
+    border-radius: 6px;
+    color: #991b1b;
+    font-size: 0.85rem;
+    margin-bottom: 16px;
+    animation: shake 0.4s ease-in-out;
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    75% { transform: translateX(5px); }
 }
 
 /* Modal action buttons */
@@ -818,3 +825,20 @@ select.mini-input {
         margin: 0 auto;
     }
 }
+.invalid-feedback {
+        display: block;
+        color: #dc2626;
+        font-size: 0.75rem;
+        margin-top: 4px;
+        font-weight: 500;
+    }
+
+    .is-invalid {
+        border-color: #dc2626 !important;
+        background-color: #fef2f2 !important;
+    }
+
+    .is-invalid:focus {
+        border-color: #dc2626 !important;
+        box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1) !important;
+    }

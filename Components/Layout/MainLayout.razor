@@ -18,9 +18,12 @@ else
             <div class="sidebar-brand">
                 @if (_sidebarCollapsed)
                 {
-                    <!-- Show only icon/initial when collapsed -->
+                    <!-- Show compact logo when collapsed -->
                     <div class="brand-logo-collapsed">
-                        <span class="brand-initial">R</span>
+                        <img src="images/ResQLinkLogo.png"
+                             alt="ResQLink"
+                             style="width: 48px; height: 48px; object-fit: contain; display: block;"
+                             @onerror="HandleImageError" />
                     </div>
                 }
                 else
@@ -151,12 +154,12 @@ else
                                     </button>
 
                                     <!-- Dynamic Categories -->
-                                    @foreach (var c in InventoryCategories)
+                                    @foreach (var category in InventoryCategories)
                                     {
-                                        var slugPath = $"/inventory/category/{c.Slug}";
-                                        <button class="dropdown-link @(IsActive(slugPath) ? "active-link" : "")"
-                                                @onclick="() => GoInventoryCategory(c.Slug)">
-                                            @c.Label
+                                        var categoryPath = $"/inventory/category/{category.Slug}";
+                                        <button class="dropdown-link @(IsActive(categoryPath) ? "active-link" : "")"
+                                                @onclick="@(() => GoInventoryCategory(category.Slug))">
+                                            @category.Label
                                         </button>
                                     }
 
@@ -254,14 +257,20 @@ else
                 </button>
             </nav>
 
-            <!-- Collapse Toggle Button at bottom of sidebar -->
+            <!-- Sidebar Footer with Collapse and Logout Buttons -->
             <div class="sidebar-footer">
-                <button class="collapse-toggle-btn" 
-                        @onclick="ToggleSidebar" 
+                <!-- Logout Button -->
+                <button class="logout-btn nav-btn" 
+                        @onclick="Logout" 
                         @onclick:stopPropagation="true"
-                        title="@(_sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")">
-                    <i class="bi @(_sidebarCollapsed ? "bi-chevron-right" : "bi-chevron-left")"></i>
+                        title="Log out">
+                    <i class="bi bi-box-arrow-right nav-icon"></i>
+                    @if (!_sidebarCollapsed)
+                    {
+                        <span class="nav-text">Log out</span>
+                    }
                 </button>
+
             </div>
         </aside>
 
@@ -277,9 +286,6 @@ else
                 </div>
 
                 <div class="header-icons">
-                    <button class="icon-btn">
-                        <i class="bi bi-bell"></i>
-                    </button>
 
                     <div class="user-profile-preview">
                         <img src="@GetUserAvatarUrl()"
@@ -287,12 +293,7 @@ else
                              class="user-avatar"
                              @onerror="HandleAvatarError" />
                         <div class="user-name-drop">@GetDisplayName()</div>
-                        <i class="bi bi-chevron-down" style="font-size: 0.7rem; color: #94a3b8;"></i>
                     </div>
-
-                    <button class="icon-btn" @onclick="Logout" title="Logout">
-                        <i class="bi bi-box-arrow-right"></i>
-                    </button>
                 </div>
             </header>
 
@@ -627,8 +628,19 @@ else
             var current = "/" + Nav.ToBaseRelativePath(Nav.Uri).TrimStart('/');
             if (current == "/") current = "/home";
 
-            return string.Equals(current, href, StringComparison.OrdinalIgnoreCase)
-                || current.StartsWith(href + "/", StringComparison.OrdinalIgnoreCase);
+            // Exact match
+            if (string.Equals(current, href, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            // Special case: /inventory should NOT match /inventory/category/*
+            if (href == "/inventory" && current.StartsWith("/inventory/category/", StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            // For other paths, check if it starts with href followed by /
+            if (current.StartsWith(href + "/", StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            return false;
         }
         catch (Exception ex)
         {

@@ -1,0 +1,164 @@
+@namespace ResQLink.Components.Shared
+@* Reusable Alert/Confirmation Modal Component *@
+
+@if (IsVisible)
+{
+    <div class="alert-modal-overlay" @onclick="HandleOverlayClick" @onclick:stopPropagation="false">
+        <div class="alert-modal-dialog @SizeClass @TypeClass" @onclick:stopPropagation="true">
+            <div class="alert-modal-header">
+                <div class="alert-modal-icon">
+                    <i class="bi @GetIcon()"></i>
+                </div>
+                <h3 class="alert-modal-title">@Title</h3>
+                <button class="alert-modal-close" @onclick="Close" @onclick:stopPropagation="true">
+                    <i class="bi bi-x"></i>
+                </button>
+            </div>
+            
+            <div class="alert-modal-body">
+                <p class="alert-modal-message">@Message</p>
+                
+                @if (!string.IsNullOrEmpty(DetailMessage))
+                {
+                    <div class="alert-modal-detail">
+                        <i class="bi bi-info-circle"></i>
+                        <span>@DetailMessage</span>
+                    </div>
+                }
+            </div>
+
+            <div class="alert-modal-footer">
+                @if (ShowCancel)
+                {
+                    <button type="button" 
+                            class="btn-secondary" 
+                            @onclick="Cancel" 
+                            disabled="@IsProcessing"
+                            @onclick:stopPropagation="true">
+                        @CancelText
+                    </button>
+                }
+                <button type="button" 
+                        class="@ConfirmButtonClass" 
+                        @onclick="Confirm" 
+                        disabled="@IsProcessing"
+                        @onclick:stopPropagation="true">
+                    @if (IsProcessing)
+                    {
+                        <span class="spinner"></span>
+                    }
+                    @ConfirmText
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public EventCallback<bool> IsVisibleChanged { get; set; }
+    [Parameter] public string Title { get; set; } = "Notification";
+    [Parameter] public string Message { get; set; } = "";
+    [Parameter] public string? DetailMessage { get; set; }
+    [Parameter] public string ConfirmText { get; set; } = "OK";
+    [Parameter] public string CancelText { get; set; } = "Cancel";
+    [Parameter] public bool ShowCancel { get; set; } = false;
+    [Parameter] public AlertType Type { get; set; } = AlertType.Info;
+    [Parameter] public AlertSize Size { get; set; } = AlertSize.Medium;
+    [Parameter] public bool IsProcessing { get; set; }
+    [Parameter] public bool CloseOnOverlayClick { get; set; } = false;
+    [Parameter] public EventCallback OnConfirm { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private string TypeClass => Type switch
+    {
+        AlertType.Success => "alert-success",
+        AlertType.Error => "alert-error",
+        AlertType.Warning => "alert-warning",
+        AlertType.Info => "alert-info",
+        AlertType.Question => "alert-question",
+        _ => "alert-info"
+    };
+
+    private string SizeClass => Size switch
+    {
+        AlertSize.Small => "alert-small",
+        AlertSize.Large => "alert-large",
+        _ => ""
+    };
+
+    private string ConfirmButtonClass => Type switch
+    {
+        AlertType.Error => "btn-danger",
+        AlertType.Warning => "btn-warning",
+        AlertType.Success => "btn-success",
+        _ => "btn-primary"
+    };
+
+    private string GetIcon() => Type switch
+    {
+        AlertType.Success => "bi-check-circle-fill",
+        AlertType.Error => "bi-x-circle-fill",
+        AlertType.Warning => "bi-exclamation-triangle-fill",
+        AlertType.Question => "bi-question-circle-fill",
+        _ => "bi-info-circle-fill"
+    };
+
+    private async Task Confirm()
+    {
+        if (!IsProcessing && OnConfirm.HasDelegate)
+        {
+            await OnConfirm.InvokeAsync();
+        }
+        else if (!OnConfirm.HasDelegate)
+        {
+            IsVisible = false;
+            await IsVisibleChanged.InvokeAsync(IsVisible);
+        }
+    }
+
+    private async Task Cancel()
+    {
+        if (!IsProcessing)
+        {
+            if (OnCancel.HasDelegate)
+            {
+                await OnCancel.InvokeAsync();
+            }
+            else
+            {
+                IsVisible = false;
+                await IsVisibleChanged.InvokeAsync(IsVisible);
+            }
+        }
+    }
+
+    private async Task Close()
+    {
+        await Cancel();
+    }
+
+    private async Task HandleOverlayClick()
+    {
+        if (CloseOnOverlayClick && !IsProcessing)
+        {
+            await Cancel();
+        }
+    }
+
+    public enum AlertType
+    {
+        Info,
+        Success,
+        Warning,
+        Error,
+        Question
+    }
+
+    public enum AlertSize
+    {
+        Small,
+        Medium,
+        Large
+    }
+}

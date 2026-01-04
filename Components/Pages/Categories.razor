@@ -1,9 +1,70 @@
 ﻿@page "/categories"
 @inject ResQLink.Services.CategoryService CategorySvc
 @inject ResQLink.Data.AppDbContext Db
-@inject IJSRuntime JS
 @using ResQLink.Data.Entities
 @using Microsoft.EntityFrameworkCore
+@using ResQLink.Components.Shared
+
+@* ========== ALERT MODALS - ADD AT TOP ========== *@
+
+@* Success Alerts *@
+<AlertModal @bind-IsVisible="showSaveSuccess"
+            Title="@successTitle"
+            Message="@successMessage"
+            Type="AlertModal.AlertType.Success" />
+
+<AlertModal @bind-IsVisible="showDeleteSuccess"
+            Title="Category Archived"
+            Message="@deleteSuccessMessage"
+            Type="AlertModal.AlertType.Success" />
+
+@* Error Alerts *@
+<AlertModal @bind-IsVisible="showSaveError"
+            Title="Error Saving Category"
+            Message="@modalError"
+            DetailMessage="@saveErrorDetail"
+            Type="AlertModal.AlertType.Error" />
+
+<AlertModal @bind-IsVisible="showDeleteError"
+            Title="Error Deleting Category"
+            Message="@deleteErrorMessage"
+            Type="AlertModal.AlertType.Error" />
+
+<AlertModal @bind-IsVisible="showValidationError"
+            Title="Validation Error"
+            Message="@modalError"
+            Type="AlertModal.AlertType.Warning" />
+
+<AlertModal @bind-IsVisible="showCannotDeleteError"
+            Title="Cannot Delete Category"
+            Message="@cannotDeleteMessage"
+            DetailMessage="You must reassign or remove the items before deleting this category."
+            Type="AlertModal.AlertType.Warning" />
+
+@* Confirmation Dialogs *@
+<AlertModal @bind-IsVisible="showCloseConfirm"
+            Title="Unsaved Changes"
+            Message="Are you sure you want to close this form? Any unsaved changes will be lost."
+            Type="AlertModal.AlertType.Warning"
+            ShowCancel="true"
+            ConfirmText="Close Anyway"
+            CancelText="Keep Editing"
+            OnConfirm="ConfirmCloseModal"
+            OnCancel="CancelCloseModal" />
+
+<AlertModal @bind-IsVisible="showDeleteConfirm"
+            Title="Confirm Delete"
+            Message="@deleteConfirmMessage"
+            DetailMessage="⚠️ This action cannot be undone."
+            Type="AlertModal.AlertType.Warning"
+            ShowCancel="true"
+            ConfirmText="Delete"
+            CancelText="Cancel"
+            IsProcessing="isDeleting"
+            OnConfirm="ConfirmDelete"
+            OnCancel="CancelDeleteConfirm" />
+
+@* ========== END ALERT MODALS ========== *@
 
 <div class="categories-root">
 
@@ -182,7 +243,7 @@
             <div class="modal-dialog" @onclick:stopPropagation="true">
                 <div class="modal-header">
                     <h3>@(isEditMode ? $"Edit Category #{editModel.CategoryId}" : "Add Category")</h3>
-                    <button class="modal-close" @onclick="async () => await CloseModal()">&times;</button>
+                    <button class="modal-close" @onclick="CloseModal" disabled="@saving">&times;</button>
                 </div>
                 <div class="modal-body">
                     <div class="form-row">
@@ -193,7 +254,7 @@
                                    class="form-control @(fieldErrors.ContainsKey("Name") ? "is-invalid" : "")"
                                    placeholder="e.g., Canned Goods, First Aid"
                                    value="@editModel.CategoryName"
-                                   @oninput="@((e) => editModel.CategoryName = e.Value?.ToString() ?? string.Empty)"
+                                   @oninput="@((e) => { editModel.CategoryName = e.Value?.ToString() ?? string.Empty; OnFormChanged(); })"
                                    @onblur="() => ValidateField(nameof(editModel.CategoryName))" />
                             @if (fieldErrors.ContainsKey("Name"))
                             {
@@ -234,30 +295,23 @@
                                       class="form-control"
                                       rows="2"
                                       placeholder="Brief description of this category"
-                                      @bind="editModel.Description"></textarea>
+                                      @bind="editModel.Description"
+                                      @oninput="OnFormChanged"></textarea>
                         </div>
                     </div>
 
                     <div class="form-row">
                         <div class="form-group">
-                            <label class="chk-inline">
-                                <input type="checkbox" @bind="editModel.IsActive" />
-                                <span>Active</span>
-                            </label>
+                            <ToggleSwitch @bind-Value="editModel.IsActive" 
+                                          Label="Active" 
+                                          @bind-Value:after="OnFormChanged" />
                         </div>
                     </div>
-
-                    @if (!string.IsNullOrEmpty(modalError))
-                    {
-                        <div class="form-error">
-                            <i class="bi bi-exclamation-circle"></i> @modalError
-                        </div>
-                    }
 
                     <div class="modal-actions">
                         <button type="button"
                                 class="btn-cancel"
-                                @onclick="async () => await CloseModal()"
+                                @onclick="CloseModal"
                                 disabled="@saving"
                                 @onclick:stopPropagation="true">
                             Cancel
@@ -278,57 +332,6 @@
             </div>
         </div>
     }
-
-    @* Delete Confirmation Modal *@
-    @if (showDeleteModal && categoryToDelete != null)
-    {
-        <div class="modal-overlay">
-            <div class="modal-dialog small" @onclick:stopPropagation="true">
-                <div class="modal-header">
-                    <h3>Confirm Delete</h3>
-                    <button class="modal-close" @onclick="CloseDeleteModal">&times;</button>
-                </div>
-                <div class="modal-body">
-                    <p style="margin-bottom: 16px;">
-                        Are you sure you want to delete the category
-                        <strong>"@categoryToDelete.CategoryName"</strong>?
-                    </p>
-                    @if (categoryToDelete.ReliefGoods.Count > 0)
-                    {
-                        <div class="alert alert-warning">
-                            <i class="bi bi-exclamation-triangle-fill"></i>
-                            This category has <strong>@categoryToDelete.ReliefGoods.Count item(s)</strong> assigned.
-                            You must reassign these items before deletion.
-                        </div>
-                    }
-                    else
-                    {
-                        <p class="warning-text" style="color: #dc2626; font-size: 0.85rem;">
-                            ⚠️ This action cannot be undone.
-                        </p>
-                    }
-                </div>
-                <div class="modal-footer" style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px;">
-                    <button class="btn-cancel"
-                            @onclick="CloseDeleteModal"
-                            disabled="@isDeleting"
-                            @onclick:stopPropagation="true">
-                        Cancel
-                    </button>
-                    <button class="btn-danger"
-                            @onclick="ConfirmDelete"
-                            disabled="@(isDeleting || categoryToDelete.ReliefGoods.Count > 0)"
-                            @onclick:stopPropagation="true">
-                        @if (isDeleting)
-                        {
-                            <span class="spinner"></span>
-                        }
-                        Delete
-                    </button>
-                </div>
-            </div>
-        </div>
-    }
 </div>
 
 @code {
@@ -336,16 +339,33 @@
     private List<CategoryType> categoryTypes = new();
     private bool isLoading = true;
     private bool showModal = false;
-    private bool showDeleteModal = false;
     private bool isEditMode = false;
     private bool isDeleting = false;
     private bool saving = false;
     private string typeFilter = "";
     private string errorMessage = "";
     private string modalError = "";
+    private string saveErrorDetail = "";
     private Dictionary<string, string> fieldErrors = new();
     private Category editModel = new();
     private Category? categoryToDelete = null;
+
+    // NEW: Alert modal state variables
+    private bool showSaveSuccess = false;
+    private string successTitle = "";
+    private string successMessage = "";
+    private bool showDeleteSuccess = false;
+    private string deleteSuccessMessage = "";
+    private bool showSaveError = false;
+    private bool showDeleteError = false;
+    private string deleteErrorMessage = "";
+    private bool showValidationError = false;
+    private bool showCannotDeleteError = false;
+    private string cannotDeleteMessage = "";
+    private bool showCloseConfirm = false;
+    private bool showDeleteConfirm = false;
+    private string deleteConfirmMessage = "";
+    private bool hasUnsavedChanges = false;
 
     // Pagination State
     private int _pageIndex = 0;
@@ -423,6 +443,7 @@
         editModel = null!;
         modalError = string.Empty;
         fieldErrors.Clear();
+        hasUnsavedChanges = false;
 
         editModel = new Category
         {
@@ -449,27 +470,56 @@
         };
         modalError = "";
         fieldErrors.Clear();
+        hasUnsavedChanges = false;
         showModal = true;
         StateHasChanged();
     }
 
-    private async Task CloseModal()
+    // NEW: Track form changes
+    private void OnFormChanged()
+    {
+        hasUnsavedChanges = true;
+    }
+
+    // CHANGED: Check for unsaved changes before closing
+    private void CloseModal()
     {
         if (saving) return;
 
-        var confirmed = await JS.InvokeAsync<bool>("confirm", "Are you sure you want to close this form? Any unsaved changes will be lost.");
-        if (!confirmed) return;
+        // Check if there are unsaved changes
+        if (!string.IsNullOrWhiteSpace(editModel.CategoryName) || editModel.CategoryTypeId.HasValue)
+        {
+            showCloseConfirm = true;
+            return;
+        }
 
+        // No changes, close directly
         showModal = false;
         editModel = new();
         modalError = "";
         fieldErrors.Clear();
-        StateHasChanged();
+        hasUnsavedChanges = false;
+    }
+
+    private void ConfirmCloseModal()
+    {
+        showCloseConfirm = false;
+        showModal = false;
+        editModel = new();
+        modalError = "";
+        fieldErrors.Clear();
+        hasUnsavedChanges = false;
+    }
+
+    private void CancelCloseModal()
+    {
+        showCloseConfirm = false;
     }
 
     private void OnCategoryTypeChanged()
     {
         ValidateField(nameof(editModel.CategoryTypeId));
+        OnFormChanged();
     }
 
     private void ValidateField(string fieldName)
@@ -507,6 +557,7 @@
         return !fieldErrors.Any();
     }
 
+    // CHANGED: Use AlertModal for validation and save errors
     private async Task SaveCategory()
     {
         if (saving) return;
@@ -514,11 +565,13 @@
         if (!Validate())
         {
             modalError = "Please correct the errors above";
+            showValidationError = true;
             return;
         }
 
         saving = true;
         modalError = "";
+        saveErrorDetail = "";
         StateHasChanged();
 
         try
@@ -529,15 +582,19 @@
                 if (error != null)
                 {
                     modalError = error;
+                    showSaveError = true;
                     saving = false;
                     StateHasChanged();
                     return;
                 }
 
-                var categoryName = editModel.CategoryName;
-                showModal = false; // Close directly on success
+                // Success
+                successTitle = "Category Updated";
+                successMessage = $"Category '{editModel.CategoryName}' updated successfully!";
+                showModal = false;
+                hasUnsavedChanges = false;
                 await LoadDataAsync();
-                await JS.InvokeVoidAsync("showToast", $"Category '{categoryName}' updated successfully!", "success");
+                showSaveSuccess = true;
             }
             else
             {
@@ -547,22 +604,26 @@
                 if (error != null)
                 {
                     modalError = error;
+                    showSaveError = true;
                     saving = false;
                     StateHasChanged();
                     return;
                 }
 
-                showModal = false; // Close directly on success
+                // Success
+                successTitle = "Category Created";
+                successMessage = $"Category '{categoryName}' created successfully!";
+                showModal = false;
+                hasUnsavedChanges = false;
                 await LoadDataAsync();
-                await JS.InvokeVoidAsync("showToast", $"Category '{categoryName}' created successfully!", "success");
+                showSaveSuccess = true;
             }
         }
         catch (Exception ex)
         {
-            var errorMsg = ex.InnerException != null
-                ? $"{ex.Message} - {ex.InnerException.Message}"
-                : ex.Message;
-            modalError = $"Error: {errorMsg}";
+            modalError = ex.Message;
+            saveErrorDetail = ex.InnerException?.Message ?? "";
+            showSaveError = true;
             System.Diagnostics.Debug.WriteLine($"❌ Category Save Error: {ex}");
         }
         finally
@@ -572,62 +633,65 @@
         }
     }
 
+    // CHANGED: Use AlertModal for delete success/error
     private void ShowDeleteConfirmation(Category category)
     {
-        if (category.ReliefGoods.Count == 0)
+        if (category.ReliefGoods.Count > 0)
         {
-            categoryToDelete = category;
-            showDeleteModal = true;
+            cannotDeleteMessage = $"Cannot delete '{category.CategoryName}' - it has {category.ReliefGoods.Count} item(s) assigned.";
+            showCannotDeleteError = true;
         }
         else
         {
-            errorMessage = $"Cannot delete '{category.CategoryName}' - it has {category.ReliefGoods.Count} item(s) assigned.";
+            categoryToDelete = category;
+            deleteConfirmMessage = $"Are you sure you want to delete the category '{category.CategoryName}'?";
+            showDeleteConfirm = true;
         }
     }
 
+    // CHANGED: Use AlertModal for delete success/error
     private async Task ConfirmDelete()
     {
         if (categoryToDelete == null || isDeleting) return;
 
         isDeleting = true;
-        // Do NOT clear categoryToDelete here yet, we need it for ID
 
         try
         {
+            var categoryName = categoryToDelete.CategoryName;
             var (success, error) = await CategorySvc.DeleteAsync(categoryToDelete.CategoryId);
 
             if (!success)
             {
-                // If deletion fails, notify user but also CLOSE the modal because the state might be invalid (e.g., already deleted)
-                await JS.InvokeVoidAsync("showToast", error ?? "Failed to delete category", "error");
+                deleteErrorMessage = error ?? "Failed to delete category";
+                showDeleteConfirm = false;
+                showDeleteError = true;
             }
             else
             {
-                var categoryName = categoryToDelete.CategoryName;
-                await JS.InvokeVoidAsync("showToast", $"Category '{categoryName}' archived successfully!", "success");
+                deleteSuccessMessage = $"Category '{categoryName}' archived successfully!";
+                showDeleteConfirm = false;
+                await LoadDataAsync();
+                showDeleteSuccess = true;
             }
-
-            // Always reload data to be safe
-            await LoadDataAsync();
         }
         catch (Exception ex)
         {
-            await JS.InvokeVoidAsync("showToast", $"Error: {ex.Message}", "error");
+            deleteErrorMessage = ex.Message;
+            showDeleteConfirm = false;
+            showDeleteError = true;
         }
         finally
         {
-            // ALWAYS close and reset in finally block to ensure UI doesn't get stuck
             isDeleting = false;
-            showDeleteModal = false;
             categoryToDelete = null;
             StateHasChanged();
         }
     }
 
-    private void CloseDeleteModal()
+    private void CancelDeleteConfirm()
     {
-        // FIX: Removed guard clause (if (isDeleting) return;) so modal can always be closed
-        showDeleteModal = false;
+        showDeleteConfirm = false;
         categoryToDelete = null;
     }
 

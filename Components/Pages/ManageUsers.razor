@@ -1,14 +1,72 @@
 ﻿@page "/manage-users"
 @using ResQLink.Data.Entities
 @using ResQLink.Services.Users
+@using ResQLink.Components.Shared
 @inject IUserService UserService
 @inject NavigationManager Navigation
-@inject IJSRuntime JS
 @inject ResQLink.Services.ArchiveService ArchiveService
 @inject ResQLink.Services.AuthState Auth
 
+@* ========== ALERT MODALS - ADD AT TOP ========== *@
+
+@* Success Alerts *@
+<AlertModal @bind-IsVisible="showSaveSuccess"
+            Title="@successTitle"
+            Message="@successMessage"
+            Type="AlertModal.AlertType.Success" />
+
+<AlertModal @bind-IsVisible="showDeleteSuccess"
+            Title="User Deleted"
+            Message="@successMessage"
+            Type="AlertModal.AlertType.Success" />
+
+@* Error Alerts *@
+<AlertModal @bind-IsVisible="showLoadError"
+            Title="Error Loading Users"
+            Message="@ErrorMessage"
+            Type="AlertModal.AlertType.Error" />
+
+<AlertModal @bind-IsVisible="showSaveError"
+            Title="Error Saving User"
+            Message="@ModalError"
+            Type="AlertModal.AlertType.Error" />
+
+<AlertModal @bind-IsVisible="showDeleteError"
+            Title="Error Deleting User"
+            Message="@ErrorMessage"
+            Type="AlertModal.AlertType.Error" />
+
+<AlertModal @bind-IsVisible="showValidationError"
+            Title="Validation Error"
+            Message="@ModalError"
+            Type="AlertModal.AlertType.Warning" />
+
+@* Confirmation Dialogs *@
+<AlertModal @bind-IsVisible="showCloseConfirm"
+            Title="Unsaved Changes"
+            Message="Are you sure you want to close this form? Any unsaved changes will be lost."
+            Type="AlertModal.AlertType.Warning"
+            ShowCancel="true"
+            ConfirmText="Close Anyway"
+            CancelText="Keep Editing"
+            OnConfirm="ConfirmCloseModal"
+            OnCancel="CancelCloseModal" />
+
+<AlertModal @bind-IsVisible="showDeleteConfirmation"
+            Title="Confirm Delete"
+            Message="@deleteConfirmMessage"
+            DetailMessage="@GetDeleteWarning()"
+            Type="AlertModal.AlertType.Warning"
+            ShowCancel="true"
+            ConfirmText="Delete"
+            CancelText="Cancel"
+            IsProcessing="isDeleting"
+            OnConfirm="ExecuteDelete"
+            OnCancel="CancelDelete" />
+
+@* ========== END ALERT MODALS ========== *@
+
 <div class="manage-users-container">
-    <!-- Page header, matching other admin pages -->
     <div class="page-header">
         <div>
             <h5> Administer user accounts, roles, and access</h5>
@@ -18,16 +76,6 @@
             <span class="icon">+</span> Add New User
         </button>
     </div>
-
-    @if (!string.IsNullOrEmpty(ErrorMessage))
-    {
-        <div class="alert alert-error">@ErrorMessage</div>
-    }
-
-    @if (!string.IsNullOrEmpty(SuccessMessage))
-    {
-        <div class="alert alert-success">@SuccessMessage</div>
-    }
 
     @if (Loading)
     {
@@ -49,7 +97,6 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @* CHANGED: Iterate over PagedUsers instead of all Users *@
                     @foreach (var user in PagedUsers)
                     {
                         <tr class="@(user.IsActive ? "" : "inactive-row")">
@@ -62,7 +109,6 @@
                                 </span>
                             </td>
                             <td>
-                                @* CHANGED: Removed badge class, now just colored text *@
                                 <span class="status-text status-@(user.IsActive ? "active" : "inactive")">
                                     @(user.IsActive ? "Active" : "Inactive")
                                 </span>
@@ -93,7 +139,6 @@
                 </tbody>
             </table>
 
-            @* ADDED: Pagination Controls *@
             @if (Users.Count > 0)
             {
                 <div class="pagination-container">
@@ -105,7 +150,6 @@
                             <i class="bi bi-chevron-left"></i> Previous
                         </button>
 
-                        @* Optional: Page Numbers *@
                         <span style="font-size: 0.875rem; margin: 0 8px;">Page @CurrentPage of @TotalPages</span>
 
                         <button class="btn-page" @onclick="NextPage" disabled="@(CurrentPage == TotalPages)">
@@ -121,11 +165,11 @@
 @* View User Modal *@
 @if (ShowViewModal && SelectedUser is not null)
 {
-    <div class="modal-overlay" @onclick="async () => await CloseModals()" @onclick:stopPropagation="false">
+    <div class="modal-overlay" @onclick="CloseModals" @onclick:stopPropagation="false">
         <div class="modal-content" @onclick="PreventClose" @onclick:stopPropagation="true">
             <div class="modal-header">
                 <h3>User Details</h3>
-                <button class="btn-close" @onclick="async () => await CloseModals()" @onclick:stopPropagation="true">×</button>
+                <button class="btn-close" @onclick="CloseModals" @onclick:stopPropagation="true">×</button>
             </div>
             <div class="modal-body">
                 <div class="detail-row">
@@ -146,7 +190,6 @@
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">Status:</span>
-                    @* CHANGED: Updated class here too for consistency *@
                     <span class="detail-value status-text status-@(SelectedUser.IsActive ? "active" : "inactive")">
                         @(SelectedUser.IsActive ? "Active" : "Inactive")
                     </span>
@@ -174,11 +217,11 @@
 @* Edit User Modal *@
 @if (ShowEditModal && SelectedUser is not null)
 {
-    <div class="modal-overlay" @onclick="async () => await CloseModals()" @onclick:stopPropagation="false">
+    <div class="modal-overlay" @onclick="CloseEditModal" @onclick:stopPropagation="false">
         <div class="modal-content" @onclick="PreventClose" @onclick:stopPropagation="true">
             <div class="modal-header">
                 <h3>Edit User - @SelectedUser.Username</h3>
-                <button class="btn-close" @onclick="async () => await CloseModals()" @onclick:stopPropagation="true">×</button>
+                <button class="btn-close" @onclick="CloseEditModal" disabled="@Saving" @onclick:stopPropagation="true">×</button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
@@ -200,13 +243,9 @@
                         Active
                     </label>
                 </div>
-                @if (!string.IsNullOrEmpty(ModalError))
-                {
-                    <div class="alert alert-error">@ModalError</div>
-                }
             </div>
             <div class="modal-footer">
-                <button class="btn-secondary" @onclick="async () => await CloseModals()" @onclick:stopPropagation="true">Cancel</button>
+                <button class="btn-secondary" @onclick="CloseEditModal" disabled="@Saving" @onclick:stopPropagation="true">Cancel</button>
                 <button class="btn-primary" @onclick="SaveEdit" disabled="@Saving" @onclick:stopPropagation="true">
                     @(Saving ? "Saving..." : "Save Changes")
                 </button>
@@ -218,11 +257,11 @@
 @* Create User Modal *@
 @if (ShowCreateModal)
 {
-    <div class="modal-overlay" @onclick="async () => await CloseModals()" @onclick:stopPropagation="false">
+    <div class="modal-overlay" @onclick="CloseCreateModal" @onclick:stopPropagation="false">
         <div class="modal-content" @onclick="PreventClose" @onclick:stopPropagation="true">
             <div class="modal-header">
                 <h3>Create New User</h3>
-                <button class="btn-close" @onclick="async () => await CloseModals()" @onclick:stopPropagation="true">×</button>
+                <button class="btn-close" @onclick="CloseCreateModal" disabled="@Saving" @onclick:stopPropagation="true">×</button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
@@ -251,13 +290,9 @@
                         }
                     </select>
                 </div>
-                @if (!string.IsNullOrEmpty(ModalError))
-                {
-                    <div class="alert alert-error">@ModalError</div>
-                }
             </div>
             <div class="modal-footer">
-                <button class="btn-secondary" @onclick="async () => await CloseModals()" @onclick:stopPropagation="true">Cancel</button>
+                <button class="btn-secondary" @onclick="CloseCreateModal" disabled="@Saving" @onclick:stopPropagation="true">Cancel</button>
                 <button class="btn-primary" @onclick="SaveCreate" disabled="@Saving" @onclick:stopPropagation="true">
                     @(Saving ? "Creating..." : "Create User")
                 </button>
@@ -269,11 +304,11 @@
 @* Reset Password Modal *@
 @if (ShowResetPasswordModal && SelectedUser is not null)
 {
-    <div class="modal-overlay" @onclick="async () => await CloseModals()" @onclick:stopPropagation="false">
+    <div class="modal-overlay" @onclick="CloseResetPasswordModal" @onclick:stopPropagation="false">
         <div class="modal-content" @onclick="PreventClose" @onclick:stopPropagation="true">
             <div class="modal-header">
                 <h3>Reset Password - @SelectedUser.Username</h3>
-                <button class="btn-close" @onclick="async () => await CloseModals()" @onclick:stopPropagation="true">×</button>
+                <button class="btn-close" @onclick="CloseResetPasswordModal" disabled="@Saving" @onclick:stopPropagation="true">×</button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
@@ -284,83 +319,11 @@
                     <label>Confirm Password</label>
                     <input type="password" class="form-input" @bind="ResetConfirmPassword" />
                 </div>
-                @if (!string.IsNullOrEmpty(ModalError))
-                {
-                    <div class="alert alert-error">@ModalError</div>
-                }
             </div>
             <div class="modal-footer">
-                <button class="btn-secondary" @onclick="async () => await CloseModals()" @onclick:stopPropagation="true">Cancel</button>
+                <button class="btn-secondary" @onclick="CloseResetPasswordModal" disabled="@Saving" @onclick:stopPropagation="true">Cancel</button>
                 <button class="btn-primary" @onclick="SaveResetPassword" disabled="@Saving" @onclick:stopPropagation="true">
                     @(Saving ? "Resetting..." : "Reset Password")
-                </button>
-            </div>
-        </div>
-    </div>
-}
-
-@* Delete Confirmation Modal *@
-@if (showDeleteConfirmation && userToDelete is not null)
-{
-    <div class="modal-overlay" @onclick="CloseDeleteModal" @onclick:stopPropagation="false">
-        <div class="modal-content modal-small" @onclick="PreventClose" @onclick:stopPropagation="true">
-            <div class="modal-header">
-                <h3>Confirm Delete</h3>
-                <button class="btn-close" @onclick="CloseDeleteModal" @onclick:stopPropagation="true">×</button>
-            </div>
-            <div class="modal-body">
-                <p>Are you sure you want to delete the user <strong>"@userToDelete.Username"</strong>?</p>
-                <p class="warning-text">This action cannot be undone and will also delete all related data.</p>
-                @if (!string.IsNullOrEmpty(GetDeleteWarning()))
-                {
-                    <p class="warning-text" style="margin-top: 12px;">
-                        <strong>@GetDeleteWarning()</strong>
-                    </p>
-                }
-                <div class="delete-summary">
-                    <div><strong>User Details:</strong></div>
-                    <div>User ID: @userToDelete.UserId</div>
-                    <div>Email: @userToDelete.Email</div>
-                    <div>Role: @(userToDelete.Role?.RoleName ?? "Unknown")</div>
-                    <div>Status: @(userToDelete.IsActive ? "Active" : "Inactive")</div>
-                    <div>Created: @userToDelete.CreatedAt.ToString("yyyy-MM-dd")</div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn-secondary" @onclick="CloseDeleteModal" @onclick:stopPropagation="true">Cancel</button>
-                <button class="btn-danger" @onclick="ConfirmDelete" disabled="@(isDeleting || IsLastActiveAdmin())" @onclick:stopPropagation="true">
-                    @if (isDeleting)
-                    {
-                        <span class="spinner"></span>
-                    }
-                    @(IsLastActiveAdmin() ? "Cannot Delete" : "Delete")
-                </button>
-            </div>
-        </div>
-    </div>
-}
-
-@* Archive Confirmation Modal *@
-@if (showArchiveConfirmation && userToArchive is not null)
-{
-    <div class="modal-overlay" @onclick="CloseArchiveModal" @onclick:stopPropagation="false">
-        <div class="modal-content modal-small" @onclick="PreventClose" @onclick:stopPropagation="true">
-            <div class="modal-header">
-                <h3>Confirm Archive</h3>
-                <button class="btn-close" @onclick="CloseArchiveModal" @onclick:stopPropagation="true">×</button>
-            </div>
-            <div class="modal-body">
-                <p>Are you sure you want to archive the user <strong>"@userToArchive.Username"</strong>?</p>
-                <p class="warning-text">This action cannot be undone.</p>
-            </div>
-            <div class="modal-footer">
-                <button class="btn-secondary" @onclick="CloseArchiveModal" @onclick:stopPropagation="true">Cancel</button>
-                <button class="btn-warning" @onclick="ConfirmArchive" disabled="@isArchiving" @onclick:stopPropagation="true">
-                    @if (isArchiving)
-                    {
-                        <span class="spinner"></span>
-                    }
-                    Archive
                 </button>
             </div>
         </div>
@@ -373,16 +336,13 @@
     private bool Loading = true;
     private bool Saving = false;
     private bool isDeleting = false;
-    private bool isArchiving = false;
     private string ErrorMessage = "";
     private string SuccessMessage = "";
     private string ModalError = "";
 
-    // ADDED: Pagination variables
     private int CurrentPage = 1;
-    private int PageSize = 10; // Change this number to control rows per page
+    private int PageSize = 10;
 
-    // ADDED: Pagination computed properties
     private int TotalPages => (int)Math.Ceiling((double)Users.Count / PageSize);
     private IEnumerable<User> PagedUsers => Users.Skip((CurrentPage - 1) * PageSize).Take(PageSize);
 
@@ -391,11 +351,8 @@
     private bool ShowEditModal = false;
     private bool ShowCreateModal = false;
     private bool ShowResetPasswordModal = false;
-    private bool showDeleteConfirmation = false;
-    private bool showArchiveConfirmation = false;
     private User? SelectedUser = null;
     private User? userToDelete = null;
-    private User? userToArchive = null;
 
     // Edit form fields
     private string EditEmail = "";
@@ -413,6 +370,19 @@
     private string ResetPassword = "";
     private string ResetConfirmPassword = "";
 
+    // NEW: Alert modal state variables
+    private bool showLoadError = false;
+    private bool showSaveSuccess = false;
+    private string successTitle = "";
+    private string successMessage = "";
+    private bool showSaveError = false;
+    private bool showDeleteSuccess = false;
+    private bool showDeleteError = false;
+    private bool showValidationError = false;
+    private bool showCloseConfirm = false;
+    private bool showDeleteConfirmation = false;
+    private string deleteConfirmMessage = "";
+
     protected override async Task OnInitializedAsync()
     {
         await LoadData();
@@ -427,13 +397,13 @@
             Users = await UserService.GetAllUsersAsync();
             Roles = await UserService.GetAllRolesAsync();
 
-            // ADDED: Reset page if out of bounds after reload
             if (CurrentPage < 1) CurrentPage = 1;
             if (TotalPages > 0 && CurrentPage > TotalPages) CurrentPage = TotalPages;
         }
         catch (Exception ex)
         {
             ErrorMessage = $"Failed to load users: {ex.Message}";
+            showLoadError = true;
         }
         finally
         {
@@ -441,7 +411,6 @@
         }
     }
 
-    // ADDED: Pagination Logic
     private void NextPage()
     {
         if (CurrentPage < TotalPages)
@@ -476,9 +445,9 @@
     {
         if (IsLastActiveAdmin())
         {
-            return "WARNING: This is the last active admin user. Deletion is not allowed.";
+            return "⚠️ WARNING: This is the last active admin user. Deletion is not allowed.";
         }
-        return string.Empty;
+        return "⚠️ This action cannot be undone and will also delete all related data.";
     }
 
     private void PreventClose() { }
@@ -522,44 +491,85 @@
     private void ShowDeleteConfirmation(User user)
     {
         userToDelete = user;
+        deleteConfirmMessage = $"Are you sure you want to delete the user '{user.Username}'?";
         showDeleteConfirmation = true;
     }
 
-    private void CloseDeleteModal()
+    private void CancelDelete()
     {
         showDeleteConfirmation = false;
         userToDelete = null;
         isDeleting = false;
     }
 
-    private void ShowArchiveConfirmation(User user)
+    private void CloseModals()
     {
-        userToArchive = user;
-        showArchiveConfirmation = true;
+        if (Saving) return;
+        ShowViewModal = false;
+        SelectedUser = null;
+        ModalError = "";
     }
 
-    private void CloseArchiveModal()
+    private void CloseEditModal()
     {
-        showArchiveConfirmation = false;
-        userToArchive = null;
-        isArchiving = false;
-    }
-
-    private async Task CloseModals()
-    {
-        // Ask for confirmation before closing (except for view modal)
-        if (ShowEditModal || ShowCreateModal || ShowResetPasswordModal)
+        if (Saving) return;
+        
+        // Check if there are changes
+        if (SelectedUser != null && (EditEmail != SelectedUser.Email || EditRoleId != SelectedUser.RoleId || EditIsActive != SelectedUser.IsActive))
         {
-            var confirmed = await JS.InvokeAsync<bool>("confirm", "Are you sure you want to close this form? Any unsaved changes will be lost.");
-            if (!confirmed) return;
+            showCloseConfirm = true;
+            return;
         }
 
-        ShowViewModal = false;
+        ShowEditModal = false;
+        SelectedUser = null;
+        ModalError = "";
+    }
+
+    private void CloseCreateModal()
+    {
+        if (Saving) return;
+        
+        // Check if there are changes
+        if (!string.IsNullOrWhiteSpace(CreateUsername) || !string.IsNullOrWhiteSpace(CreateEmail) || CreateRoleId > 0)
+        {
+            showCloseConfirm = true;
+            return;
+        }
+
+        ShowCreateModal = false;
+        ModalError = "";
+    }
+
+    private void CloseResetPasswordModal()
+    {
+        if (Saving) return;
+        
+        // Check if there are changes
+        if (!string.IsNullOrWhiteSpace(ResetPassword))
+        {
+            showCloseConfirm = true;
+            return;
+        }
+
+        ShowResetPasswordModal = false;
+        SelectedUser = null;
+        ModalError = "";
+    }
+
+    private void ConfirmCloseModal()
+    {
+        showCloseConfirm = false;
         ShowEditModal = false;
         ShowCreateModal = false;
         ShowResetPasswordModal = false;
         SelectedUser = null;
         ModalError = "";
+    }
+
+    private void CancelCloseModal()
+    {
+        showCloseConfirm = false;
     }
 
     private async Task SaveEdit()
@@ -579,18 +589,22 @@
 
             if (success)
             {
-                SuccessMessage = "User updated successfully";
-                await CloseModals();
+                successTitle = "User Updated";
+                successMessage = $"User '{SelectedUser.Username}' updated successfully!";
+                ShowEditModal = false;
                 await LoadData();
+                showSaveSuccess = true;
             }
             else
             {
                 ModalError = error ?? "Failed to update user";
+                showSaveError = true;
             }
         }
         catch (Exception ex)
         {
             ModalError = $"Error: {ex.Message}";
+            showSaveError = true;
         }
         finally
         {
@@ -603,6 +617,7 @@
         if (CreatePassword != CreateConfirmPassword)
         {
             ModalError = "Passwords do not match";
+            showValidationError = true;
             return;
         }
 
@@ -615,23 +630,27 @@
                 CreatePassword,
                 CreateEmail,
                 CreateRoleId,
-                0 // TODO: pass actual admin user ID
+                0
             );
 
             if (user is not null)
             {
-                SuccessMessage = "User created successfully";
-                await CloseModals();
+                successTitle = "User Created";
+                successMessage = $"User '{CreateUsername}' created successfully!";
+                ShowCreateModal = false;
                 await LoadData();
+                showSaveSuccess = true;
             }
             else
             {
                 ModalError = error ?? "Failed to create user";
+                showSaveError = true;
             }
         }
         catch (Exception ex)
         {
             ModalError = $"Error: {ex.Message}";
+            showSaveError = true;
         }
         finally
         {
@@ -646,6 +665,7 @@
         if (ResetPassword != ResetConfirmPassword)
         {
             ModalError = "Passwords do not match";
+            showValidationError = true;
             return;
         }
 
@@ -660,17 +680,21 @@
 
             if (success)
             {
-                SuccessMessage = "Password reset successfully";
-                await CloseModals();
+                successTitle = "Password Reset";
+                successMessage = $"Password for '{SelectedUser.Username}' reset successfully!";
+                ShowResetPasswordModal = false;
+                showSaveSuccess = true;
             }
             else
             {
                 ModalError = error ?? "Failed to reset password";
+                showSaveError = true;
             }
         }
         catch (Exception ex)
         {
             ModalError = $"Error: {ex.Message}";
+            showSaveError = true;
         }
         finally
         {
@@ -678,7 +702,7 @@
         }
     }
 
-    private async Task ConfirmDelete()
+    private async Task ExecuteDelete()
     {
         if (userToDelete is null || isDeleting || IsLastActiveAdmin()) return;
 
@@ -691,30 +715,28 @@
 
             if (success)
             {
-                SuccessMessage = $"User '{userToDelete.Username}' deleted successfully";
-                CloseDeleteModal();
+                successMessage = $"User '{userToDelete.Username}' deleted successfully!";
+                showDeleteConfirmation = false;
                 await LoadData();
+                showDeleteSuccess = true;
             }
             else
             {
                 ErrorMessage = error ?? "Failed to delete user";
-                CloseDeleteModal();
+                showDeleteConfirmation = false;
+                showDeleteError = true;
             }
         }
         catch (Exception ex)
         {
             ErrorMessage = $"Error: {ex.Message}";
-            CloseDeleteModal();
+            showDeleteConfirmation = false;
+            showDeleteError = true;
         }
         finally
         {
             isDeleting = false;
+            userToDelete = null;
         }
-    }
-
-    private void ConfirmArchive()
-    {
-        // Implement archive confirmation logic here
-        // Example: isArchiving = true;
     }
 }

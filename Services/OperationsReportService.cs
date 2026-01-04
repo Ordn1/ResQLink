@@ -7,7 +7,7 @@ namespace ResQLink.Services;
 public interface IOperationsReportService
 {
     Task<OperationsReportData> GenerateReportDataAsync();
-    Task<byte[]> GeneratePdfReportAsync(OperationsReportData data);
+    Task<byte[]> GeneratePdfReportAsync(OperationsReportData data, string? userRole = null);
     Task<bool> SaveOperationalIssuesAsync(OperationalIssues issues);
 }
 
@@ -356,7 +356,7 @@ public class OperationsReportService : IOperationsReportService
         return true;
     }
 
-    public async Task<byte[]> GeneratePdfReportAsync(OperationsReportData data)
+    public async Task<byte[]> GeneratePdfReportAsync(OperationsReportData data, string? userRole = null)
     {
         var pdfGenerator = new OperationsReportPdfGenerator();
         return await Task.FromResult(pdfGenerator.Generate(data));

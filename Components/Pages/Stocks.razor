@@ -2,13 +2,74 @@
 @using ResQLink.Data.Entities
 @using ResQLink.Helpers
 @using Microsoft.EntityFrameworkCore
+@using ResQLink.Components.Shared
 @inject ResQLink.Services.StockService StockSvc
 @inject ResQLink.Services.ResourceAllocationService AllocationSvc
 @inject ResQLink.Services.InventoryService InventorySvc
 @inject ResQLink.Data.AppDbContext Db
 @inject ResQLink.Services.AuthState AuthState
 @inject IJSRuntime JSRuntime
-@inject IJSRuntime JS
+
+@* ========== ALERT MODALS - ADD AT TOP ========== *@
+
+@* Success Alerts *@
+<AlertModal @bind-IsVisible="showStockSaveSuccess"
+            Title="@successTitle"
+            Message="@successMessage"
+            Type="AlertModal.AlertType.Success" />
+
+<AlertModal @bind-IsVisible="showDeleteSuccess"
+            Title="Stock Deleted"
+            Message="Stock deleted successfully!"
+            Type="AlertModal.AlertType.Success" />
+
+<AlertModal @bind-IsVisible="showAllocationSuccess"
+            Title="Allocation Successful"
+            Message="@allocateSuccess"
+            Type="AlertModal.AlertType.Success" />
+
+@* Error Alerts *@
+<AlertModal @bind-IsVisible="showModalError"
+            Title="Error"
+            Message="@_modalError"
+            DetailMessage="@modalErrorDetail"
+            Type="AlertModal.AlertType.Error" />
+
+<AlertModal @bind-IsVisible="showRecordNotFound"
+            Title="Record Not Found"
+            Message="Stock record not found. It may have been deleted."
+            DetailMessage="The stock list will be refreshed."
+            Type="AlertModal.AlertType.Error" />
+
+<AlertModal @bind-IsVisible="showReliefGoodNotFound"
+            Title="Relief Good Not Found"
+            Message="Selected relief good not found. It may have been deleted."
+            DetailMessage="The lists will be refreshed."
+            Type="AlertModal.AlertType.Error" />
+
+@* Confirmation Dialogs *@
+<AlertModal @bind-IsVisible="showCloseConfirm"
+            Title="Unsaved Changes"
+            Message="Close without saving? All changes will be lost."
+            Type="AlertModal.AlertType.Warning"
+            ShowCancel="true"
+            ConfirmText="Close Anyway"
+            CancelText="Keep Editing"
+            OnConfirm="ConfirmCloseModal"
+            OnCancel="CancelCloseModal" />
+
+<AlertModal @bind-IsVisible="showDeleteConfirm"
+            Title="Confirm Delete"
+            Message="Delete this stock record? This action cannot be undone."
+            Type="AlertModal.AlertType.Warning"
+            ShowCancel="true"
+            ConfirmText="Delete"
+            CancelText="Cancel"
+            IsProcessing="isDeleting"
+            OnConfirm="ExecuteDeleteStock"
+            OnCancel="CancelDelete" />
+
+@* ========== END ALERT MODALS ========== *@
 
 <div class="stocks-root">
     <section class="panel kpi-panel">
@@ -85,10 +146,9 @@
                     <option value="High">High</option>
                 </select>
 
-                <label class="chk-inline">
-                    <input type="checkbox" @bind="_showInactive" @bind:after="LoadAsync" />
-                    <span>Show Inactive</span>
-                </label>
+                <ToggleSwitch @bind-Value="_showInactive" 
+                              Label="Show Inactive" 
+                              @bind-Value:after="LoadAsync" />
 
                 <button class="mini-btn" @onclick="ClearFilters">Clear</button>
             </div>
@@ -125,7 +185,7 @@
                                 <th class="t-center col-qty">Qty</th>
                                 <th class="t-center col-capacity">Max Cap.</th>
                                 <th class="t-center col-status">Status</th>
-                                <th class="t-center col-progress">Progress</th>
+                                <th class="t-center col-progress">Capacity</th>
                                 <th class="t-center col-active">Active</th>
                                 <th class="col-updated">Last Updated</th>
                                 <th class="t-center col-actions">Actions</th>
@@ -330,13 +390,6 @@
                             </div>
                         }
 
-                        @if (!string.IsNullOrEmpty(_modalError))
-                        {
-                            <div class="alert alert-danger" role="alert">
-                                <i class="bi bi-exclamation-triangle-fill"></i> @_modalError
-                            </div>
-                        }
-
                         <div class="modal-actions">
                             <button type="button"
                                     class="btn-cancel"
@@ -494,10 +547,6 @@
                     {
                         <div class="form-error">@_modalError</div>
                     }
-                    @if (!string.IsNullOrEmpty(_allocateSuccess))
-                    {
-                        <div class="success-message">@_allocateSuccess</div>
-                    }
 
                     <div class="modal-actions">
                         <button type="button"
@@ -570,21 +619,6 @@
         font-style: italic;
     }
 
-    .alert {
-        padding: 12px;
-        border-radius: 8px;
-        margin-bottom: 16px;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-
-    .alert-danger {
-        background: #fef2f2;
-        border: 1px solid #fecaca;
-        color: #991b1b;
-    }
-
     .loading-spinner {
         text-align: center;
         padding: 40px 20px;
@@ -612,7 +646,8 @@
     private string _statusFilter = string.Empty;
     private string _error = string.Empty;
     private string _modalError = string.Empty;
-    private string _allocateSuccess = string.Empty;
+    private string modalErrorDetail = string.Empty;
+    private string allocateSuccess = string.Empty;
     private Dictionary<string, string> _fieldErrors = new();
 
     // Edit fields
@@ -631,6 +666,21 @@
     private Stock? _allocateStock;
     private int _allocateShelterId;
     private int _allocateQuantity;
+
+    // NEW: Alert modal state
+    private bool showStockSaveSuccess = false;
+    private string successTitle = "";
+    private string successMessage = "";
+    private bool showDeleteSuccess = false;
+    private bool showAllocationSuccess = false;
+    private bool showModalError = false;
+    private bool showRecordNotFound = false;
+    private bool showReliefGoodNotFound = false;
+    private bool showCloseConfirm = false;
+    private bool showDeleteConfirm = false;
+    private bool isDeleting = false;
+    private int stockToDeleteId = 0;
+    private bool hasUnsavedChanges = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -721,6 +771,7 @@
         _editMaxCapacity = 1000;
         _editLocation = string.Empty;
         _selectedReliefGoodName = string.Empty;
+        hasUnsavedChanges = false;
     }
 
     private async void OpenEditModal(Stock stock)
@@ -730,18 +781,20 @@
         _loadingModal = true;
         _modalError = string.Empty;
         _fieldErrors.Clear();
+        hasUnsavedChanges = false;
         
         StateHasChanged();
 
         try
         {
-            // Reload stock with full details to ensure we have latest data
             var fullStock = await StockSvc.GetAsync(stock.StockId);
             
             if (fullStock == null)
             {
-                _modalError = "Stock record not found. It may have been deleted.";
                 _loadingModal = false;
+                _showModal = false;
+                showRecordNotFound = true;
+                await LoadAsync();
                 return;
             }
 
@@ -755,6 +808,8 @@
         catch (Exception ex)
         {
             _modalError = $"Error loading stock details: {ex.Message}";
+            modalErrorDetail = ex.InnerException?.Message ?? "";
+            showModalError = true;
         }
         finally
         {
@@ -763,15 +818,36 @@
         }
     }
 
+    // CHANGED: Check for unsaved changes before closing
     private async Task CloseModal()
     {
         if (_saving) return;
         
-        var confirmed = await JS.InvokeAsync<bool>("confirm", "Are you sure you want to close this form? Any unsaved changes will be lost.");
-        if (!confirmed) return;
+        // Check if there are any changes
+        if (!string.IsNullOrWhiteSpace(_editLocation) || _selectedRgId > 0 || 
+            !string.IsNullOrWhiteSpace(_selectedReliefGoodName) || _editQuantity > 0)
+        {
+            hasUnsavedChanges = true;
+            showCloseConfirm = true;
+            return;
+        }
         
+        // No changes, close directly
         _showModal = false;
         _fieldErrors.Clear();
+    }
+
+    private void ConfirmCloseModal()
+    {
+        showCloseConfirm = false;
+        _showModal = false;
+        _fieldErrors.Clear();
+        hasUnsavedChanges = false;
+    }
+
+    private void CancelCloseModal()
+    {
+        showCloseConfirm = false;
     }
 
     // Validation methods
@@ -809,7 +885,6 @@
             _fieldErrors["MaxCapacity"] = "Max capacity seems unrealistically high";
         }
         
-        // Re-validate quantity if it exists
         if (_editQuantity > _editMaxCapacity)
         {
             _fieldErrors["Quantity"] = $"Quantity cannot exceed max capacity ({_editMaxCapacity})";
@@ -870,12 +945,12 @@
         return !_fieldErrors.Any();
     }
 
+    // CHANGED: Use AlertModal for success/error messages
     private async Task SaveStock()
     {
         if (_saving) return;
         _modalError = string.Empty;
 
-        // Validate all fields
         if (!ValidateAll())
         {
             _modalError = "Please correct the highlighted errors before saving.";
@@ -889,13 +964,13 @@
 
             if (_editMode)
             {
-                // Additional check for edit mode
                 var existingStock = await StockSvc.GetAsync(_editStockId);
                 if (existingStock == null)
                 {
-                    _modalError = "Stock record not found. It may have been deleted by another user.";
                     _saving = false;
-                    await LoadAsync(); // Refresh the list
+                    _showModal = false;
+                    showRecordNotFound = true;
+                    await LoadAsync();
                     return;
                 }
 
@@ -903,13 +978,13 @@
             }
             else
             {
-                // Verify relief good still exists
                 var reliefGood = await InventorySvc.GetByIdAsync(_selectedRgId);
                 if (reliefGood == null)
                 {
-                    _modalError = "Selected relief good not found. It may have been deleted.";
                     _saving = false;
-                    await LoadAsync(); // Refresh the lists
+                    _showModal = false;
+                    showReliefGoodNotFound = true;
+                    await LoadAsync();
                     return;
                 }
 
@@ -919,24 +994,32 @@
             if (result.err != null)
             {
                 _modalError = result.err;
+                modalErrorDetail = "";
+                showModalError = true;
                 return;
             }
 
             // Success!
             _showModal = false;
+            hasUnsavedChanges = false;
             await LoadAsync();
             
-            // Show success message
-            await JSRuntime.InvokeVoidAsync("alert", 
-                _editMode ? "Stock updated successfully!" : "Stock created successfully!");
+            // CHANGED: Show success modal
+            successTitle = _editMode ? "Stock Updated" : "Stock Created";
+            successMessage = _editMode ? "Stock updated successfully!" : "Stock created successfully!";
+            showStockSaveSuccess = true;
         }
         catch (DbUpdateException ex)
         {
-            _modalError = $"Database error: {ex.InnerException?.Message ?? ex.Message}";
+            _modalError = "Database error occurred";
+            modalErrorDetail = ex.InnerException?.Message ?? ex.Message;
+            showModalError = true;
         }
         catch (Exception ex)
         {
             _modalError = $"Error: {ex.Message}";
+            modalErrorDetail = "";
+            showModalError = true;
         }
         finally
         {
@@ -995,32 +1078,50 @@
         }
     }
 
-    private async Task DeleteStock(int stockId)
+    // CHANGED: Show confirmation modal before deleting
+    private void DeleteStock(int stockId)
     {
-        if (_saving) return;
+        stockToDeleteId = stockId;
+        showDeleteConfirm = true;
+    }
 
+    private async Task ExecuteDeleteStock()
+    {
+        if (stockToDeleteId == 0) return;
+        
+        isDeleting = true;
         try
         {
-            var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "Delete this stock record? This action cannot be undone.");
-            if (!confirmed) return;
-
-            _saving = true;
-            var (ok, err) = await StockSvc.DeleteAsync(stockId);
+            var (ok, err) = await StockSvc.DeleteAsync(stockToDeleteId);
             if (!ok && err != null)
-                _error = err;
-            else
-                await JSRuntime.InvokeVoidAsync("alert", "Stock deleted successfully!");
+            {
+                _modalError = err;
+                modalErrorDetail = "";
+                showModalError = true;
+                return;
+            }
 
+            showDeleteConfirm = false;
+            showDeleteSuccess = true;
             await LoadAsync();
         }
         catch (Exception ex)
         {
-            _error = $"Delete error: {ex.Message}";
+            _modalError = $"Delete error: {ex.Message}";
+            modalErrorDetail = "";
+            showModalError = true;
         }
         finally
         {
-            _saving = false;
+            isDeleting = false;
+            stockToDeleteId = 0;
         }
+    }
+
+    private void CancelDelete()
+    {
+        showDeleteConfirm = false;
+        stockToDeleteId = 0;
     }
 
     private async Task Refresh()
@@ -1034,7 +1135,7 @@
         _allocateShelterId = 0;
         _allocateQuantity = 0;
         _modalError = string.Empty;
-        _allocateSuccess = string.Empty;
+        allocateSuccess = string.Empty;
         _showAllocateModal = true;
     }
 
@@ -1049,7 +1150,7 @@
     {
         if (_saving || _allocateStock == null) return;
         _modalError = string.Empty;
-        _allocateSuccess = string.Empty;
+        allocateSuccess = string.Empty;
 
         if (_allocateShelterId == 0)
         {
@@ -1069,7 +1170,6 @@
             return;
         }
 
-        // Validate user is authenticated
         if (!AuthState.IsAuthenticated || !AuthState.UserId.HasValue)
         {
             _modalError = "You must be logged in to perform this action.";
@@ -1094,11 +1194,12 @@
                 return;
             }
 
-            _allocateSuccess = $"Successfully allocated {_allocateQuantity} {_allocateStock.ReliefGood?.Unit} to shelter.";
-
-            await Task.Delay(1200);
-
+            // CHANGED: Show success modal instead of inline message
+            allocateSuccess = $"Successfully allocated {_allocateQuantity} {_allocateStock.ReliefGood?.Unit} to shelter.";
             _showAllocateModal = false;
+            showAllocationSuccess = true;
+            
+            await Task.Delay(100);
             await LoadAsync();
         }
         catch (Exception ex)

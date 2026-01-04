@@ -1,14 +1,74 @@
 ﻿@page "/disasters"
 @inject ResQLink.Services.IDisasterService DisasterService
-@inject IJSRuntime JS
 @using ResQLink.Data.Entities
+@using ResQLink.Components.Shared
+
+@* ========== ALERT MODALS - ADD AT TOP ========== *@
+
+@* Success Alerts *@
+<AlertModal @bind-IsVisible="showSaveSuccess"
+            Title="@successTitle"
+            Message="@successMessage"
+            Type="AlertModal.AlertType.Success" />
+
+<AlertModal @bind-IsVisible="showDeleteSuccess"
+            Title="Disaster Archived"
+            Message="@deleteSuccessMessage"
+            Type="AlertModal.AlertType.Success" />
+
+@* Error Alerts *@
+<AlertModal @bind-IsVisible="showLoadError"
+            Title="Error Loading Disasters"
+            Message="@errorMessage"
+            Type="AlertModal.AlertType.Error" />
+
+<AlertModal @bind-IsVisible="showSaveError"
+            Title="Error Saving Disaster"
+            Message="@errorMessage"
+            Type="AlertModal.AlertType.Error" />
+
+<AlertModal @bind-IsVisible="showDeleteError"
+            Title="Error Archiving Disaster"
+            Message="@errorMessage"
+            Type="AlertModal.AlertType.Error" />
+
+@* Validation Error *@
+<AlertModal @bind-IsVisible="showValidationError"
+            Title="Validation Error"
+            Message="Please correct the errors in the form before submitting."
+            Type="AlertModal.AlertType.Warning" />
+
+@* Confirmation Dialogs *@
+<AlertModal @bind-IsVisible="showCloseConfirm"
+            Title="Unsaved Changes"
+            Message="Are you sure you want to close this form? Any unsaved changes will be lost."
+            Type="AlertModal.AlertType.Warning"
+            ShowCancel="true"
+            ConfirmText="Close Anyway"
+            CancelText="Keep Editing"
+            OnConfirm="ConfirmClose"
+            OnCancel="CancelClose" />
+
+<AlertModal @bind-IsVisible="showDeleteConfirm"
+            Title="Confirm Archive"
+            Message="@deleteConfirmMessage"
+            DetailMessage="This disaster will be moved to archives. All related data (shelters, evacuees, stocks) will be preserved. Administrators can restore it from the Archives page if needed."
+            Type="AlertModal.AlertType.Warning"
+            ShowCancel="true"
+            ConfirmText="Archive"
+            CancelText="Cancel"
+            IsProcessing="isDeleting"
+            OnConfirm="ExecuteDelete"
+            OnCancel="CancelDelete" />
+
+@* ========== END ALERT MODALS ========== *@
 
 <div class="disasters-root">
     <section class="panel kpi-panel">
         <header class="panel-head">
             <h2 class="panel-title">Disasters Overview</h2>
             <div class="panel-actions">
-                <button class="mini-btn btn-primary" @onclick="ShowCreateModal">
+                <button class="mini-btn btn-primary" @onclick="ShowCreateModal" disabled="@showModal">
                     <i class="bi bi-plus-circle"></i> Add Disaster
                 </button>
                 <button class="mini-btn" @onclick="Refresh" title="Refresh">
@@ -48,28 +108,26 @@
         </div>
     </section>
 
-   
-
     <section class="panel">
         <header class="panel-head">
             <h2 class="panel-title">Disasters</h2>
             <div class="panel-actions">
                 <input class="mini-input" placeholder="Search title, type or location…" @bind="search" @bind:event="oninput" />
-                <select class="mini-input" @bind="severityFilter">
+                <select class="mini-input" @bind="severityFilter" @bind:after="ResetPagination">
                     <option value="">All Severities</option>
                     <option value="Low">Low</option>
                     <option value="Moderate">Moderate</option>
                     <option value="High">High</option>
                     <option value="Critical">Critical</option>
                 </select>
-                <select class="mini-input" @bind="statusFilter">
+                <select class="mini-input" @bind="statusFilter" @bind:after="ResetPagination">
                     <option value="">All Status</option>
                     <option value="Open">Open</option>
                     <option value="Active">Active</option>
                     <option value="Contained">Contained</option>
                     <option value="Closed">Closed</option>
                 </select>
-                <select class="mini-input" @bind="sortBy">
+                <select class="mini-input" @bind="sortBy" @bind:after="ResetPagination">
                     <option value="start_desc">Start: Newest</option>
                     <option value="title_asc">Title: A → Z</option>
                 </select>
@@ -103,14 +161,23 @@
                             <td>@(disaster.EndDate?.ToString("MMM dd, yyyy") ?? "—")</td>
                             <td>@disaster.Location</td>
                             <td class="action-cell">
-                                <button class="action-btn edit" @onclick="() => ShowEditModal(disaster)" title="Edit">
+                                <button class="action-btn edit" 
+                                        @onclick="() => ShowEditModal(disaster)" 
+                                        disabled="@(showModal || showDetailsModal)"
+                                        title="Edit">
                                     <i class="bi bi-pencil"></i>
                                 </button>
-                                <button class="action-btn view" @onclick="() => ShowDetailsModal(disaster)" title="View Details">
-                                    <i class="bi bi-eye"></i>
+                                <button class="action-btn view" 
+                                        @onclick="() => ShowDetailsModal(disaster)" 
+                                        disabled="@(showModal || showDetailsModal)"
+                                        title="View Details">
+                                    <i class="bi bi-search"></i>
                                 </button>
-                                <button class="action-btn delete" @onclick="() => ShowDeleteConfirmation(disaster)" title="Delete">
-                                    <i class="bi bi-trash"></i>
+                                <button class="action-btn delete" 
+                                        @onclick="() => ShowDeleteConfirmation(disaster)" 
+                                        disabled="@(showModal || showDetailsModal || showDeleteConfirm)"
+                                        title="Archive">
+                                    <i class="bi bi-archive"></i>
                                 </button>
                             </td>
                         </tr>
@@ -118,7 +185,19 @@
                     @if (!PagedDisasters.Any())
                     {
                         <tr>
-                            <td colspan="8" class="t-center text-muted">No results.</td>
+                            <td colspan="8" class="empty-state">
+                                <div class="empty-icon"><i class="bi bi-inbox"></i></div>
+                                <div class="empty-text">
+                                    @if (!string.IsNullOrWhiteSpace(search) || !string.IsNullOrWhiteSpace(severityFilter) || !string.IsNullOrWhiteSpace(statusFilter))
+                                    {
+                                        <text>No disasters match your filters.</text>
+                                    }
+                                    else
+                                    {
+                                        <text>No disasters found.</text>
+                                    }
+                                </div>
+                            </td>
                         </tr>
                     }
                 </tbody>
@@ -127,11 +206,12 @@
 
         <footer class="panel-foot">
             <div class="foot-left">
+                <i class="bi bi-info-circle"></i>
                 Showing @StartIndex–@EndIndex of @TotalFiltered disasters
             </div>
             <div class="foot-right">
                 <label class="foot-label">Rows</label>
-                <select class="mini-input" @bind="pageSize">
+                <select class="mini-input" @bind="pageSize" @bind:after="ResetPagination">
                     <option>10</option>
                     <option>20</option>
                     <option>50</option>
@@ -147,21 +227,25 @@
 @* Create/Edit Modal *@
 @if (showModal)
 {
-    <div class="modal-overlay" @onclick="async () => await CloseModal()" @onclick:stopPropagation="false">
-        <div class="modal-dialog" @onclick="PreventClose" @onclick:stopPropagation="true">
+    <div class="modal-overlay">
+        <div class="modal-dialog" @onclick:stopPropagation="true">
             <div class="modal-header">
                 <h3>@(isEditMode ? "Edit Disaster" : "Create New Disaster")</h3>
-                <button class="modal-close" @onclick="async () => await CloseModal()" @onclick:stopPropagation="true">&times;</button>
+                <button class="modal-close" @onclick="CloseModal" disabled="@isSubmitting" @onclick:stopPropagation="true">&times;</button>
             </div>
             <div class="modal-body">
-                <EditForm Model="currentDisaster" OnValidSubmit="HandleSubmit">
+                <EditForm Model="currentDisaster" OnValidSubmit="HandleSubmit" OnInvalidSubmit="HandleInvalidSubmit">
                     <DataAnnotationsValidator />
                     <ValidationSummary class="validation-summary" />
 
                     <div class="form-row">
                         <div class="form-group">
                             <label for="title">Title *</label>
-                            <InputText id="title" @bind-Value="currentDisaster.Title" class="form-control" />
+                            <InputText id="title" 
+                                       @bind-Value="currentDisaster.Title" 
+                                       class="form-control"
+                                       placeholder="e.g., Typhoon Odette 2021"
+                                       maxlength="255" />
                             <ValidationMessage For="@(() => currentDisaster.Title)" />
                         </div>
                     </div>
@@ -177,6 +261,8 @@
                                 <option value="Fire">Fire</option>
                                 <option value="Landslide">Landslide</option>
                                 <option value="Volcanic Eruption">Volcanic Eruption</option>
+                                <option value="Drought">Drought</option>
+                                <option value="Tsunami">Tsunami</option>
                                 <option value="Other">Other</option>
                             </InputSelect>
                             <ValidationMessage For="@(() => currentDisaster.DisasterType)" />
@@ -208,7 +294,11 @@
                         </div>
                         <div class="form-group">
                             <label for="location">Location *</label>
-                            <InputText id="location" @bind-Value="currentDisaster.Location" class="form-control" />
+                            <InputText id="location" 
+                                       @bind-Value="currentDisaster.Location" 
+                                       class="form-control"
+                                       placeholder="e.g., Cebu City, Visayas"
+                                       maxlength="255" />
                             <ValidationMessage For="@(() => currentDisaster.Location)" />
                         </div>
                     </div>
@@ -236,7 +326,7 @@
                     </div>
 
                     <div class="modal-actions">
-                        <button type="button" class="btn-cancel" @onclick="async () => await CloseModal()" @onclick:stopPropagation="true">Cancel</button>
+                        <button type="button" class="btn-cancel" @onclick="CloseModal" disabled="@isSubmitting" @onclick:stopPropagation="true">Cancel</button>
                         <button type="submit" class="btn-primary" disabled="@isSubmitting" @onclick:stopPropagation="true">
                             @if (isSubmitting)
                             {
@@ -254,8 +344,8 @@
 @* Details Modal *@
 @if (showDetailsModal && selectedDisaster != null)
 {
-    <div class="modal-overlay" @onclick="CloseDetailsModal" @onclick:stopPropagation="false">
-        <div class="modal-dialog large" @onclick="PreventClose" @onclick:stopPropagation="true">
+    <div class="modal-overlay">
+        <div class="modal-dialog large" @onclick:stopPropagation="true">
             <div class="modal-header">
                 <h3>@selectedDisaster.Title - Details</h3>
                 <button class="modal-close" @onclick="CloseDetailsModal" @onclick:stopPropagation="true">&times;</button>
@@ -292,11 +382,11 @@
                     </div>
                     <div class="detail-item">
                         <label>Shelters:</label>
-                        <span>@selectedDisaster.Shelters.Count shelters</span>
+                        <span>@selectedDisaster.Shelters.Count shelter(s)</span>
                     </div>
                     <div class="detail-item">
                         <label>Evacuees:</label>
-                        <span>@selectedDisaster.Evacuees.Count evacuees</span>
+                        <span>@selectedDisaster.Evacuees.Count evacuee(s)</span>
                     </div>
                 </div>
             </div>
@@ -310,57 +400,44 @@
     </div>
 }
 
-@* Delete Confirmation Modal *@
-@if (showDeleteModal && disasterToDelete != null)
-{
-    <div class="modal-overlay" @onclick="CloseDeleteModal" @onclick:stopPropagation="false">
-        <div class="modal-dialog small" @onclick="PreventClose" @onclick:stopPropagation="true">
-            <div class="modal-header">
-                <h3>Confirm Delete</h3>
-                <button class="modal-close" @onclick="CloseDeleteModal" @onclick:stopPropagation="true">&times;</button>
-            </div>
-            <div class="modal-body">
-                <p>Are you sure you want to delete the disaster <strong>"@disasterToDelete.Title"</strong>?</p>
-                <p class="warning-text">This action cannot be undone and will also delete all related data including shelters and evacuees.</p>
-            </div>
-            <div class="modal-footer">
-                <button class="btn-cancel" @onclick="CloseDeleteModal" @onclick:stopPropagation="true">Cancel</button>
-                <button class="btn-danger" @onclick="ConfirmDelete" disabled="@isDeleting" @onclick:stopPropagation="true">
-                    @if (isDeleting)
-                    {
-                        <span class="spinner"></span>
-                    }
-                    Delete
-                </button>
-            </div>
-        </div>
-    </div>
-}
-
 @code {
-    
     private List<Disaster> AllDisasters = new();
     private string search = string.Empty;
     private string severityFilter = string.Empty;
     private string statusFilter = string.Empty;
     private string sortBy = "start_desc";
 
-    // Pagination - matching Evacuees style
+    // Pagination
     private int _pageIndex = 0;
     private int pageSize = 10;
 
     // Modal states
     private bool showModal = false;
     private bool showDetailsModal = false;
-    private bool showDeleteModal = false;
     private bool isEditMode = false;
     private bool isSubmitting = false;
-    private bool isDeleting = false;
 
     // Current entities
     private Disaster currentDisaster = new();
     private Disaster? selectedDisaster = null;
     private Disaster? disasterToDelete = null;
+
+    // NEW: Alert modal state variables
+    private bool showLoadError = false;
+    private bool showSaveSuccess = false;
+    private string successTitle = "";
+    private string successMessage = "";
+    private bool showSaveError = false;
+    private bool showDeleteSuccess = false;
+    private string deleteSuccessMessage = "";
+    private bool showDeleteError = false;
+    private bool showValidationError = false;
+    private bool showCloseConfirm = false;
+    private bool showDeleteConfirm = false;
+    private string deleteConfirmMessage = "";
+    private bool isDeleting = false;
+    private string errorMessage = "";
+    private bool hasUnsavedChanges = false;
 
     protected override async Task OnInitializedAsync() => await LoadDisastersAsync();
 
@@ -372,7 +449,8 @@
         }
         catch (Exception ex)
         {
-            await JS.InvokeVoidAsync("alert", $"Error loading disasters: {ex.Message}");
+            errorMessage = $"Error loading disasters: {ex.Message}";
+            showLoadError = true;
         }
     }
 
@@ -431,7 +509,11 @@
         _ => ""
     };
 
-    // Pagination methods - matching Evacuees style
+    private void ResetPagination()
+    {
+        _pageIndex = 0;
+    }
+
     private void PrevPage()
     {
         if (_pageIndex > 0) _pageIndex--;
@@ -442,13 +524,6 @@
         if (_pageIndex < TotalPages - 1) _pageIndex++;
     }
 
-    // Event handler to prevent modal from closing when clicking inside
-    private void PreventClose()
-    {
-        // This method intentionally does nothing - it just prevents the click from bubbling up
-    }
-
-    // CRUD Operations
     private void ShowCreateModal()
     {
         isEditMode = false;
@@ -457,6 +532,7 @@
             StartDate = DateTime.Today,
             Status = "Open"
         };
+        hasUnsavedChanges = false;
         showModal = true;
     }
 
@@ -476,6 +552,7 @@
             Location = disaster.Location,
             CreatedAt = disaster.CreatedAt
         };
+        hasUnsavedChanges = false;
         showModal = true;
     }
 
@@ -488,12 +565,32 @@
     private void ShowDeleteConfirmation(Disaster disaster)
     {
         disasterToDelete = disaster;
-        showDeleteModal = true;
+        var relatedInfo = new List<string>();
+        
+        if (disaster.Shelters?.Count > 0)
+            relatedInfo.Add($"{disaster.Shelters.Count} shelter(s)");
+        
+        if (disaster.Evacuees?.Count > 0)
+            relatedInfo.Add($"{disaster.Evacuees.Count} evacuee(s)");
+        
+        var relatedData = relatedInfo.Any() 
+            ? $" with {string.Join(", ", relatedInfo)}" 
+            : "";
+        
+        deleteConfirmMessage = $"Are you sure you want to archive the disaster '{disaster.Title}'{relatedData}?";
+        showDeleteConfirm = true;
+    }
+
+    private void HandleInvalidSubmit()
+    {
+        showValidationError = true;
     }
 
     private async Task HandleSubmit()
     {
         isSubmitting = true;
+        errorMessage = "";
+        
         try
         {
             if (isEditMode)
@@ -501,28 +598,37 @@
                 var (result, error) = await DisasterService.UpdateAsync(currentDisaster);
                 if (error != null)
                 {
-                    await JS.InvokeVoidAsync("alert", $"Error: {error}");
+                    errorMessage = $"Error: {error}";
+                    showSaveError = true;
                     return;
                 }
-                await JS.InvokeVoidAsync("alert", "Disaster updated successfully!");
+                
+                successTitle = "Disaster Updated";
+                successMessage = $"Disaster '{currentDisaster.Title}' updated successfully!";
             }
             else
             {
                 var (result, error) = await DisasterService.CreateAsync(currentDisaster);
                 if (error != null)
                 {
-                    await JS.InvokeVoidAsync("alert", $"Error: {error}");
+                    errorMessage = $"Error: {error}";
+                    showSaveError = true;
                     return;
                 }
-                await JS.InvokeVoidAsync("alert", "Disaster created successfully!");
+                
+                successTitle = "Disaster Created";
+                successMessage = $"Disaster '{currentDisaster.Title}' created successfully!";
             }
 
             await LoadDisastersAsync();
-            await CloseModal();
+            showModal = false;
+            hasUnsavedChanges = false;
+            showSaveSuccess = true;
         }
         catch (Exception ex)
         {
-            await JS.InvokeVoidAsync("alert", $"Error: {ex.Message}");
+            errorMessage = $"Error: {ex.Message}";
+            showSaveError = true;
         }
         finally
         {
@@ -530,49 +636,87 @@
         }
     }
 
-    private async Task ConfirmDelete()
+    private async Task ExecuteDelete()
     {
-        if (disasterToDelete == null) return;
+        if (disasterToDelete == null || isDeleting) return;
 
         isDeleting = true;
+        errorMessage = "";
+        
         try
         {
+            var disasterTitle = disasterToDelete.Title;
             var success = await DisasterService.DeleteAsync(disasterToDelete.DisasterId);
+            
             if (success)
             {
-                await JS.InvokeVoidAsync("alert", "Disaster deleted successfully!");
+                deleteSuccessMessage = $"Disaster '{disasterTitle}' has been archived successfully. Administrators can restore it from the Archives page.";
+                showDeleteConfirm = false;
                 await LoadDisastersAsync();
-                CloseDeleteModal();
                 
                 // Adjust current page if needed
                 if (_pageIndex >= TotalPages && TotalPages > 0)
                     _pageIndex = TotalPages - 1;
+                
+                showDeleteSuccess = true;
             }
             else
             {
-                await JS.InvokeVoidAsync("alert", "Failed to delete disaster.");
+                errorMessage = "Failed to archive disaster.";
+                showDeleteConfirm = false;
+                showDeleteError = true;
             }
         }
         catch (Exception ex)
         {
-            await JS.InvokeVoidAsync("alert", $"Error deleting disaster: {ex.Message}");
+            errorMessage = $"Error archiving disaster: {ex.Message}";
+            showDeleteConfirm = false;
+            showDeleteError = true;
         }
         finally
         {
             isDeleting = false;
+            disasterToDelete = null;
         }
     }
 
-    // Modal management
-    private async Task CloseModal()
+    private void CancelDelete()
     {
-        // Ask for confirmation before closing
-        var confirmed = await JS.InvokeAsync<bool>("confirm", "Are you sure you want to close this form? Any unsaved changes will be lost.");
-        if (!confirmed) return;
+        showDeleteConfirm = false;
+        disasterToDelete = null;
+        isDeleting = false;
+    }
+
+    private void CloseModal()
+    {
+        if (isSubmitting) return;
+        
+        // Check if there's any data entered
+        if (!string.IsNullOrWhiteSpace(currentDisaster.Title) || 
+            !string.IsNullOrWhiteSpace(currentDisaster.DisasterType) ||
+            !string.IsNullOrWhiteSpace(currentDisaster.Location))
+        {
+            hasUnsavedChanges = true;
+            showCloseConfirm = true;
+            return;
+        }
         
         showModal = false;
-        isSubmitting = false;
         currentDisaster = new();
+        hasUnsavedChanges = false;
+    }
+
+    private void ConfirmClose()
+    {
+        showCloseConfirm = false;
+        showModal = false;
+        currentDisaster = new();
+        hasUnsavedChanges = false;
+    }
+
+    private void CancelClose()
+    {
+        showCloseConfirm = false;
     }
 
     private void CloseDetailsModal()
@@ -581,14 +725,7 @@
         selectedDisaster = null;
     }
 
-    private void CloseDeleteModal()
-    {
-        showDeleteModal = false;
-        disasterToDelete = null;
-        isDeleting = false;
-    }
-
-    private async void Refresh()
+    private async Task Refresh()
     {
         await LoadDisastersAsync();
         _pageIndex = 0;

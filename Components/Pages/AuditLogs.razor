@@ -4,6 +4,7 @@
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 @using ResQLink.Data.Entities
+@using ResQLink.Components.Shared
 
 <div class="audit-logs-root">
     @if (!Auth.IsAdmin())
@@ -377,6 +378,11 @@
             </div>
         </div>
     }
+
+    <AlertModal @bind-IsVisible="showAccessDenied" 
+                Title="Access Denied"
+                Message="You must be an administrator to view audit logs."
+                Type="AlertModal.AlertType.Warning" />
 </div>
 @code {
     private List<AuditLog> logs = new();
@@ -399,11 +405,14 @@
     private int EndIndex => Math.Min((_pageIndex + 1) * pageSize, TotalFiltered);
     private IEnumerable<AuditLog> PagedLogs => logs.Skip(_pageIndex * pageSize).Take(pageSize);
 
+    private bool showAccessDenied = false;
+    private bool showExportInfo = false;
+
     protected override async Task OnInitializedAsync()
     {
         if (!Auth.IsAdmin())
         {
-            await JS.InvokeVoidAsync("alert", "Access denied. Admin privileges required.");
+            showAccessDenied = true;
             return;
         }
 
@@ -487,8 +496,8 @@
     private string GetStatusClass(bool isSuccessful) =>
         isSuccessful ? "status-text status-active" : "status-text status-inactive";
 
-    private async Task ExportLogs()
+    private void ExportLogs()
     {
-        await JS.InvokeVoidAsync("alert", "Export functionality coming soon!");
+        showExportInfo = true;
     }
 }

@@ -8,6 +8,7 @@
     --bg-body: #f3f4f6;
     --bg-surface: #ffffff;
     --sidebar-width: 260px;
+    --sidebar-collapsed-width: 80px;
     --header-height: 80px;
     --border-color: #e2e8f0;
 }
@@ -30,20 +31,13 @@
     border-right: 1px solid var(--border-color);
     height: 100vh;
     z-index: 20;
-    transition: transform 0.25s ease, width 0.25s ease;
+    transition: width 0.3s ease;
+    overflow: hidden;
 }
 
-/* When app-shell has sidebar-collapsed, hide sidebar and free its width */
+/* Collapsed sidebar shows icons only */
 .app-shell.sidebar-collapsed .shell-sidebar {
-    width: 0;
-    transform: translateX(-100%);
-    pointer-events: none;
-    border-right: none;
-}
-
-/* Pull the whole layout left so content touches the screen edge */
-.app-shell.sidebar-collapsed {
-    margin-left: calc(-1 * var(--sidebar-width));
+    width: var(--sidebar-collapsed-width);
 }
 
 .sidebar-brand {
@@ -52,6 +46,31 @@
     align-items: center;
     justify-content: center;
     padding: 0 24px;
+    transition: padding 0.3s ease;
+    flex-shrink: 0;
+}
+
+.app-shell.sidebar-collapsed .sidebar-brand {
+    padding: 0;
+}
+
+/* Collapsed logo - same size as nav icons (48px) */
+.brand-logo-collapsed {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    overflow: visible;
+    background: transparent;
+}
+
+.brand-logo-collapsed img {
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
+    display: block;
 }
 
 /* Centered footer */
@@ -75,6 +94,13 @@
     flex-direction: column;
     gap: 8px;
     overflow-y: auto;
+    overflow-x: hidden;
+    flex: 1;
+}
+
+.app-shell.sidebar-collapsed .nav-stack {
+    padding: 20px 16px;
+    align-items: center;
 }
 
 /* Section labels */
@@ -85,6 +111,16 @@
     padding: 8px 12px;
     text-transform: uppercase;
     letter-spacing: 0.06em;
+    white-space: nowrap;
+    overflow: hidden;
+    transition: opacity 0.2s ease;
+}
+
+.app-shell.sidebar-collapsed .nav-header-label {
+    opacity: 0;
+    height: 0;
+    padding: 0;
+    margin: 0;
 }
 
 /* --- BUTTON STYLES --- */
@@ -106,24 +142,32 @@
     text-align: left;
     position: relative;
     margin-bottom: 2px;
+    white-space: nowrap;
 }
 
-    .nav-btn:hover {
-        background-color: #f0fdf4 !important;
-        opacity: 1;
-    }
+.app-shell.sidebar-collapsed .nav-btn {
+    padding: 0;
+    width: 48px;
+    justify-content: center;
+    gap: 0;
+}
 
-    /* ACTIVE STATE */
-    .nav-btn.active {
-        background-color: #dcfce7 !important;
-        color: #16a34a !important;
-        font-weight: 800 !important;
-        box-shadow: inset 4px 0 0 0 #16a34a !important;
-    }
+.nav-btn:hover {
+    background-color: #f0fdf4 !important;
+    opacity: 1;
+}
 
-        .nav-btn.active .nav-icon {
-            color: #16a34a !important;
-        }
+/* ACTIVE STATE */
+.nav-btn.active {
+    background-color: #dcfce7 !important;
+    color: #16a34a !important;
+    font-weight: 800 !important;
+    box-shadow: inset 4px 0 0 0 #16a34a !important;
+}
+
+.nav-btn.active .nav-icon {
+    color: #16a34a !important;
+}
 
 /* Icons inside buttons */
 .nav-icon {
@@ -131,11 +175,27 @@
     color: var(--text-muted);
     width: 22px;
     transition: color 0.15s;
+    flex-shrink: 0;
+}
+
+/* Hide text in collapsed mode */
+.nav-text {
+    transition: opacity 0.2s ease;
+}
+
+.app-shell.sidebar-collapsed .nav-text {
+    opacity: 0;
+    width: 0;
+    overflow: hidden;
 }
 
 /* --- Submenu / Inventory Dropdown --- */
 .nav-item-with-menu {
     width: 100%;
+}
+
+.app-shell.sidebar-collapsed .nav-item-with-menu {
+    width: 48px;
 }
 
 .inventory-dropdown {
@@ -144,31 +204,36 @@
     padding-left: 12px;
     margin-top: 6px;
     gap: 6px;
+    transition: opacity 0.2s ease, max-height 0.3s ease;
 }
 
-    .inventory-dropdown .dropdown-link {
-        background: transparent;
-        border: none;
-        text-align: left;
-        padding: 10px 16px 10px 42px;
-        font-size: 0.85rem;
-        color: var(--text-muted);
-        cursor: pointer;
-        border-radius: 8px;
-        transition: all 0.15s ease;
-    }
+.app-shell.sidebar-collapsed .inventory-dropdown {
+    display: none;
+}
 
-        .inventory-dropdown .dropdown-link:hover {
-            background-color: rgba(34,197,94,0.09) !important;
-            color: #16a34a !important;
-        }
+.inventory-dropdown .dropdown-link {
+    background: transparent;
+    border: none;
+    text-align: left;
+    padding: 10px 16px 10px 42px;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: 8px;
+    transition: all 0.15s ease;
+}
 
-        .inventory-dropdown .dropdown-link.active-link {
-            background-color: #dcfce7 !important;
-            color: #16a34a !important;
-            font-weight: 800 !important;
-            box-shadow: inset 4px 0 0 0 #16a34a !important;
-        }
+.inventory-dropdown .dropdown-link:hover {
+    background-color: rgba(34,197,94,0.09) !important;
+    color: #16a34a !important;
+}
+
+.inventory-dropdown .dropdown-link.active-link {
+    background-color: #dcfce7 !important;
+    color: #16a34a !important;
+    font-weight: 800 !important;
+    box-shadow: inset 4px 0 0 0 #16a34a !important;
+}
 
 /* --- Main Content Area --- */
 .shell-body {
@@ -206,9 +271,9 @@
     transition: background 0.2s;
 }
 
-    .menu-icon:hover {
-        background-color: rgba(0,0,0,0.05);
-    }
+.menu-icon:hover {
+    background-color: rgba(0,0,0,0.05);
+}
 
 /* --- Right Side (Icons & User) --- */
 .header-icons {
@@ -232,11 +297,11 @@
     transition: 0.2s;
 }
 
-    .icon-btn:hover {
-        border-color: var(--primary-color);
-        color: var(--primary-color);
-        transform: translateY(-2px);
-    }
+.icon-btn:hover {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+    transform: translateY(-2px);
+}
 
 /* --- User Profile --- */
 .user-profile-preview {
@@ -250,10 +315,10 @@
     transition: background 0.2s;
 }
 
-    .user-profile-preview:hover {
-        background-color: #fff;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-    }
+.user-profile-preview:hover {
+    background-color: #fff;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
 
 .user-avatar {
     width: 48px;
@@ -414,9 +479,9 @@
     transition: color 0.2s;
 }
 
-    .toast-close:hover {
-        color: #475569;
-    }
+.toast-close:hover {
+    color: #475569;
+}
 
 /* Error Container Styles */
 .error-container {
@@ -475,21 +540,21 @@
     color: white;
 }
 
-    .btn-primary:hover {
-        background: #15803d;
-        transform: translateY(-1px);
-        box-shadow: 0 4px 8px rgba(22, 163, 74, 0.3);
-    }
+.btn-primary:hover {
+    background: #15803d;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(22, 163, 74, 0.3);
+}
 
 .btn-secondary {
     background: #f1f5f9;
     color: #475569;
 }
 
-    .btn-secondary:hover {
-        background: #e2e8f0;
-        transform: translateY(-1px);
-    }
+.btn-secondary:hover {
+    background: #e2e8f0;
+    transform: translateY(-1px);
+}
 
 .error-details {
     margin-top: 24px;
@@ -500,30 +565,30 @@
     border: 1px solid #e2e8f0;
 }
 
-    .error-details summary {
-        cursor: pointer;
-        font-weight: 600;
-        color: #475569;
-        font-size: 14px;
-        user-select: none;
-    }
+.error-details summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: #475569;
+    font-size: 14px;
+    user-select: none;
+}
 
-        .error-details summary:hover {
-            color: #1e293b;
-        }
+.error-details summary:hover {
+    color: #1e293b;
+}
 
-    .error-details code {
-        display: block;
-        margin-top: 12px;
-        padding: 12px;
-        background: white;
-        border: 1px solid #e2e8f0;
-        border-radius: 4px;
-        font-size: 12px;
-        color: #ef4444;
-        word-break: break-word;
-        white-space: pre-wrap;
-    }
+.error-details code {
+    display: block;
+    margin-top: 12px;
+    padding: 12px;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    font-size: 12px;
+    color: #ef4444;
+    word-break: break-word;
+    white-space: pre-wrap;
+}
 
 /* Mobile Responsiveness */
 @media (max-width: 768px) {
@@ -546,4 +611,168 @@
         width: 100%;
         justify-content: center;
     }
+
+    /* On mobile, completely hide collapsed sidebar */
+    .app-shell.sidebar-collapsed .shell-sidebar {
+        width: 0;
+        transform: translateX(-100%);
+    }
+}
+
+/* Logout button styling - consistent with nav-btn */
+.logout-btn {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 0 16px;
+    min-height: 48px;
+    background: #dc2626;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-bottom: 0.5rem;
+    white-space: nowrap;
+    text-align: left;
+    position: relative;
+}
+
+.logout-btn:hover {
+    background: #b91c1c !important;
+    opacity: 1 !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+}
+
+.logout-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 6px rgba(220, 38, 38, 0.2);
+}
+
+.logout-btn .nav-icon {
+    font-size: 1.1rem;
+    color: white !important;
+    width: 22px;
+    flex-shrink: 0;
+    transition: color 0.15s;
+}
+
+/* Collapsed sidebar - center icon only, maintain red background */
+.app-shell.sidebar-collapsed .logout-btn {
+    justify-content: center;
+    padding: 0;
+    width: 48px;
+    min-height: 48px;
+    gap: 0;
+    background: #dc2626 !important;
+    display: flex !important;
+    visibility: visible !important;
+}
+
+.app-shell.sidebar-collapsed .logout-btn:hover {
+    background: #b91c1c !important;
+}
+
+.app-shell.sidebar-collapsed .logout-btn .nav-text {
+    opacity: 0;
+    width: 0;
+    overflow: hidden;
+    display: none;
+}
+
+.app-shell.sidebar-collapsed .logout-btn .nav-icon {
+    margin: 0;
+    color: white !important;
+    width: 22px;
+}
+
+/* Update sidebar footer to stack buttons vertically */
+.sidebar-footer {
+    padding: 1rem;
+    border-top: 1px solid var(--border-color);
+    margin-top: auto;
+    display: flex !important;
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: center;
+    transition: padding 0.3s ease;
+    visibility: visible !important;
+}
+
+.app-shell.sidebar-collapsed .sidebar-footer {
+    padding: 1rem 0.5rem;
+    align-items: center;
+    display: flex !important;
+    visibility: visible !important;
+}
+
+/* Adjust collapse toggle button */
+.collapse-toggle-btn {
+    width: 100%;
+    padding: 0.75rem;
+    background: var(--bg-body);
+    color: var(--text-muted);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.collapse-toggle-btn:hover {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.app-shell.sidebar-collapsed .collapse-toggle-btn {
+    width: 48px;
+    padding: 0.75rem 0;
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 768px) {
+    .logout-btn {
+        font-size: 0.85rem;
+        padding: 0.75rem 0.875rem;
+    }
+    
+    .app-shell.sidebar-collapsed .logout-btn {
+        padding: 0.75rem 0;
+    }
+}
+
+/* Force show collapsed logo - override app.css */
+.app-shell.sidebar-collapsed .brand-logo-collapsed {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    margin: 0 auto;
+}
+
+.app-shell.sidebar-collapsed .brand-logo-collapsed img {
+    width: 48px !important;
+    height: 48px !important;
+    object-fit: contain !important;
+    display: block !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+}
+
+/* Ensure sidebar brand area is visible when collapsed */
+.app-shell.sidebar-collapsed .sidebar-brand {
+    display: flex !important;
+    height: 100px !important;
+    padding: 0 !important;
+    align-items: center !important;
+    justify-content: center !important;
 }

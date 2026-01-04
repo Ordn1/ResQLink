@@ -30,37 +30,45 @@
         </div>
 
         <!-- KPI Cards -->
-        <section class="kpi-section">
-            <div class="kpi-card">
-                <div class="kpi-header">
-                    <div class="kpi-label">Your Status</div>
-                    <div class="kpi-icon-circle" style="background: @GetStatusColor(currentVolunteer.Status); color: #fff;">
+        <section class="panel kpi-panel">
+            <header class="panel-head">
+                <h2 class="panel-title">Overview</h2>
+            </header>
+            <div class="kpi-grid">
+                <div class="kpi-card">
+                    <div class="kpi-icon">
                         <i class="bi bi-person-check-fill"></i>
                     </div>
-                </div>
-                <div>
-                    <div class="kpi-value">@currentVolunteer.Status</div>
-                    <div class="kpi-footer">
-                        <span class="kpi-detail">Current availability</span>
+                    <div class="kpi-content">
+                        <div class="kpi-label">Your Status</div>
+                        <div class="kpi-value" style="color: @GetStatusColor(currentVolunteer.Status);">@currentVolunteer.Status</div>
+                        <div class="kpi-subtitle">Current availability</div>
                     </div>
                 </div>
-            </div>
 
-            <div class="kpi-card">
-                <div class="kpi-header">
-                    <div class="kpi-label">Assigned Shelter</div>
-                    <div class="kpi-icon-circle">
+                <div class="kpi-card">
+                    <div class="kpi-icon">
                         <i class="bi bi-house-heart-fill"></i>
                     </div>
+                    <div class="kpi-content">
+                        <div class="kpi-label">Assigned Shelter</div>
+                        <div class="kpi-value" style="font-size: 1.2rem;">@(assignedShelter?.Name ?? "None")</div>
+                        @if (assignedShelter != null)
+                        {
+                            <div class="kpi-subtitle">@assignedShelter.Location</div>
+                        }
+                    </div>
                 </div>
-                <div>
-                    <div class="kpi-value" style="font-size: 1.5rem;">@(assignedShelter?.Name ?? "None")</div>
-                    @if (assignedShelter != null)
-                    {
-                        <div class="kpi-footer">
-                            <span class="kpi-detail">@assignedShelter.Location</span>
-                        </div>
-                    }
+
+                <div class="kpi-card">
+                    <div class="kpi-icon">
+                        <i class="bi bi-calendar-check"></i>
+                    </div>
+                    <div class="kpi-content">
+                        <div class="kpi-label">Registered</div>
+                        <div class="kpi-value" style="font-size: 1.2rem;">@currentVolunteer.RegisteredAt.ToString("MMM dd, yyyy")</div>
+                        <div class="kpi-subtitle">Member since</div>
+                    </div>
                 </div>
             </div>
         </section>
@@ -69,23 +77,20 @@
             <!-- Left Column -->
             <div class="col-left">
                 <!-- Deployment Information -->
-                <div class="modern-card">
-                    <div class="card-header">
-                        <div class="card-title-group">
-                            <h3 class="card-title">
-                                <i class="bi bi-geo-alt-fill"></i>
-                                Current Deployment
-                            </h3>
+                <section class="panel">
+                    <header class="panel-head">
+                        <div class="panel-title-group">
+                            <h2 class="panel-title">Current Deployment</h2>
                             @if (assignedShelter != null)
                             {
-                                <span class="card-badge deployed">Deployed</span>
+                                <span class="status-chip st-stable">Deployed</span>
                             }
                             else
                             {
-                                <span class="card-badge available">Available</span>
+                                <span class="status-chip st-contained">Available</span>
                             }
                         </div>
-                    </div>
+                    </header>
                     <div class="deployment-content">
                         @if (assignedShelter != null)
                         {
@@ -106,7 +111,7 @@
                                     </div>
                                     <div class="info-item">
                                         <label>Status:</label>
-                                        <span class="status-chip @(assignedShelter.IsActive ? "st-active" : "st-contained")">
+                                        <span class="status-chip @(assignedShelter.IsActive ? "st-stable" : "st-contained")">
                                             @(assignedShelter.IsActive ? "Active" : "Inactive")
                                         </span>
                                     </div>
@@ -127,18 +132,19 @@
                             </div>
                         }
                     </div>
-                </div>
+                </section>
 
                 <!-- Your Profile -->
-                <div class="modern-card">
-                    <div class="card-header">
-                        <div class="card-title-group">
-                            <h3 class="card-title">
-                                <i class="bi bi-person-badge-fill"></i>
-                                Your Profile
-                            </h3>
+                <section class="panel">
+                    <header class="panel-head">
+                        <h2 class="panel-title">Your Profile</h2>
+                        <div class="panel-actions">
+                            <button class="mini-btn" @onclick="UpdateAvailability">
+                                <i class="bi bi-calendar2-check"></i>
+                                <span>Update Availability</span>
+                            </button>
                         </div>
-                    </div>
+                    </header>
                     <div class="profile-content">
                         <div class="info-grid">
                             <div class="info-item">
@@ -165,60 +171,31 @@
                                 <label>Availability:</label>
                                 <span>@(currentVolunteer.Availability ?? "Not specified")</span>
                             </div>
-                            <div class="info-item">
-                                <label>Registered:</label>
-                                <span>@currentVolunteer.RegisteredAt.ToString("MMMM dd, yyyy")</span>
-                            </div>
                         </div>
                     </div>
-                </div>
+                </section>
             </div>
 
             <!-- Right Column -->
             <div class="col-right">
-                <!-- Quick Actions -->
-                <div class="modern-card">
-                    <div class="card-header">
-                        <h3 class="card-title">
-                            <i class="bi bi-lightning-fill"></i>
-                            Quick Actions
-                        </h3>
-                    </div>
-                    <div class="actions-list">
-                        <button class="action-item" @onclick="UpdateAvailability">
-                            <i class="bi bi-calendar2-check"></i>
-                            <div>
-                                <strong>Update Availability</strong>
-                                <small>Change your availability status</small>
-                            </div>
-                        </button>
-                    </div>
-                </div>
-
                 <!-- Notes Section -->
                 @if (!string.IsNullOrEmpty(currentVolunteer.Notes))
                 {
-                    <div class="modern-card">
-                        <div class="card-header">
-                            <h3 class="card-title">
-                                <i class="bi bi-sticky-fill"></i>
-                                Notes
-                            </h3>
-                        </div>
+                    <section class="panel">
+                        <header class="panel-head">
+                            <h2 class="panel-title">Notes</h2>
+                        </header>
                         <div class="notes-content">
                             <p>@currentVolunteer.Notes</p>
                         </div>
-                    </div>
+                    </section>
                 }
 
                 <!-- Recent Activity -->
-                <div class="modern-card">
-                    <div class="card-header">
-                        <h3 class="card-title">
-                            <i class="bi bi-clock-history"></i>
-                            Recent Activity
-                        </h3>
-                    </div>
+                <section class="panel">
+                    <header class="panel-head">
+                        <h2 class="panel-title">Recent Activity</h2>
+                    </header>
                     <div class="activity-list">
                         <div class="activity-item">
                             <div class="activity-icon">
@@ -239,7 +216,7 @@
                             </div>
                         </div>
                     </div>
-                </div>
+                </section>
             </div>
         </div>
     }
@@ -249,14 +226,11 @@
 @if (showAvailabilityModal)
 {
     <div class="modal-overlay" @onclick="CloseAvailabilityModal">
-        <div class="modal-content" @onclick:stopPropagation="true">
+        <div class="modal-dialog" @onclick:stopPropagation="true">
             <div class="modal-header">
-                <h3>
-                    <i class="bi bi-calendar2-check"></i>
-                    Update Availability
-                </h3>
-                <button class="btn-close" @onclick="CloseAvailabilityModal">
-                    <i class="bi bi-x-lg"></i>
+                <h3>Update Availability</h3>
+                <button class="modal-close" @onclick="CloseAvailabilityModal">
+                    &times;
                 </button>
             </div>
             <div class="modal-body">
@@ -284,19 +258,14 @@
                     </div>
                 }
             </div>
-            <div class="modal-footer">
-                <button class="btn-secondary" @onclick="CloseAvailabilityModal">Cancel</button>
+            <div class="modal-actions">
+                <button class="btn-cancel" @onclick="CloseAvailabilityModal">Cancel</button>
                 <button class="btn-primary" @onclick="SaveAvailability" disabled="@isSaving">
                     @if (isSaving)
                     {
-                        <span class="spinner-small"></span>
-                        <span>Saving...</span>
+                        <span class="spinner"></span>
                     }
-                    else
-                    {
-                        <i class="bi bi-check-lg"></i>
-                        <span>Save Changes</span>
-                    }
+                    Save Changes
                 </button>
             </div>
         </div>
@@ -384,15 +353,6 @@
         "inactive" => "#6b7280",
         "on leave" => "#f59e0b",
         _ => "#6b7280"
-    };
-
-    private string StatusClass(string status) => status.ToLowerInvariant() switch
-    {
-        "open" => "st-active",
-        "active" => "st-active",
-        "contained" => "st-contained",
-        "closed" => "st-monitoring",
-        _ => "st-stable"
     };
 
     private void UpdateAvailability()

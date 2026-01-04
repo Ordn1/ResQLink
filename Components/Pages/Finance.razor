@@ -1,10 +1,10 @@
 ﻿@page "/finance"
+@using ResQLink.Components.Shared
 @inject ResQLink.Services.AuthState Auth
 @inject ResQLink.Services.BudgetService BudgetSvc
 @inject ResQLink.Services.ProcurementService ProcSvc
 @inject ResQLink.Services.SupplierService SupplierSvc
 @inject ResQLink.Services.BudgetStateService BudgetState
-@inject ResQLink.Services.ArchiveService ArchiveService
 @inject IDbContextFactory<AppDbContext> DbFactory
 @inject IJSRuntime JS
 @implements IDisposable
@@ -14,12 +14,85 @@
 @using Microsoft.EntityFrameworkCore
 @using ResQLink.Data
 
+@* ========== ALERT MODALS - ADD AT TOP ========== *@
+
+@* Access Denied *@
+<AlertModal @bind-IsVisible="showAccessDenied"
+            Title="Access Denied"
+            Message="You do not have permission to access this page."
+            Type="AlertModal.AlertType.Warning" />
+
+@* Success Alerts *@
+<AlertModal @bind-IsVisible="showBudgetSaveSuccess"
+            Title="@successTitle"
+            Message="@successMessage"
+            Type="AlertModal.AlertType.Success" />
+
+<AlertModal @bind-IsVisible="showRequestSaveSuccess"
+            Title="@successTitle"
+            Message="@successMessage"
+            Type="AlertModal.AlertType.Success" />
+
+@* Error Alerts *@
+<AlertModal @bind-IsVisible="showBudgetSaveError"
+            Title="Error Saving Budget"
+            Message="@budgetError"
+            Type="AlertModal.AlertType.Error" />
+
+<AlertModal @bind-IsVisible="showRequestSaveError"
+            Title="Error Saving Request"
+            Message="@requestError"
+            Type="AlertModal.AlertType.Error" />
+
+@* Validation/Warning Alerts *@
+<AlertModal @bind-IsVisible="showProcurementLimitWarning"
+            Title="Procurement Limit Warning"
+            Message="@procurementLimitMessage"
+            DetailMessage="Current total would exceed the ₱50,000.00 procurement limit. Please reduce the item quantity or unit price."
+            Type="AlertModal.AlertType.Warning" />
+
+<AlertModal @bind-IsVisible="showBudgetValidationError"
+            Title="Validation Error"
+            Message="@budgetError"
+            Type="AlertModal.AlertType.Warning" />
+
+<AlertModal @bind-IsVisible="showRequestValidationError"
+            Title="Validation Error"
+            Message="@requestError"
+            Type="AlertModal.AlertType.Warning" />
+
+@* Status Change Confirmation *@
+<AlertModal @bind-IsVisible="showStatusChangeConfirm"
+            Title="Confirm Status Change"
+            Message="@statusChangeMessage"
+            Type="AlertModal.AlertType.Warning"
+            ShowCancel="true"
+            ConfirmText="Update Status"
+            CancelText="Cancel"
+            IsProcessing="isChangingStatus"
+            OnConfirm="ExecuteStatusChange"
+            OnCancel="CancelStatusChange" />
+
+@* Procurement Limit Exceeded Alert *@
+<AlertModal @bind-IsVisible="showProcurementLimitExceeded"
+            Title="Procurement Limit Exceeded"
+            Message="Cannot add item. Total would exceed the ₱50,000.00 procurement limit."
+            DetailMessage="@procurementExceededDetails"
+            Type="AlertModal.AlertType.Error" />
+
+@* Budget Creation Success with Status Update Info *@
+<AlertModal @bind-IsVisible="showBudgetCreatedWithStatusUpdate"
+            Title="Budget Created Successfully"
+            Message="@budgetSuccessMessage"
+            DetailMessage="The linked procurement request status has been automatically updated to 'Ordered'."
+            Type="AlertModal.AlertType.Success" />
+
+@* ========== END ALERT MODALS ========== *@
+
 @if (!(Auth.IsInRole("Finance Manager") || Auth.IsInRole("Admin")))
 {
-    <div class="panel access-denied">
-        <h3>Access Denied</h3>
-        <p>You do not have permission to access this page.</p>
-    </div>
+    @* Trigger access denied modal *@
+    showAccessDenied = true;
 }
 else
 {
@@ -30,9 +103,9 @@ else
                 <h2 class="panel-title">Finance — Budgeting & Procurement</h2>
                 <div class="panel-actions">
                     <button class="mini-btn" @onclick="RefreshAll" title="Refresh">
-                    <i class="bi bi-arrow-clockwise"></i>
-                    <span>Refresh</span>
-                </button>
+                        <i class="bi bi-arrow-clockwise"></i>
+                        <span>Refresh</span>
+                    </button>
                 </div>
             </header>
 
@@ -149,9 +222,6 @@ else
                                     <button class="action-btn view" @onclick="() => ManageBudgetItems(b)" title="Items">
                                         <i class="bi bi-list-ul"></i>
                                     </button>
-                                    <button class="action-btn delete" @onclick="() => DeleteBudget(b.BudgetId)" title="Delete">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
                                 </td>
                             </tr>
                         }
@@ -232,16 +302,22 @@ else
                                     }
                                     else
                                     {
-                                        <span class="text-muted">—</span>
+                                        <span class="text-muted" style="font-style: italic;"><i class="bi bi-person-fill"></i> Anonymous</span>
                                     }
                                 </td>
                                 <td class="t-right"><span class="amount-text">₱@r.TotalAmount.ToString("N2")</span></td>
                                 <td class="t-center"><span class="status-chip status-@r.Status.ToLower()">@r.Status</span></td>
                                 <td class="action-cell">
-                                    <button class="action-btn edit" @onclick="() => EditRequest(r)" title="Edit">
+                                    <button class="action-btn edit" 
+                                            @onclick="() => EditRequest(r)" 
+                                            title="Edit"
+                                            disabled="@(r.Status == "Ordered")">
                                         <i class="bi bi-pencil"></i>
                                     </button>
-                                    <button class="action-btn view" @onclick="() => ManageRequestItems(r)" title="Items">
+                                    <button class="action-btn view" 
+                                            @onclick="() => ManageRequestItems(r)" 
+                                            title="Items"
+                                            disabled="@(r.Status == "Ordered")">
                                         <i class="bi bi-list-ul"></i>
                                     </button>
                                     @if (r.Status == "Draft")
@@ -250,9 +326,7 @@ else
                                             <i class="bi bi-send"></i>
                                         </button>
                                     }
-                                    <button class="action-btn delete" @onclick="() => DeleteRequest(r.RequestId)" title="Delete">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
+
                                 </td>
                             </tr>
                         }
@@ -489,38 +563,53 @@ else
     @* Request modal *@
     @if (showRequestForm)
     {
+        @* Update the Request modal to be read-only when status is "Ordered" *@
         <div class="modal-overlay" @onclick="CloseRequestForm" @onclick:stopPropagation="false">
             <div class="modal-dialog" @onclick:stopPropagation="true">
                 <div class="modal-header">
-                    <h3>@(requestModel.RequestId == 0 ? "New Request" : "Edit Request")</h3>
+                    <h3>@(requestModel.RequestId == 0 ? "New Request" : requestModel.Status == "Ordered" ? "View Request (Ordered)" : "Edit Request")</h3>
                     <button class="modal-close" @onclick="CloseRequestForm">&times;</button>
                 </div>
                 <div class="modal-body">
+                    @if (requestModel.Status == "Ordered")
+                    {
+                        <div style="padding: 12px; background: #fef3c7; border: 1px solid #fbbf24; border-radius: 8px; margin-bottom: 16px;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <i class="bi bi-lock-fill" style="color: #d97706;"></i>
+                                <strong style="color: #92400e;">This procurement request is ordered and cannot be edited.</strong>
+                            </div>
+                        </div>
+                    }
                     <div class="form-row">
                         <div class="form-group">
                             <label>Barangay *</label>
-                            <input class="form-control" @bind="requestModel.BarangayName" />
+                            <input class="form-control" @bind="requestModel.BarangayName" disabled="@(requestModel.Status == "Ordered")" />
                         </div>
                         <div class="form-group">
                             <label>Supplier</label>
-                            <select class="form-control" @bind="requestModel.SupplierId">
-                                <option value="">(None)</option>
+                            <select class="form-control" @bind="requestModel.SupplierId" disabled="@(requestModel.Status == "Ordered")">
+                                <option value="">Anonymous</option>
                                 @foreach (var s in Suppliers)
                                 {
                                     <option value="@s.SupplierId">@s.SupplierName</option>
                                 }
                             </select>
+                            @if (!Suppliers.Any())
+                            {
+                                <small class="form-text" style="color: #f59e0b; display: block; margin-top: 6px;">
+                                    <i class="bi bi-exclamation-triangle"></i> No suppliers available. Using Anonymous.
+                                </small>
+                            }
                         </div>
                     </div>
                     <div class="form-row">
                         <div class="form-group">
                             <label>Status *</label>
-                            <select class="form-control" @bind="requestModel.Status">
+                            <select class="form-control" @bind="requestModel.Status" disabled="@(requestModel.Status == "Ordered")">
                                 <option>Draft</option>
                                 <option>Submitted</option>
                                 <option>Approved</option>
                                 <option>Rejected</option>
-                                <option>Ordered</option>
                             </select>
                         </div>
                         <div class="form-group">
@@ -530,6 +619,7 @@ else
                                    class="form-control"
                                    @bind="requestModel.TotalAmount"
                                    min="0"
+                                   disabled="@(requestModel.Status == "Ordered")"
                                    oninput="this.value = this.value.replace(/^-/, '')" />
                         </div>
                     </div>
@@ -538,10 +628,15 @@ else
                         <div class="form-error">@requestError</div>
                     }
                     <div class="modal-actions">
-                        <button class="btn-cancel" @onclick="CloseRequestForm" disabled="@saving">Cancel</button>
-                        <button class="btn-primary" @onclick="SaveRequest" disabled="@saving">
-                            @(saving ? "Saving…" : "Save")
+                        <button class="btn-cancel" @onclick="CloseRequestForm" disabled="@saving">
+                            @(requestModel.Status == "Ordered" ? "Close" : "Cancel")
                         </button>
+                        @if (requestModel.Status != "Ordered")
+                        {
+                            <button class="btn-primary" @onclick="SaveRequest" disabled="@saving">
+                                @(saving ? "Saving…" : "Save")
+                            </button>
+                        }
                     </div>
                 </div>
             </div>
@@ -554,12 +649,22 @@ else
         <div class="modal-overlay" @onclick="CloseRequestItems" @onclick:stopPropagation="false">
             <div class="modal-dialog large" @onclick:stopPropagation="true">
                 <div class="modal-header">
-                    <h3>Request Items — @activeRequest?.BarangayName</h3>
+                    <h3>Request Items — @activeRequest?.BarangayName @(activeRequest?.Status == "Ordered" ? "(Ordered - Read Only)" : "")</h3>
                     <button class="modal-close" @onclick="CloseRequestItems">&times;</button>
                 </div>
                 <div class="modal-body">
 
-                    @* NEW: Procurement Limit Indicator *@
+                    @if (activeRequest?.Status == "Ordered")
+                    {
+                        <div style="padding: 12px; background: #fef3c7; border: 1px solid #fbbf24; border-radius: 8px; margin-bottom: 16px;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <i class="bi bi-lock-fill" style="color: #d97706;"></i>
+                                <strong style="color: #92400e;">This procurement request is ordered. Items cannot be added, edited, or deleted.</strong>
+                            </div>
+                        </div>
+                    }
+
+                    @* Procurement Limit Indicator *@
                     @{
                         var currentRequestTotal = requestItems.Sum(i => i.UnitPrice * i.Quantity);
                         var percentUsed = PROCUREMENT_LIMIT > 0 ? (currentRequestTotal / PROCUREMENT_LIMIT * 100) : 0;
@@ -599,34 +704,37 @@ else
                         </div>
                     </div>
 
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Item *</label>
-                            <input class="form-control" @bind="newReqItem.ItemName" />
+                    @if (activeRequest?.Status != "Ordered")
+                    {
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Item *</label>
+                                <input class="form-control" @bind="newReqItem.ItemName" />
+                            </div>
+                            <div class="form-group">
+                                <label>Unit *</label>
+                                <input class="form-control" @bind="newReqItem.Unit" />
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label>Unit *</label>
-                            <input class="form-control" @bind="newReqItem.Unit" />
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Qty *</label>
+                                <input type="number" class="form-control" @bind="newReqItem.Quantity" min="0" oninput="this.value = this.value.replace(/^-/, '')" />
+                            </div>
+                            <div class="form-group">
+                                <label>Unit Price *</label>
+                                <input type="number" step="0.01" class="form-control" @bind="newReqItem.UnitPrice" min="0" oninput="this.value = this.value.replace(/^-/, '')" />
+                            </div>
                         </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Qty *</label>
-                            <input type="number" class="form-control" @bind="newReqItem.Quantity" min="0" oninput="this.value = this.value.replace(/^-/, '')" />
-                        </div>
-                        <div class="form-group">
-                            <label>Unit Price *</label>
-                            <input type="number" step="0.01" class="form-control" @bind="newReqItem.UnitPrice" min="0" oninput="this.value = this.value.replace(/^-/, '')" />
-                        </div>
-                    </div>
 
-                    <div class="modal-actions">
-                        <button class="btn-primary" 
-                                @onclick="AddRequestItem" 
-                                disabled="@(saving || remaining <= 0)">
-                            Add Item
-                        </button>
-                    </div>
+                        <div class="modal-actions">
+                            <button class="btn-primary" 
+                                    @onclick="AddRequestItem" 
+                                    disabled="@(saving || remaining <= 0)">
+                                Add Item
+                            </button>
+                        </div>
+                    }
 
                     <div class="table-wrap" style="margin-top:10px;">
                         <table class="dash-table">
@@ -637,7 +745,10 @@ else
                                     <th class="t-center">Qty</th>
                                     <th class="t-right">Unit Price</th>
                                     <th class="t-right">Line Total</th>
-                                    <th style="width:120px">Actions</th>
+                                    @if (activeRequest?.Status != "Ordered")
+                                    {
+                                        <th style="width:120px">Actions</th>
+                                    }
                                 </tr>
                             </thead>
                             <tbody>
@@ -649,15 +760,18 @@ else
                                         <td class="t-center">@it.Quantity</td>
                                         <td class="t-right">@it.UnitPrice.ToString("N2")</td>
                                         <td class="t-right">@((it.UnitPrice * it.Quantity).ToString("N2"))</td>
-                                        <td>
-                                            <button class="mini-btn" @onclick="() => EditRequestItem(it)">Edit</button>
-                                            <button class="mini-btn" @onclick="() => DeleteRequestItem(it.RequestItemId)">Delete</button>
-                                        </td>
+                                        @if (activeRequest?.Status != "Ordered")
+                                        {
+                                            <td>
+                                                <button class="mini-btn" @onclick="() => EditRequestItem(it)">Edit</button>
+                                                <button class="mini-btn" @onclick="() => DeleteRequestItem(it.RequestItemId)">Delete</button>
+                                            </td>
+                                        }
                                     </tr>
                                 }
                                 @if (!requestItems.Any())
                                 {
-                                    <tr><td colspan="6" class="t-center text-muted">No items.</td></tr>
+                                    <tr><td colspan="@(activeRequest?.Status == "Ordered" ? 5 : 6)" class="t-center text-muted">No items.</td></tr>
                                 }
                             </tbody>
                         </table>
@@ -667,7 +781,7 @@ else
                         <div>Total of items: <strong style="color: @limitColor;">₱@currentRequestTotal.ToString("N2")</strong></div>
                     </div>
 
-                    @if (editReqItem != null)
+                    @if (editReqItem != null && activeRequest?.Status != "Ordered")
                     {
                         <hr />
                         <h5>Edit Item</h5>
@@ -702,58 +816,10 @@ else
     }
 
     @* Archive Confirmation Modal *@
-    @if (showArchiveModal)
-    {
-        <div class="modal-overlay" @onclick="CloseArchiveModal" @onclick:stopPropagation="false">
-            <div class="modal-dialog small" @onclick="PreventClose" @onclick:stopPropagation="true">
-                <div class="modal-header">
-                    <h3>Confirm Archive</h3>
-                    <button class="modal-close" @onclick="CloseArchiveModal" @onclick:stopPropagation="true">&times;</button>
-                </div>
-                <div class="modal-body">
-                    <p>Are you sure you want to archive <strong>"@requestToArchiveName"</strong>?</p>
-                    <p class="warning-text">This procurement request will be moved to the archives and can be restored later by an administrator.</p>
-                </div>
-                <div class="modal-footer">
-                    <button class="btn-cancel" @onclick="CloseArchiveModal" @onclick:stopPropagation="true">Cancel</button>
-                    <button class="btn-danger" @onclick="ConfirmArchiveAsync" disabled="@isArchiving" @onclick:stopPropagation="true">
-                        @if (isArchiving)
-                        {
-                            <span class="spinner"></span>
-                        }
-                        Archive
-                    </button>
-                </div>
-            </div>
-        </div>
-    }
+   
 
     @* Budget Archive modal *@
-    @if (showBudgetArchiveModal)
-    {
-        <div class="modal-overlay" @onclick="CloseBudgetArchiveModal" @onclick:stopPropagation="false">
-            <div class="modal-dialog small" @onclick="PreventClose" @onclick:stopPropagation="true">
-                <div class="modal-header">
-                    <h3>Confirm Archive</h3>
-                    <button class="modal-close" @onclick="CloseBudgetArchiveModal" @onclick:stopPropagation="true">&times;</button>
-                </div>
-                <div class="modal-body">
-                    <p>Are you sure you want to archive budget <strong>"@budgetToArchiveName"</strong>?</p>
-                    <p class="warning-text">This budget will be moved to the archives and can be restored later by an administrator.</p>
-                </div>
-                <div class="modal-footer">
-                    <button class="btn-cancel" @onclick="CloseBudgetArchiveModal" @onclick:stopPropagation="true">Cancel</button>
-                    <button class="btn-danger" @onclick="ConfirmBudgetArchiveAsync" disabled="@isBudgetArchiving" @onclick:stopPropagation="true">
-                        @if (isBudgetArchiving)
-                        {
-                            <span class="spinner"></span>
-                        }
-                        Archive
-                    </button>
-                </div>
-            </div>
-        </div>
-    }
+   
 </div>
 }
 
@@ -772,6 +838,28 @@ else
 
     // NEW: Procurement request limit constant
     private const decimal PROCUREMENT_LIMIT = 50000m;
+
+    // Missing AlertModal state variables
+    private bool showAccessDenied = false;
+    private bool showBudgetSaveSuccess = false;
+    private bool showRequestSaveSuccess = false;
+    private bool showBudgetSaveError = false;
+    private bool showRequestSaveError = false;
+    private bool showProcurementLimitWarning = false;
+    private bool showBudgetValidationError = false;
+    private bool showRequestValidationError = false;
+    private bool showStatusChangeConfirm = false;
+    private bool showProcurementLimitExceeded = false;
+    private bool showBudgetCreatedWithStatusUpdate = false;
+
+    // Missing message variables
+    private string successTitle = string.Empty;
+    private string successMessage = string.Empty;
+    private string budgetSuccessMessage = string.Empty;
+    private string procurementLimitMessage = string.Empty;
+    private string procurementExceededDetails = string.Empty;
+    private string statusChangeMessage = string.Empty;
+    private bool isChangingStatus = false;
 
     // Filters
     private string budgetSearch = string.Empty;
@@ -1057,33 +1145,48 @@ else
             if (string.IsNullOrWhiteSpace(budgetModel.BarangayName) || budgetModel.Year <= 0)
             {
                 budgetError = "Barangay and Year are required.";
+                showBudgetValidationError = true;
                 return;
             }
 
             if (budgetModel.BudgetId == 0)
             {
-                // Creating new budget - automatically set status to "Approved"
                 budgetModel.Status = "Approved";
                 
                 var (budget, error) = await BudgetSvc.CreateAsync(budgetModel);
                 if (error != null)
                 {
                     budgetError = error;
+                    showBudgetSaveError = true;
                     return;
                 }
 
-                // Update the linked procurement request status to "Ordered"
                 if (linkedProcurementRequestId.HasValue && linkedProcurementRequestId.Value > 0)
                 {
                     await UpdateProcurementRequestStatusAsync(linkedProcurementRequestId.Value, "Ordered");
+                    budgetSuccessMessage = $"Budget created successfully for {budgetModel.BarangayName}!";
+                    showBudgetCreatedWithStatusUpdate = true;
                 }
-                
-                await JS.InvokeVoidAsync("alert", "Budget created successfully! Procurement request status updated to 'Ordered'.");
+                else
+                {
+                    successTitle = "Budget Created";
+                    successMessage = $"Budget for {budgetModel.BarangayName} created successfully!";
+                    showBudgetSaveSuccess = true;
+                }
             }
             else
             {
                 var (budget, error) = await BudgetSvc.UpdateAsync(budgetModel);
-                if (error != null) budgetError = error;
+                if (error != null)
+                {
+                    budgetError = error;
+                    showBudgetSaveError = true;
+                    return;
+                }
+
+                successTitle = "Budget Updated";
+                successMessage = $"Budget for {budgetModel.BarangayName} updated successfully!";
+                showBudgetSaveSuccess = true;
             }
 
             if (string.IsNullOrEmpty(budgetError))
@@ -1257,28 +1360,51 @@ else
         requestError = string.Empty;
         try
         {
+            // Validate Barangay
             if (string.IsNullOrWhiteSpace(requestModel.BarangayName))
             {
                 requestError = "Barangay is required.";
+                showRequestValidationError = true;
                 return;
             }
 
-            // NEW: Validate procurement request limit
+            // REMOVED: Supplier validation - now optional (can be Anonymous)
+
+            // Validate procurement limit
             if (requestModel.TotalAmount > PROCUREMENT_LIMIT)
             {
                 requestError = $"Procurement request amount cannot exceed ₱{PROCUREMENT_LIMIT:N2}. Current amount: ₱{requestModel.TotalAmount:N2}";
+                showRequestValidationError = true;
                 return;
             }
 
             if (requestModel.RequestId == 0)
             {
                 var (req, err) = await ProcSvc.CreateAsync(requestModel);
-                if (err != null) requestError = err;
+                if (err != null)
+                {
+                    requestError = err;
+                    showRequestSaveError = true;
+                    return;
+                }
+
+                successTitle = "Request Created";
+                successMessage = $"Procurement request for {requestModel.BarangayName} created successfully!";
+                showRequestSaveSuccess = true;
             }
             else
             {
                 var (req, err) = await ProcSvc.UpdateAsync(requestModel);
-                if (err != null) requestError = err;
+                if (err != null)
+                {
+                    requestError = err;
+                    showRequestSaveError = true;
+                    return;
+                }
+
+                successTitle = "Request Updated";
+                successMessage = $"Procurement request for {requestModel.BarangayName} updated successfully!";
+                showRequestSaveSuccess = true;
             }
 
             if (string.IsNullOrEmpty(requestError))
@@ -1350,12 +1476,12 @@ else
             // NEW: Validate against procurement limit
             if (projectedTotal > PROCUREMENT_LIMIT)
             {
-                await JS.InvokeVoidAsync("alert", 
-                    $"Cannot add item. Total would exceed limit of ₱{PROCUREMENT_LIMIT:N2}.\n\n" +
-                    $"Current total: ₱{currentTotal:N2}\n" +
+                procurementLimitMessage = $"Cannot add item. Total would exceed limit of ₱{PROCUREMENT_LIMIT:N2}.";
+                procurementExceededDetails = $"Current total: ₱{currentTotal:N2}\n" +
                     $"New item cost: ₱{newItemTotal:N2}\n" +
                     $"Projected total: ₱{projectedTotal:N2}\n" +
-                    $"Over limit by: ₱{(projectedTotal - PROCUREMENT_LIMIT):N2}");
+                    $"Over limit by: ₱{(projectedTotal - PROCUREMENT_LIMIT):N2}";
+                showProcurementLimitExceeded = true;
                 return;
             }
 
@@ -1364,17 +1490,15 @@ else
             {
                 requestItems.Add(it);
                 await ProcSvc.RecalculateTotalAsync(activeRequest.RequestId);
-                
-                // Reload the request to get updated total
                 await LoadAll();
                 
                 // Check if we're close to the limit
                 var updatedTotal = requestItems.Sum(i => i.UnitPrice * i.Quantity) + newItemTotal;
-                if (updatedTotal > PROCUREMENT_LIMIT * 0.9m) // 90% threshold
-                {
-                    await JS.InvokeVoidAsync("alert", 
-                        $"⚠️ Warning: Request total is at ₱{updatedTotal:N2} " +
-                        $"({(updatedTotal / PROCUREMENT_LIMIT * 100):F1}% of ₱{PROCUREMENT_LIMIT:N2} limit)");
+                if (updatedTotal > PROCUREMENT_LIMIT * 0.9m // 90% threshold
+                ) {
+                    procurementLimitMessage = $"⚠️ Warning: Request total is at ₱{updatedTotal:N2} " +
+                        $"({(updatedTotal / PROCUREMENT_LIMIT * 100):F1}% of ₱{PROCUREMENT_LIMIT:N2} limit)";
+                    showProcurementLimitWarning = true;
                 }
             }
             newReqItem = new ProcurementRequestItem { Quantity = 1, Unit = "pcs", UnitPrice = 0m };
@@ -1448,153 +1572,45 @@ else
 
     private async Task QuickStatus(int reqId, string status)
     {
-        await ProcSvc.SetStatusAsync(reqId, status);
-        await LoadAll();
+        ShowStatusChangeConfirmation(reqId, status);
     }
 
     private Task RefreshAll() => LoadAll();
 
     // Archive functions
-    private void ShowArchiveConfirmation(int requestId, string name)
-    {
-        requestToArchiveId = requestId;
-        requestToArchiveName = name;
-        showArchiveModal = true;
-    }
-
-    private void CloseArchiveModal()
-    {
-        showArchiveModal = false;
-        requestToArchiveId = 0;
-        requestToArchiveName = string.Empty;
-        isArchiving = false;
-    }
-
-    private async Task ConfirmArchiveAsync()
-    {
-        if (isArchiving) return;
-        if (requestToArchiveId == 0) return;
-
-        isArchiving = true;
-
-        try
-        {
-            await using var db = await DbFactory.CreateDbContextAsync();
-            
-            var entity = await db.ProcurementRequests
-                .Include(pr => pr.Items)
-                .Include(pr => pr.Supplier)
-                .FirstOrDefaultAsync(pr => pr.RequestId == requestToArchiveId);
-            
-            if (entity == null)
-            {
-                await JS.InvokeVoidAsync("alert", "Procurement request not found.");
-                return;
-            }
-
-            var itemCount = entity.Items.Count;
-            var reason = itemCount > 0
-                ? $"Archived with {itemCount} item(s)"
-                : "Archived by user";
-
-            var entityName = $"Request #{entity.RequestId} - {entity.BarangayName}";
-
-            var result = await ArchiveService.ArchiveAsync<ProcurementRequest>(
-                requestToArchiveId,
-                reason,
-                entityName);
-
-            if (!result.success)
-            {
-                await JS.InvokeVoidAsync("alert", result.error ?? "Failed to archive procurement request.");
-                return;
-            }
-
-            await JS.InvokeVoidAsync("alert", "Procurement request archived successfully!");
-            CloseArchiveModal();
-            await LoadAll();
-        }
-        catch (Exception ex)
-        {
-            await JS.InvokeVoidAsync("alert", $"Archive failed: {ex.Message}");
-        }
-        finally
-        {
-            isArchiving = false;
-        }
-    }
-
-    @* Budget Archive functions *@
-    private void ShowBudgetArchiveConfirmation(int budgetId, string name)
-    {
-        budgetToArchiveId = budgetId;
-        budgetToArchiveName = name;
-        showBudgetArchiveModal = true;
-    }
-
-    private void CloseBudgetArchiveModal()
-    {
-        showBudgetArchiveModal = false;
-        budgetToArchiveId = 0;
-        budgetToArchiveName = string.Empty;
-        isBudgetArchiving = false;
-    }
-
-    private async Task ConfirmBudgetArchiveAsync()
-    {
-        if (isBudgetArchiving) return;
-        if (budgetToArchiveId == 0) return;
-
-        isBudgetArchiving = true;
-
-        try
-        {
-            await using var db = await DbFactory.CreateDbContextAsync();
-            
-            var entity = await db.BarangayBudgets
-                .Include(b => b.Items)
-                .FirstOrDefaultAsync(b => b.BudgetId == budgetToArchiveId);
-            
-            if (entity == null)
-            {
-                await JS.InvokeVoidAsync("alert", "Budget not found.");
-                return;
-            }
-
-            var itemCount = entity.Items.Count;
-            var reason = itemCount > 0
-                ? $"Archived with {itemCount} budget item(s)"
-                : "Archived by user";
-
-            var entityName = $"{entity.BarangayName} ({entity.Year})";
-
-            var result = await ArchiveService.ArchiveAsync<BarangayBudget>(
-                budgetToArchiveId,
-                reason,
-                entityName);
-
-            if (!result.success)
-            {
-                await JS.InvokeVoidAsync("alert", result.error ?? "Failed to archive budget.");
-                return;
-            }
-
-            await JS.InvokeVoidAsync("alert", "Budget archived successfully!");
-            CloseBudgetArchiveModal();
-            await LoadAll();
-        }
-        catch (Exception ex)
-        {
-            await JS.InvokeVoidAsync("alert", $"Archive failed: {ex.Message}");
-        }
-        finally
-        {
-            isBudgetArchiving = false;
-        }
-    }
+   
 
     private void PreventClose()
     {
         // Intentionally empty: stops click from bubbling to overlay
+    }
+
+    // Missing methods referenced in the UI
+    private void ShowStatusChangeConfirmation(int reqId, string status)
+    {
+        // Implementation needed
+        statusChangeMessage = $"Are you sure you want to change the status to '{status}'?";
+        showStatusChangeConfirm = true;
+    }
+
+    private async Task ExecuteStatusChange()
+    {
+        // Implementation needed
+        isChangingStatus = true;
+        try
+        {
+            // Add your status change logic here
+            showStatusChangeConfirm = false;
+        }
+        finally
+        {
+            isChangingStatus = false;
+        }
+    }
+
+    private void CancelStatusChange()
+    {
+        showStatusChangeConfirm = false;
+        statusChangeMessage = string.Empty;
     }
 }

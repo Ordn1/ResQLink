@@ -1,7 +1,61 @@
 @page "/suppliers"
 @inject ResQLink.Services.SupplierService SupplierSvc
-@inject IJSRuntime JSRuntime
 @using ResQLink.Data.Entities
+@using ResQLink.Components.Shared
+
+@* ========== ALERT MODALS - ADD AT TOP ========== *@
+
+@* Success Alerts *@
+<AlertModal @bind-IsVisible="showSupplierSaveSuccess"
+            Title="@successTitle"
+            Message="@successMessage"
+            Type="AlertModal.AlertType.Success" />
+
+<AlertModal @bind-IsVisible="showDeleteSuccess"
+            Title="Supplier Deleted"
+            Message="Supplier deleted successfully!"
+            Type="AlertModal.AlertType.Success" />
+
+@* Error Alerts *@
+<AlertModal @bind-IsVisible="showSaveError"
+            Title="Error Saving Supplier"
+            Message="@_error"
+            Type="AlertModal.AlertType.Error" />
+
+<AlertModal @bind-IsVisible="showDeleteError"
+            Title="Error Deleting Supplier"
+            Message="@_error"
+            Type="AlertModal.AlertType.Error" />
+
+<AlertModal @bind-IsVisible="showValidationError"
+            Title="Validation Error"
+            Message="@_error"
+            Type="AlertModal.AlertType.Warning" />
+
+@* Confirmation Dialogs *@
+<AlertModal @bind-IsVisible="showCloseConfirm"
+            Title="Unsaved Changes"
+            Message="Close without saving? All changes will be lost."
+            Type="AlertModal.AlertType.Warning"
+            ShowCancel="true"
+            ConfirmText="Close Anyway"
+            CancelText="Keep Editing"
+            OnConfirm="ConfirmCloseModal"
+            OnCancel="CancelCloseModal" />
+
+<AlertModal @bind-IsVisible="showDeleteConfirm"
+            Title="Confirm Delete"
+            Message="@deleteConfirmMessage"
+            DetailMessage="This action cannot be undone."
+            Type="AlertModal.AlertType.Warning"
+            ShowCancel="true"
+            ConfirmText="Delete"
+            CancelText="Cancel"
+            IsProcessing="isDeleting"
+            OnConfirm="ExecuteDeleteSupplier"
+            OnCancel="CancelDelete" />
+
+@* ========== END ALERT MODALS ========== *@
 
 <div class="suppliers-root">
 
@@ -124,7 +178,7 @@
                                             <i class="bi bi-pencil"></i>
                                         </button>
                                         <button class="action-btn delete"
-                                                @onclick="() => DeleteSupplier(sup.SupplierId)"
+                                                @onclick="() => DeleteSupplier(sup.SupplierId, sup.SupplierName)"
                                                 title="Delete supplier">
                                             <i class="bi bi-trash"></i>
                                         </button>
@@ -164,28 +218,38 @@
     @* Create/Edit Supplier Modal *@
     @if (_showModal)
     {
-        <div class="modal-overlay" @onclick="async () => await CloseModal()" @onclick:stopPropagation="false">
+        <div class="modal-overlay" @onclick="CloseModal" @onclick:stopPropagation="false">
             <div class="modal-dialog" @onclick:stopPropagation="true">
                 <div class="modal-header">
                     <h3>@(_editMode ? "Edit Supplier" : "Add Supplier")</h3>
-                    <button class="modal-close" @onclick="async () => await CloseModal()">&times;</button>
+                    <button class="modal-close" @onclick="CloseModal" disabled="@_saving">&times;</button>
                 </div>
                 <div class="modal-body">
                     <div class="form-row">
                         <div class="form-group">
                             <label for="supplierName">Supplier Name *</label>
-                            <input id="supplierName" class="form-control" @bind="_editModel.SupplierName" />
+                            <input id="supplierName" 
+                                   class="form-control" 
+                                   @bind="_editModel.SupplierName"
+                                   @oninput="OnFormChanged" />
                         </div>
                         <div class="form-group">
                             <label for="contactPerson">Contact Person</label>
-                            <input id="contactPerson" class="form-control" @bind="_editModel.ContactPerson" />
+                            <input id="contactPerson" 
+                                   class="form-control" 
+                                   @bind="_editModel.ContactPerson"
+                                   @oninput="OnFormChanged" />
                         </div>
                     </div>
 
                     <div class="form-row">
                         <div class="form-group">
                             <label for="email">Email</label>
-                            <input id="email" type="email" class="form-control" @bind="_editModel.Email" />
+                            <input id="email" 
+                                   type="email" 
+                                   class="form-control" 
+                                   @bind="_editModel.Email"
+                                   @oninput="OnFormChanged" />
                         </div>
                         <div class="form-group">
                             <label for="phone">Phone Number</label>
@@ -193,6 +257,7 @@
                                    type="tel"
                                    class="form-control"
                                    @bind="_editModel.PhoneNumber"
+                                   @oninput="OnFormChanged"
                                    placeholder="09XXXXXXXXX"
                                    maxlength="11" />
                             <small class="hint" style="font-size: 0.65rem; color: #6b7280;">Must be exactly 11 digits</small>
@@ -202,37 +267,39 @@
                     <div class="form-row">
                         <div class="form-group">
                             <label for="address">Address</label>
-                            <textarea id="address" class="form-control" rows="2" @bind="_editModel.Address"></textarea>
+                            <textarea id="address" 
+                                      class="form-control" 
+                                      rows="2" 
+                                      @bind="_editModel.Address"
+                                      @oninput="OnFormChanged"></textarea>
                         </div>
                     </div>
 
                     <div class="form-row">
                         <div class="form-group">
                             <label for="notes">Notes</label>
-                            <textarea id="notes" class="form-control" rows="3" @bind="_editModel.Notes"></textarea>
+                            <textarea id="notes" 
+                                      class="form-control" 
+                                      rows="3" 
+                                      @bind="_editModel.Notes"
+                                      @oninput="OnFormChanged"></textarea>
                         </div>
                     </div>
 
                     <div class="form-row">
                         <div class="form-group">
-                            <label style="display: flex; align-items: center; gap: 8px;">
-                                <input type="checkbox" @bind="_editModel.IsActive" />
-                                Active
-                            </label>
+                            <ToggleSwitch @bind-Value="_editModel.IsActive"
+                                          Label="Active"
+                                          @bind-Value:after="OnFormChanged" />
                         </div>
                     </div>
-
-                    @if (!string.IsNullOrEmpty(_error))
-                    {
-                        <div class="form-error">@_error</div>
-                    }
 
                     <div class="modal-actions">
                         @if (_editMode)
                         {
                             <button type="button"
                                     class="btn-danger"
-                                    @onclick="() => DeleteSupplier(_editModel.SupplierId)"
+                                    @onclick="() => DeleteSupplier(_editModel.SupplierId, _editModel.SupplierName)"
                                     disabled="@_saving"
                                     @onclick:stopPropagation="true">
                                 @if (_saving)
@@ -244,7 +311,7 @@
                         }
                         <button type="button"
                                 class="btn-cancel"
-                                @onclick="async () => await CloseModal()"
+                                @onclick="CloseModal"
                                 disabled="@_saving"
                                 @onclick:stopPropagation="true">
                             Cancel
@@ -280,6 +347,21 @@
     private string _statusFilter = string.Empty;
     private int _pageIndex = 0;
     private int _pageSize = 10;
+
+    // NEW: Alert modal state variables
+    private bool showSupplierSaveSuccess = false;
+    private string successTitle = "";
+    private string successMessage = "";
+    private bool showDeleteSuccess = false;
+    private bool showSaveError = false;
+    private bool showDeleteError = false;
+    private bool showValidationError = false;
+    private bool showCloseConfirm = false;
+    private bool showDeleteConfirm = false;
+    private string deleteConfirmMessage = "";
+    private bool isDeleting = false;
+    private int supplierToDeleteId = 0;
+    private bool hasUnsavedChanges = false;
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
@@ -341,6 +423,7 @@
         _editMode = false;
         _editModel = new Supplier { IsActive = true };
         _error = string.Empty;
+        hasUnsavedChanges = false;
         _showModal = true;
     }
 
@@ -359,36 +442,63 @@
             IsActive = supplier.IsActive
         };
         _error = string.Empty;
+        hasUnsavedChanges = false;
         _showModal = true;
     }
 
-    private async Task CloseModal()
+    // NEW: Track form changes
+    private void OnFormChanged()
+    {
+        hasUnsavedChanges = true;
+    }
+
+    // CHANGED: Check for unsaved changes before closing
+    private void CloseModal()
     {
         if (_saving) return;
 
-        // Ask for confirmation if form has data
+        // Check if form has any data (unsaved changes)
         if (!string.IsNullOrWhiteSpace(_editModel.SupplierName) ||
             !string.IsNullOrWhiteSpace(_editModel.ContactPerson) ||
             !string.IsNullOrWhiteSpace(_editModel.Email) ||
             !string.IsNullOrWhiteSpace(_editModel.PhoneNumber))
         {
-            var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "Close without saving? All changes will be lost.");
-            if (!confirmed) return;
+            showCloseConfirm = true;
+            return;
         }
 
+        // No changes, close directly
         _showModal = false;
         _editModel = new();
         _error = string.Empty;
+        hasUnsavedChanges = false;
     }
 
+    private void ConfirmCloseModal()
+    {
+        showCloseConfirm = false;
+        _showModal = false;
+        _editModel = new();
+        _error = string.Empty;
+        hasUnsavedChanges = false;
+    }
+
+    private void CancelCloseModal()
+    {
+        showCloseConfirm = false;
+    }
+
+    // CHANGED: Use AlertModal for validation and save errors
     private async Task SaveSupplier()
     {
         if (_saving) return;
         _error = string.Empty;
 
+        // Validation
         if (string.IsNullOrWhiteSpace(_editModel.SupplierName))
         {
             _error = "Supplier name is required.";
+            showValidationError = true;
             return;
         }
 
@@ -399,6 +509,7 @@
             if (digitsOnly.Length != 11)
             {
                 _error = "Phone number must be exactly 11 digits.";
+                showValidationError = true;
                 return;
             }
         }
@@ -412,8 +523,13 @@
                 if (error != null)
                 {
                     _error = error;
+                    showSaveError = true;
                     return;
                 }
+
+                // Success
+                successTitle = "Supplier Updated";
+                successMessage = $"Supplier '{_editModel.SupplierName}' updated successfully!";
             }
             else
             {
@@ -421,16 +537,26 @@
                 if (error != null)
                 {
                     _error = error;
+                    showSaveError = true;
                     return;
                 }
+
+                // Success
+                successTitle = "Supplier Created";
+                successMessage = $"Supplier '{_editModel.SupplierName}' created successfully!";
             }
 
             _showModal = false;
+            hasUnsavedChanges = false;
             await LoadAsync();
+            
+            // Show success modal
+            showSupplierSaveSuccess = true;
         }
         catch (Exception ex)
         {
             _error = ex.Message;
+            showSaveError = true;
         }
         finally
         {
@@ -438,28 +564,52 @@
         }
     }
 
-    private async Task DeleteSupplier(int id)
+    // CHANGED: Show confirmation modal before deleting
+    private void DeleteSupplier(int id, string name)
     {
-        if (_saving) return;
+        supplierToDeleteId = id;
+        deleteConfirmMessage = $"Are you sure you want to delete supplier '{name}'?";
+        showDeleteConfirm = true;
+    }
 
-        var ok = await JSRuntime.InvokeAsync<bool>("confirm", "Delete supplier?");
-        if (!ok) return;
+    private async Task ExecuteDeleteSupplier()
+    {
+        if (supplierToDeleteId == 0) return;
 
-        _saving = true;
+        isDeleting = true;
         _error = string.Empty;
+        
         try
         {
-            await SupplierSvc.DeleteAsync(id);
+            await SupplierSvc.DeleteAsync(supplierToDeleteId);
+            
+            // Close modals
+            showDeleteConfirm = false;
+            _showModal = false;
+            
+            // Reload data
             await LoadAsync();
+            
+            // Show success
+            showDeleteSuccess = true;
         }
         catch (Exception ex)
         {
             _error = ex.Message;
+            showDeleteConfirm = false;
+            showDeleteError = true;
         }
         finally
         {
-            _saving = false;
+            isDeleting = false;
+            supplierToDeleteId = 0;
         }
+    }
+
+    private void CancelDelete()
+    {
+        showDeleteConfirm = false;
+        supplierToDeleteId = 0;
     }
 
     private Task Refresh() => LoadAsync();

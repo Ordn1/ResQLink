@@ -1,10 +1,12 @@
 @page "/settings"
+@using ResQLink.Components.Shared
 @inject ResQLink.Services.Sync.SyncSettings SyncConfig
 @inject ResQLink.Services.Sync.ISyncSettingsStorage Storage
 @inject ResQLink.Services.Sync.ISyncService Sync
 @inject IJSRuntime JS
 @inject ResQLink.Services.AuthState Auth
 @inject NavigationManager Navigation
+@implements IDisposable
 
 @if (!Auth.IsAuthenticated)
 {
@@ -39,10 +41,9 @@
         <div class="panel-body">
             <div class="form-row">
                 <div class="form-group">
-                    <label>
-                        <input type="checkbox" @bind="remoteEnabled" disabled="@DisableConfig" /> 
-                        Enable remote sync
-                    </label>
+                    <ToggleSwitch @bind-Value="remoteEnabled" 
+                                  Label="Enable remote sync" 
+                                  Disabled="@DisableConfig" />
                     <span class="help-text">Enable synchronization with remote database server</span>
                 </div>
             </div>
@@ -174,9 +175,15 @@
 
             @if (!string.IsNullOrWhiteSpace(message))
             {
-                <div class="message-box @GetMessageType()">
+                <div class="message-box @GetMessageType()" style="position: relative;">
                     <i class="bi @GetMessageIcon()"></i>
                     <span>@message</span>
+                    @if (!string.IsNullOrWhiteSpace(message))
+                    {
+                        <button class="message-dismiss" @onclick="ClearMessage" title="Dismiss">
+                            <i class="bi bi-x"></i>
+                        </button>
+                    }
                 </div>
             }
         </div>
@@ -190,6 +197,32 @@
     </div>
 </div>
 
+<style>
+    .message-dismiss {
+        position: absolute;
+        right: 8px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        padding: 4px 8px;
+        color: currentColor;
+        opacity: 0.6;
+        transition: opacity 0.2s ease;
+        font-size: 1.2rem;
+        line-height: 1;
+    }
+
+    .message-dismiss:hover {
+        opacity: 1;
+    }
+
+    .message-box {
+        padding-right: 40px;
+    }
+</style>
+
 @code {
     private bool remoteEnabled;
     private int interval;
@@ -202,6 +235,7 @@
     private bool isPushing;
     private string message = string.Empty;
     private string operationStatus = string.Empty;
+    private CancellationTokenSource? _messageTimeoutCts;
 
     private bool DisableConfig => !Auth.IsAdmin();
 
@@ -250,6 +284,7 @@
             }
 
             message = "Settings saved successfully!";
+            await StartMessageTimeoutAsync();
         }
         catch (Exception ex)
         {
@@ -276,6 +311,11 @@
         {
             online = await Sync.CheckOnlineAsync();
             message = online == true ? "Connection successful!" : "Cannot reach remote server";
+            
+            if (online == true)
+            {
+                await StartMessageTimeoutAsync();
+            }
         }
         catch (Exception ex)
         {
@@ -303,6 +343,11 @@
         {
             var res = await Sync.PullAsync();
             message = res.ok ? "Pull completed successfully!" : $"Pull failed: {res.error}";
+            
+            if (res.ok)
+            {
+                await StartMessageTimeoutAsync();
+            }
         }
         catch (Exception ex)
         {
@@ -329,6 +374,11 @@
         {
             var res = await Sync.PushAsync();
             message = res.ok ? "Push completed successfully!" : $"Push failed: {res.error}";
+            
+            if (res.ok)
+            {
+                await StartMessageTimeoutAsync();
+            }
         }
         catch (Exception ex)
         {
@@ -355,6 +405,11 @@
         {
             var res = await Sync.SyncNowAsync();
             message = res.ok ? "Sync completed successfully!" : $"Sync failed: {res.error}";
+            
+            if (res.ok)
+            {
+                await StartMessageTimeoutAsync();
+            }
         }
         catch (Exception ex)
         {
@@ -367,6 +422,36 @@
             operationStatus = string.Empty;
             StateHasChanged();
         }
+    }
+
+    private async Task StartMessageTimeoutAsync()
+    {
+        // Cancel any existing timeout
+        _messageTimeoutCts?.Cancel();
+        _messageTimeoutCts?.Dispose();
+        
+        // Create new cancellation token
+        _messageTimeoutCts = new CancellationTokenSource();
+        
+        try
+        {
+            // Wait for 5 seconds
+            await Task.Delay(5000, _messageTimeoutCts.Token);
+            
+            // Clear message after timeout
+            message = string.Empty;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (TaskCanceledException)
+        {
+            // Timeout was cancelled, ignore
+        }
+    }
+
+    private void ClearMessage()
+    {
+        _messageTimeoutCts?.Cancel();
+        message = string.Empty;
     }
 
     private string GetMessageType()
@@ -395,5 +480,11 @@
             "warning" => "bi-exclamation-triangle-fill",
             _ => "bi-info-circle-fill"
         };
+    }
+
+    public void Dispose()
+    {
+        _messageTimeoutCts?.Cancel();
+        _messageTimeoutCts?.Dispose();
     }
 }

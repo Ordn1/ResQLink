@@ -89,8 +89,9 @@ namespace ResQLink
             builder.Services.AddScoped<IUserService>(sp =>
             {
                 var db = sp.GetRequiredService<AppDbContext>();
-                var auditService = sp.GetRequiredService<AuditService>();
-                return new UserService(db, auditService);
+                var audit = sp.GetService<AuditService>();
+                var archive = sp.GetService<ArchiveService>(); // Add ArchiveService
+                return new UserService(db, audit, archive);
             });
             builder.Services.AddScoped<IDisasterService>(sp =>
             {

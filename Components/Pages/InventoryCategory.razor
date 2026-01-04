@@ -589,7 +589,7 @@
                             {
                                 <span class="spinner"></span>
                             }
-                            Delete
+                            Archive Item
                         </button>
                         <button type="button"
                                 class="btn-cancel"
@@ -1115,7 +1115,7 @@
     private async Task DeleteItem()
     {
         if (saving) return;
-        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", $"Delete '{editName}'?");
+        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", $"Archive '{editName}'?\n\nThis item will be moved to the archives and can be restored later by an administrator.");
         if (!confirmed) return;
         saving = true;
         try

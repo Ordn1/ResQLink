@@ -1,0 +1,36 @@
+@namespace ResQLink.Components.Shared
+
+@* Modern toggle switch component *@
+
+<label class="toggle-switch @(Disabled ? "disabled" : "")" @attributes="AdditionalAttributes">
+    <input type="checkbox" 
+           @bind="@CurrentValue" 
+           disabled="@Disabled" 
+           class="toggle-checkbox" />
+    <span class="toggle-slider"></span>
+    @if (!string.IsNullOrWhiteSpace(Label))
+    {
+        <span class="toggle-label">@Label</span>
+    }
+</label>
+
+@code {
+    [Parameter] public bool Value { get; set; }
+    [Parameter] public EventCallback<bool> ValueChanged { get; set; }
+    [Parameter] public string? Label { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private bool CurrentValue
+    {
+        get => Value;
+        set
+        {
+            if (Value != value)
+            {
+                Value = value;
+                ValueChanged.InvokeAsync(value);
+            }
+        }
+    }
+}

@@ -3,9 +3,58 @@
 @inject ResQLink.Services.ArchiveService ArchiveService
 @inject ResQLink.Services.AuthState Auth
 @inject NavigationManager Nav
-@inject IJSRuntime JS
 @using Microsoft.EntityFrameworkCore
 @using ResQLink.Data.Entities
+@using ResQLink.Components.Shared
+
+@* ========== ALERT MODALS - ADD AT TOP ========== *@
+
+@* Success Alerts *@
+<AlertModal @bind-IsVisible="showSaveSuccess"
+            Title="@successTitle"
+            Message="@successMessage"
+            Type="AlertModal.AlertType.Success" />
+
+<AlertModal @bind-IsVisible="showDeleteSuccess"
+            Title="Shelter Archived"
+            Message="@deleteSuccessMessage"
+            Type="AlertModal.AlertType.Success" />
+
+@* Error Alerts *@
+<AlertModal @bind-IsVisible="showLoadError"
+            Title="Error Loading Data"
+            Message="@globalError"
+            Type="AlertModal.AlertType.Error" />
+
+<AlertModal @bind-IsVisible="showSaveError"
+            Title="Error Saving Shelter"
+            Message="@formError"
+            Type="AlertModal.AlertType.Error" />
+
+<AlertModal @bind-IsVisible="showDeleteError"
+            Title="Error Archiving Shelter"
+            Message="@formError"
+            Type="AlertModal.AlertType.Error" />
+
+<AlertModal @bind-IsVisible="showValidationError"
+            Title="Validation Error"
+            Message="@formError"
+            Type="AlertModal.AlertType.Warning" />
+
+@* Confirmation Dialogs *@
+<AlertModal @bind-IsVisible="showDeleteConfirm"
+            Title="Confirm Archive"
+            Message="@deleteConfirmMessage"
+            DetailMessage="This shelter will be moved to archives. All related data will be preserved. Administrators can restore it from the Archives page if needed."
+            Type="AlertModal.AlertType.Warning"
+            ShowCancel="true"
+            ConfirmText="Archive"
+            CancelText="Cancel"
+            IsProcessing="isArchiving"
+            OnConfirm="ExecuteArchive"
+            OnCancel="CancelArchive" />
+
+@* ========== END ALERT MODALS ========== *@
 
 <div class="shelters-root">
 
@@ -16,6 +65,10 @@
             <div class="panel-actions">
                 <button class="mini-btn btn-primary" @onclick="BeginCreate" disabled="@showForm">
                     <i class="bi bi-house-add"></i> Add Shelter
+                </button>
+                <button class="mini-btn" @onclick="RefreshAsync" title="Refresh">
+                    <i class="bi bi-arrow-clockwise"></i>
+                    <span>Refresh</span>
                 </button>
             </div>
         </header>
@@ -50,27 +103,19 @@
         </div>
     </section>
 
-    @if (!string.IsNullOrEmpty(globalError))
-    {
-        <div class="alert alert-danger" role="alert">
-            <i class="bi bi-exclamation-triangle-fill"></i> @globalError
-            <button type="button" class="btn-close" @onclick="() => globalError = string.Empty"></button>
-        </div>
-    }
-
     <section class="panel">
         <header class="panel-head">
             <h2 class="panel-title">Shelters</h2>
             <div class="panel-actions">
                 <input class="mini-input" placeholder="Search name or location…" @bind="search" @bind:event="oninput" />
-                <select class="mini-input" @bind="disasterFilter">
+                <select class="mini-input" @bind="disasterFilter" @bind:after="ResetPagination">
                     <option value="0">All Disasters</option>
                     @foreach (var d in DisasterOptions)
                     {
                         <option value="@d.DisasterId">@d.Title</option>
                     }
                 </select>
-                <select class="mini-input" @bind="statusFilter">
+                <select class="mini-input" @bind="statusFilter" @bind:after="ResetPagination">
                     <option value="">All Status</option>
                     <option value="Active">Active</option>
                     <option value="Inactive">Inactive</option>
@@ -89,22 +134,22 @@
                         <th>Name</th>
                         <th>Location</th>
                         <th>Disaster</th>
-                        <th>Capacity</th>
-                        <th>Occupancy</th>
-                        <th>Status</th>
-                        <th style="width:120px">Actions</th>
+                        <th class="t-center">Capacity</th>
+                        <th class="t-center">Occupancy</th>
+                        <th class="t-center">Status</th>
+                        <th class="t-center" style="width:150px">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     @foreach (var s in PagedShelters)
                     {
                         <tr>
-                            <td>@s.Name</td>
+                            <td><strong>@s.Name</strong></td>
                             <td>@s.Location</td>
-                            <td>@s.Disaster</td>
+                            <td>@(s.Disaster ?? "—")</td>
                             <td class="t-center">@s.Capacity</td>
                             <td class="t-center">@s.CurrentOccupancy</td>
-                            <td>
+                            <td class="t-center">
                                 <span class="status-chip @(s.IsActive ? "st-active" : "st-contained")">
                                     @(s.IsActive ? "Active" : "Inactive")
                                 </span>
@@ -112,14 +157,21 @@
                             <td class="action-cell">
                                 <button class="action-btn edit"
                                         @onclick="() => BeginEdit(s.Id)"
-                                        disabled="@showForm"
+                                        disabled="@(showForm || showDeleteConfirm)"
                                         title="Edit shelter">
                                     <i class="bi bi-pencil"></i>
                                 </button>
                                 <button class="action-btn view"
                                         @onclick="() => ViewStock(s.Id)"
+                                        disabled="@(showForm || showDeleteConfirm)"
                                         title="View stock">
                                     <i class="bi bi-box-seam"></i>
+                                </button>
+                                <button class="action-btn delete"
+                                        @onclick="() => ShowArchiveConfirmation(s)"
+                                        disabled="@(showForm || showDeleteConfirm || isArchiving)"
+                                        title="Archive shelter">
+                                    <i class="bi bi-archive"></i>
                                 </button>
                             </td>
                         </tr>
@@ -127,7 +179,19 @@
                     @if (!PagedShelters.Any())
                     {
                         <tr>
-                            <td colspan="7" class="t-center text-muted">No results.</td>
+                            <td colspan="7" class="empty-state">
+                                <div class="empty-icon"><i class="bi bi-inbox"></i></div>
+                                <div class="empty-text">
+                                    @if (!string.IsNullOrWhiteSpace(search) || disasterFilter != 0 || !string.IsNullOrWhiteSpace(statusFilter))
+                                    {
+                                        <text>No shelters match your filters.</text>
+                                    }
+                                    else
+                                    {
+                                        <text>No shelters found.</text>
+                                    }
+                                </div>
+                            </td>
                         </tr>
                     }
                 </tbody>
@@ -136,11 +200,12 @@
 
         <footer class="panel-foot">
             <div class="foot-left">
+                <i class="bi bi-info-circle"></i>
                 Showing @StartIndex–@EndIndex of @FilteredCount shelters
             </div>
             <div class="foot-right">
                 <label class="foot-label">Rows</label>
-                <select class="mini-input" @bind="pageSize">
+                <select class="mini-input" @bind="pageSize" @bind:after="ResetPagination">
                     <option>10</option>
                     <option>20</option>
                     <option>50</option>
@@ -156,141 +221,131 @@
 @* Create/Edit Shelter Modal *@
 @if (showForm)
 {
-    <div class="modal-overlay" @onclick="CancelForm" @onclick:stopPropagation="false">
-        <div class="modal-dialog" @onclick="PreventClose" @onclick:stopPropagation="true">
+    <div class="modal-overlay">
+        <div class="modal-dialog" @onclick:stopPropagation="true">
             <div class="modal-header">
                 <h3>@(editModel.ShelterId == 0 ? "Add Shelter" : "Edit Shelter")</h3>
-                <button class="modal-close" @onclick="CancelForm" @onclick:stopPropagation="true">&times;</button>
+                <button class="modal-close" @onclick="CancelForm" disabled="@saving" @onclick:stopPropagation="true">&times;</button>
             </div>
             <div class="modal-body">
                 @if (loadingForm)
                 {
-                    <div class="loading-text">Loading…</div>
+                    <div class="loading-text" style="text-align: center; padding: 40px;">
+                        <div class="spinner" style="display: inline-block;"></div>
+                        <p style="margin-top: 10px;">Loading shelter details...</p>
+                    </div>
                 }
-
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="shelterName">Name *</label>
-                        <input id="shelterName" 
-                               class="form-control @(fieldErrors.ContainsKey("Name") ? "is-invalid" : "")" 
-                               @bind="editModel.Name" 
-                               @bind:event="oninput"
-                               @onblur="() => ValidateField(nameof(editModel.Name))"
-                               maxlength="255" />
-                        @if (fieldErrors.ContainsKey("Name"))
-                        {
-                            <div class="invalid-feedback">@fieldErrors["Name"]</div>
-                        }
-                    </div>
-                    <div class="form-group">
-                        <label for="shelterLocation">Location</label>
-                        <input id="shelterLocation" 
-                               class="form-control" 
-                               @bind="editModel.Location" 
-                               maxlength="255" />
-                    </div>
-                </div>
-
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="capacity">Capacity *</label>
-                        <input id="capacity" 
-                               class="form-control @(fieldErrors.ContainsKey("Capacity") ? "is-invalid" : "")" 
-                               type="number" 
-                               @bind="editModel.Capacity" 
-                               @bind:event="oninput"
-                               @onblur="() => ValidateField(nameof(editModel.Capacity))"
-                               min="0" 
-                               max="100000" />
-                        @if (fieldErrors.ContainsKey("Capacity"))
-                        {
-                            <div class="invalid-feedback">@fieldErrors["Capacity"]</div>
-                        }
-                    </div>
-                    <div class="form-group">
-                        <label for="occupancy">Current Occupancy *</label>
-                        <input id="occupancy" 
-                               class="form-control @(fieldErrors.ContainsKey("CurrentOccupancy") ? "is-invalid" : "")" 
-                               type="number" 
-                               @bind="editModel.CurrentOccupancy" 
-                               @bind:event="oninput"
-                               @onblur="() => ValidateField(nameof(editModel.CurrentOccupancy))"
-                               min="0" 
-                               max="@editModel.Capacity" />
-                        @if (fieldErrors.ContainsKey("CurrentOccupancy"))
-                        {
-                            <div class="invalid-feedback">@fieldErrors["CurrentOccupancy"]</div>
-                        }
-                        <small class="form-text text-muted">
-                            @if (editModel.Capacity > 0)
-                            {
-                                @:(@(Math.Round((double)editModel.CurrentOccupancy / editModel.Capacity * 100, 1))% occupied)
-                            }
-                        </small>
-                    </div>
-                </div>
-
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="disaster">Disaster</label>
-                        <select id="disaster" class="form-control" @bind="editModel.DisasterId">
-                            <option value="">(None)</option>
-                            @foreach (var d in DisasterOptions)
-                            {
-                                <option value="@d.DisasterId">@d.Title</option>
-                            }
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="status">Status</label>
-                        <select id="status" class="form-control" @bind="editModel.IsActive">
-                            <option value="true">Active</option>
-                            <option value="false">Inactive</option>
-                        </select>
-                    </div>
-                </div>
-
-                @if (!string.IsNullOrEmpty(formError))
+                else
                 {
-                    <div class="form-error">
-                        <i class="bi bi-exclamation-circle"></i> @formError
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="shelterName">Name *</label>
+                            <input id="shelterName" 
+                                   class="form-control @(fieldErrors.ContainsKey("Name") ? "is-invalid" : "")" 
+                                   @bind="editModel.Name" 
+                                   @bind:event="oninput"
+                                   @onblur="() => ValidateField(nameof(editModel.Name))"
+                                   placeholder="e.g., Central Evacuation Center"
+                                   maxlength="255" />
+                            @if (fieldErrors.ContainsKey("Name"))
+                            {
+                                <div class="invalid-feedback">@fieldErrors["Name"]</div>
+                            }
+                        </div>
+                        <div class="form-group">
+                            <label for="shelterLocation">Location</label>
+                            <input id="shelterLocation" 
+                                   class="form-control" 
+                                   @bind="editModel.Location"
+                                   placeholder="e.g., Barangay Hall, City Center"
+                                   maxlength="255" />
+                        </div>
                     </div>
-                }
 
-                <div class="modal-actions">
-                    @if (editModel.ShelterId != 0)
-                    {
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="capacity">Capacity *</label>
+                            <input id="capacity" 
+                                   class="form-control @(fieldErrors.ContainsKey("Capacity") ? "is-invalid" : "")" 
+                                   type="number" 
+                                   @bind="editModel.Capacity" 
+                                   @bind:event="oninput"
+                                   @onblur="() => ValidateField(nameof(editModel.Capacity))"
+                                   min="0" 
+                                   max="100000"
+                                   placeholder="0" />
+                            @if (fieldErrors.ContainsKey("Capacity"))
+                            {
+                                <div class="invalid-feedback">@fieldErrors["Capacity"]</div>
+                            }
+                            <small class="form-text text-muted">Maximum number of evacuees</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="occupancy">Current Occupancy *</label>
+                            <input id="occupancy" 
+                                   class="form-control @(fieldErrors.ContainsKey("CurrentOccupancy") ? "is-invalid" : "")" 
+                                   type="number" 
+                                   @bind="editModel.CurrentOccupancy" 
+                                   @bind:event="oninput"
+                                   @onblur="() => ValidateField(nameof(editModel.CurrentOccupancy))"
+                                   min="0" 
+                                   max="@editModel.Capacity"
+                                   placeholder="0" />
+                            @if (fieldErrors.ContainsKey("CurrentOccupancy"))
+                            {
+                                <div class="invalid-feedback">@fieldErrors["CurrentOccupancy"]</div>
+                            }
+                            <small class="form-text text-muted">
+                                @if (editModel.Capacity > 0)
+                                {
+                                    @:(@(Math.Round((double)editModel.CurrentOccupancy / editModel.Capacity * 100, 1))% occupied)
+                                }
+                            </small>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="disaster">Disaster</label>
+                            <select id="disaster" class="form-control" @bind="editModel.DisasterId">
+                                <option value="">(None)</option>
+                                @foreach (var d in DisasterOptions)
+                                {
+                                    <option value="@d.DisasterId">@d.Title</option>
+                                }
+                            </select>
+                            <small class="form-text text-muted">Optional: Link to a specific disaster</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="status">Status</label>
+                            <select id="status" class="form-control" @bind="editModel.IsActive">
+                                <option value="true">Active</option>
+                                <option value="false">Inactive</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="modal-actions">
                         <button type="button"
-                                class="btn-danger"
-                                @onclick="ConfirmDeleteAsync"
+                                class="btn-cancel"
+                                @onclick="CancelForm"
+                                disabled="@saving"
+                                @onclick:stopPropagation="true">
+                            Cancel
+                        </button>
+                        <button type="button"
+                                class="btn-primary"
+                                @onclick="SaveAsync"
                                 disabled="@saving"
                                 @onclick:stopPropagation="true">
                             @if (saving)
                             {
                                 <span class="spinner"></span>
                             }
-                            Delete
+                            @(editModel.ShelterId == 0 ? "Create" : "Update")
                         </button>
-                    }
-                    <button type="button"
-                            class="btn-cancel"
-                            @onclick="CancelForm"
-                            disabled="@saving"
-                            @onclick:stopPropagation="true">
-                        Cancel
-                    </button>
-                    <button type="button"
-                            class="btn-primary"
-                            @onclick="SaveAsync"
-                            disabled="@saving"
-                            @onclick:stopPropagation="true">
-                        @if (saving)
-                        {
-                            <span class="spinner"></span>
-                        }
-                        @(editModel.ShelterId == 0 ? "Save" : "Update")
-                    </button>
-                </div>
+                    </div>
+                }
             </div>
         </div>
     </div>
@@ -320,11 +375,26 @@
     private bool showForm = false;
     private bool saving = false;
     private bool loadingForm = false;
+    private bool isArchiving = false;
     private string formError = string.Empty;
     private string globalError = string.Empty;
     private Dictionary<string, string> fieldErrors = new();
 
     private ShelterEditModel editModel = new();
+    private ShelterRow? shelterToArchive = null;
+
+    // NEW: Alert modal state variables
+    private bool showLoadError = false;
+    private bool showSaveSuccess = false;
+    private string successTitle = "";
+    private string successMessage = "";
+    private bool showSaveError = false;
+    private bool showDeleteSuccess = false;
+    private string deleteSuccessMessage = "";
+    private bool showDeleteError = false;
+    private bool showValidationError = false;
+    private bool showDeleteConfirm = false;
+    private string deleteConfirmMessage = "";
 
     private class ShelterEditModel
     {
@@ -346,6 +416,7 @@
         catch (Exception ex)
         {
             globalError = $"Failed to load shelters: {ex.Message}";
+            showLoadError = true;
             await LogErrorAsync("OnInitializedAsync", ex);
         }
     }
@@ -380,8 +451,16 @@
         catch (Exception ex)
         {
             globalError = $"Error loading data: {ex.Message}";
+            showLoadError = true;
             await LogErrorAsync("LoadAsync", ex);
         }
+    }
+
+    private async Task RefreshAsync()
+    {
+        await LoadAsync();
+        _pageIndex = 0;
+        StateHasChanged();
     }
 
     private IEnumerable<ShelterRow> Query => All
@@ -398,6 +477,11 @@
     private int StartIndex => FilteredCount == 0 ? 0 : (_pageIndex * pageSize) + 1;
     private int EndIndex => Math.Min((_pageIndex + 1) * pageSize, FilteredCount);
     private IEnumerable<ShelterRow> PagedShelters => Query.Skip(_pageIndex * pageSize).Take(pageSize);
+
+    private void ResetPagination()
+    {
+        _pageIndex = 0;
+    }
 
     private void PrevPage()
     {
@@ -442,6 +526,7 @@
             {
                 formError = "Shelter not found.";
                 showForm = false;
+                showSaveError = true;
                 return;
             }
 
@@ -459,6 +544,8 @@
         catch (Exception ex)
         {
             formError = $"Error loading shelter: {ex.Message}";
+            showSaveError = true;
+            showForm = false;
             await LogErrorAsync("BeginEdit", ex);
         }
         finally
@@ -550,8 +637,17 @@
 
         try
         {
-            if (!Validate()) return;
-            if (!await ValidateForeignKeysAsync()) return;
+            if (!Validate())
+            {
+                showValidationError = true;
+                return;
+            }
+            
+            if (!await ValidateForeignKeysAsync())
+            {
+                showSaveError = true;
+                return;
+            }
 
             if (editModel.ShelterId == 0)
             {
@@ -565,6 +661,9 @@
                     IsActive = editModel.IsActive
                 };
                 Db.Shelters.Add(entity);
+                
+                successTitle = "Shelter Created";
+                successMessage = $"Shelter '{editModel.Name}' created successfully!";
             }
             else
             {
@@ -572,6 +671,7 @@
                 if (entity == null)
                 {
                     formError = "Shelter record not found";
+                    showSaveError = true;
                     return;
                 }
                 entity.Name = editModel.Name.Trim();
@@ -581,12 +681,15 @@
                 entity.DisasterId = editModel.DisasterId;
                 entity.IsActive = editModel.IsActive;
                 Db.Shelters.Update(entity);
+                
+                successTitle = "Shelter Updated";
+                successMessage = $"Shelter '{editModel.Name}' updated successfully!";
             }
 
             await Db.SaveChangesAsync();
-            await JS.InvokeVoidAsync("alert", "Shelter saved successfully!");
             showForm = false;
             await LoadAsync();
+            showSaveSuccess = true;
         }
         catch (DbUpdateException ex) when (ex.InnerException is Microsoft.Data.SqlClient.SqlException sql)
         {
@@ -596,16 +699,19 @@
                 547 => "Cannot save: Referenced data is invalid or missing",
                 _ => $"Database error: {sql.Message}"
             };
+            showSaveError = true;
             await LogErrorAsync("SaveAsync", ex);
         }
         catch (DbUpdateException ex)
         {
             formError = $"Database update error: {ex.InnerException?.Message ?? ex.Message}";
+            showSaveError = true;
             await LogErrorAsync("SaveAsync", ex);
         }
         catch (Exception ex)
         {
             formError = $"Unexpected error: {ex.Message}";
+            showSaveError = true;
             await LogErrorAsync("SaveAsync", ex);
         }
         finally
@@ -615,31 +721,39 @@
         }
     }
 
-    private async Task ConfirmDeleteAsync()
+    private void ShowArchiveConfirmation(ShelterRow shelter)
     {
-        if (editModel.ShelterId == 0 || saving) return;
-
-        var confirmed = await JS.InvokeAsync<bool>("confirm", 
-            $"Are you sure you want to archive shelter '{editModel.Name}'?");
+        shelterToArchive = shelter;
         
-        if (!confirmed) return;
+        var evacueeInfo = shelter.CurrentOccupancy > 0 
+            ? $" with {shelter.CurrentOccupancy} evacuee(s) currently assigned" 
+            : "";
+        
+        deleteConfirmMessage = $"Are you sure you want to archive shelter '{shelter.Name}'{evacueeInfo}?";
+        showDeleteConfirm = true;
+    }
 
-        saving = true;
+    private async Task ExecuteArchive()
+    {
+        if (shelterToArchive == null || isArchiving) return;
+
+        isArchiving = true;
         formError = string.Empty;
 
         try
         {
             var entity = await Db.Shelters
                 .Include(s => s.Evacuees)
-                .FirstOrDefaultAsync(s => s.ShelterId == editModel.ShelterId);
+                .FirstOrDefaultAsync(s => s.ShelterId == shelterToArchive.Id);
             
             if (entity == null)
             {
                 formError = "Shelter not found";
+                showDeleteError = true;
+                showDeleteConfirm = false;
                 return;
             }
 
-            // Use centralized ArchiveService instead of permanent deletion
             var evacueeCount = entity.Evacuees.Count;
             var reason = evacueeCount > 0
                 ? $"Archived with {evacueeCount} evacuee(s) assigned"
@@ -650,35 +764,55 @@
                 : entity.Name;
 
             var result = await ArchiveService.ArchiveAsync<Shelter>(
-                editModel.ShelterId,
+                shelterToArchive.Id,
                 reason,
                 entityName);
 
             if (!result.success)
             {
                 formError = result.error ?? "Failed to archive shelter.";
+                showDeleteError = true;
+                showDeleteConfirm = false;
                 return;
             }
 
-            await JS.InvokeVoidAsync("alert", "Shelter archived successfully!");
-            showForm = false;
+            deleteSuccessMessage = $"Shelter '{shelterToArchive.Name}' has been archived successfully. Administrators can restore it from the Archives page.";
+            showDeleteConfirm = false;
             await LoadAsync();
+            
+            // Adjust current page if needed
+            if (_pageIndex >= TotalPages && TotalPages > 0)
+                _pageIndex = TotalPages - 1;
+            
+            showDeleteSuccess = true;
         }
         catch (DbUpdateException ex)
         {
             formError = $"Archive failed: {ex.InnerException?.Message ?? ex.Message}";
-            await LogErrorAsync("ConfirmDeleteAsync", ex);
+            showDeleteError = true;
+            showDeleteConfirm = false;
+            await LogErrorAsync("ExecuteArchive", ex);
         }
         catch (Exception ex)
         {
             formError = $"Archive failed: {ex.Message}";
-            await LogErrorAsync("ConfirmDeleteAsync", ex);
+            showDeleteError = true;
+            showDeleteConfirm = false;
+            await LogErrorAsync("ExecuteArchive", ex);
         }
         finally
         {
-            saving = false;
+            isArchiving = false;
+            shelterToArchive = null;
             await InvokeAsync(StateHasChanged);
         }
+    }
+
+    private void CancelArchive()
+    {
+        showDeleteConfirm = false;
+        shelterToArchive = null;
+        isArchiving = false;
     }
 
     private void CancelForm()
@@ -689,11 +823,6 @@
         fieldErrors.Clear();
     }
 
-    private void PreventClose()
-    {
-        // Intentionally empty: stops click from bubbling to overlay
-    }
-
     private void ViewStock(int shelterId)
     {
         Nav.NavigateTo($"/shelter/{shelterId}/stocks");
@@ -701,7 +830,6 @@
 
     private async Task LogErrorAsync(string method, Exception ex)
     {
-        // Log to console in debug mode
         System.Diagnostics.Debug.WriteLine($"[Shelters.{method}] {ex.GetType().Name}: {ex.Message}");
         await Task.CompletedTask;
     }

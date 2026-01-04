@@ -365,6 +365,7 @@ public class ArchiveService
             "Shelter" => "[dbo].[Shelters]",
             "Volunteer" => "[dbo].[Volunteers]",
             "User" => "[dbo].[Users]",
+            "UserRole" => "[dbo].[UserRoles]",
             _ => $"[dbo].[{type.Name}s]"
         };
         

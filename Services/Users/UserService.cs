@@ -6,10 +6,14 @@ using System.Text;
 
 namespace ResQLink.Services.Users;
 
-public class UserService(AppDbContext db, AuditService? auditService = null) : IUserService
+public class UserService(
+    AppDbContext db, 
+    AuditService? auditService = null, 
+    ArchiveService? archiveService = null) : IUserService
 {
     private readonly AppDbContext _db = db;
     private readonly AuditService? _auditService = auditService;
+    private readonly ArchiveService? _archiveService = archiveService;
 
     public async Task EnsureCreatedAndSeedAdminAsync(CancellationToken ct = default)
     {
@@ -615,16 +619,16 @@ public class UserService(AppDbContext db, AuditService? auditService = null) : I
     {
         try
         {
-            var user = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.UserId == userId, ct);
-            if (user is null)
-                return (false, "User not found");
-
-            var userWithRole = await _db.Users
+            var user = await _db.Users
                 .Include(u => u.Role)
                 .AsNoTracking()
                 .FirstOrDefaultAsync(u => u.UserId == userId, ct);
+            
+            if (user is null)
+                return (false, "User not found");
 
-            if (userWithRole?.Role?.RoleName == "Admin" && userWithRole.IsActive)
+            // Prevent deletion of last active admin
+            if (user.Role?.RoleName == "Admin" && user.IsActive)
             {
                 var activeAdminCount = await _db.Users
                     .Include(u => u.Role)
@@ -634,50 +638,118 @@ public class UserService(AppDbContext db, AuditService? auditService = null) : I
                     return (false, "Cannot delete the last active admin user");
             }
 
-            // Capture user details before deletion
+            // Capture user details before archiving
             var userDetails = new
             {
                 user.UserId,
                 user.Username,
                 user.Email,
-                Role = userWithRole?.Role?.RoleName,
+                Role = user.Role?.RoleName,
                 user.IsActive
             };
 
-            var userProfile = await _db.UserProfiles.AsNoTracking().FirstOrDefaultAsync(p => p.UserId == userId, ct);
-            if (userProfile is not null)
+            // Archive the user using ArchiveService
+            if (_archiveService != null)
             {
-                _db.UserProfiles.Attach(userProfile);
-                _db.UserProfiles.Remove(userProfile);
-            }
-
-            _db.Users.Attach(user);
-            _db.Users.Remove(user);
-            
-            await _db.SaveChangesAsync(ct);
-
-            // Log user deletion
-            if (_auditService != null)
-            {
-                var deletedBy = deletedByUserId.HasValue 
-                    ? await _db.Users.Include(u => u.Role).AsNoTracking().FirstOrDefaultAsync(u => u.UserId == deletedByUserId.Value, ct)
-                    : null;
-
-                await _auditService.LogAsync(
-                    action: "USER_DELETE",
-                    entityType: "User",
+                var archiveReason = deletedByUserId.HasValue 
+                    ? $"Deleted by user ID {deletedByUserId}" 
+                    : "User archived";
+                    
+                var (success, error) = await _archiveService.ArchiveAsync<User>(
                     entityId: userId,
-                    userId: deletedByUserId,
-                    userType: deletedBy?.Role?.RoleName ?? "Admin",
-                    userName: deletedBy != null ? $"{deletedBy.Username} ({deletedBy.Email})" : "System",
-                    oldValues: userDetails,
-                    description: $"User '{user.Username}' deleted by {deletedBy?.Username ?? "System"}",
-                    severity: "Warning",
-                    isSuccessful: true
+                    reason: archiveReason,
+                    entityName: $"{user.Username} ({user.Email})"
                 );
-            }
 
-            return (true, null);
+                if (!success)
+                {
+                    // Log archiving failure
+                    if (_auditService != null)
+                    {
+                        await _auditService.LogAsync(
+                            action: "USER_ARCHIVE_FAILED",
+                            entityType: "User",
+                            entityId: userId,
+                            userId: deletedByUserId,
+                            description: $"Failed to archive user '{user.Username}': {error}",
+                            severity: "Error",
+                            isSuccessful: false,
+                            errorMessage: error
+                        );
+                    }
+                    return (false, error ?? "Failed to archive user");
+                }
+
+                // Also delete associated UserProfile
+                var userProfile = await _db.UserProfiles.AsNoTracking().FirstOrDefaultAsync(p => p.UserId == userId, ct);
+                if (userProfile is not null)
+                {
+                    _db.UserProfiles.Attach(userProfile);
+                    _db.UserProfiles.Remove(userProfile);
+                    await _db.SaveChangesAsync(ct);
+                }
+
+                // Log successful archiving
+                if (_auditService != null)
+                {
+                    var deletedBy = deletedByUserId.HasValue 
+                        ? await _db.Users.Include(u => u.Role).AsNoTracking().FirstOrDefaultAsync(u => u.UserId == deletedByUserId.Value, ct)
+                        : null;
+
+                    await _auditService.LogAsync(
+                        action: "USER_ARCHIVE",
+                        entityType: "User",
+                        entityId: userId,
+                        userId: deletedByUserId,
+                        userType: deletedBy?.Role?.RoleName ?? "System",
+                        userName: deletedBy != null ? $"{deletedBy.Username} ({deletedBy.Email})" : "System",
+                        oldValues: userDetails,
+                        description: $"User '{user.Username}' archived by {deletedBy?.Username ?? "System"}",
+                        severity: "Warning",
+                        isSuccessful: true
+                    );
+                }
+
+                return (true, null);
+            }
+            else
+            {
+                // Fallback to permanent deletion if ArchiveService is not available
+                var userProfile = await _db.UserProfiles.AsNoTracking().FirstOrDefaultAsync(p => p.UserId == userId, ct);
+                if (userProfile is not null)
+                {
+                    _db.UserProfiles.Attach(userProfile);
+                    _db.UserProfiles.Remove(userProfile);
+                }
+
+                _db.Users.Attach(user);
+                _db.Users.Remove(user);
+                
+                await _db.SaveChangesAsync(ct);
+
+                // Log permanent deletion
+                if (_auditService != null)
+                {
+                    var deletedBy = deletedByUserId.HasValue 
+                        ? await _db.Users.Include(u => u.Role).AsNoTracking().FirstOrDefaultAsync(u => u.UserId == deletedByUserId.Value, ct)
+                        : null;
+
+                    await _auditService.LogAsync(
+                        action: "USER_DELETE",
+                        entityType: "User",
+                        entityId: userId,
+                        userId: deletedByUserId,
+                        userType: deletedBy?.Role?.RoleName ?? "System",
+                        userName: deletedBy != null ? $"{deletedBy.Username} ({deletedBy.Email})" : "System",
+                        oldValues: userDetails,
+                        description: $"User '{user.Username}' permanently deleted by {deletedBy?.Username ?? "System"}",
+                        severity: "Critical",
+                        isSuccessful: true
+                    );
+                }
+
+                return (true, null);
+            }
         }
         catch (DbUpdateException ex)
         {
@@ -866,4 +938,11 @@ public class UserService(AppDbContext db, AuditService? auditService = null) : I
         // Call the main DeleteUserAsync with default deletedByUserId
         return await DeleteUserAsync(userId, null, ct);
     }
+}
+
+public class DelegateDbContextFactory<TContext> : IDbContextFactory<TContext> where TContext : DbContext
+{
+    private readonly Func<TContext> _factory;
+    public DelegateDbContextFactory(Func<TContext> factory) => _factory = factory;
+    public TContext CreateDbContext() => _factory();
 }

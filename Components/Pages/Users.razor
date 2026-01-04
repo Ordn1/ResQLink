@@ -1,5 +1,48 @@
 @page "/users"
-@inject IJSRuntime JS
+@using ResQLink.Components.Shared
+
+@* ========== ALERT MODALS - ADD AT TOP ========== *@
+
+@* Success Alerts *@
+<AlertModal @bind-IsVisible="showSaveSuccess"
+            Title="@successTitle"
+            Message="@successMessage"
+            Type="AlertModal.AlertType.Success" />
+
+<AlertModal @bind-IsVisible="showDeleteSuccess"
+            Title="User Deleted"
+            Message="User deleted successfully!"
+            Type="AlertModal.AlertType.Success" />
+
+@* Error/Validation Alerts *@
+<AlertModal @bind-IsVisible="showValidationError"
+            Title="Validation Error"
+            Message="@errorMessage"
+            Type="AlertModal.AlertType.Warning" />
+
+@* Confirmation Dialogs *@
+<AlertModal @bind-IsVisible="showCloseConfirm"
+            Title="Unsaved Changes"
+            Message="Are you sure you want to close this form? Any unsaved changes will be lost."
+            Type="AlertModal.AlertType.Warning"
+            ShowCancel="true"
+            ConfirmText="Close Anyway"
+            CancelText="Keep Editing"
+            OnConfirm="ConfirmCloseModal"
+            OnCancel="CancelCloseModal" />
+
+<AlertModal @bind-IsVisible="showDeleteConfirm"
+            Title="Delete User"
+            Message="@deleteConfirmMessage"
+            DetailMessage="⚠️ This action cannot be undone."
+            Type="AlertModal.AlertType.Warning"
+            ShowCancel="true"
+            ConfirmText="Delete"
+            CancelText="Cancel"
+            OnConfirm="ExecuteDelete"
+            OnCancel="CancelDelete" />
+
+@* ========== END ALERT MODALS ========== *@
 
 <div class="users-root">
 
@@ -8,7 +51,7 @@
             <h2 class="panel-title">Users Management</h2>
             <div class="panel-actions">
                 <input class="mini-input"
-                       placeholder="Search name or email�"
+                       placeholder="Search name or email…"
                        @bind="search"
                        @bind:event="oninput" />
                 <select class="mini-input" @bind="roleFilter">
@@ -57,7 +100,7 @@
                                     <button class="action-btn edit" @onclick="() => OpenEditModal(u)" title="Edit">
                                         <i class="bi bi-pencil"></i>
                                     </button>
-                                    <button class="action-btn delete" @onclick="() => ConfirmDelete(u)" title="Delete">
+                                    <button class="action-btn delete" @onclick="() => ShowDeleteConfirmation(u)" title="Delete">
                                         <i class="bi bi-trash"></i>
                                     </button>
                                 </td>
@@ -84,11 +127,11 @@
     @* Add/Edit User Modal *@
     @if (showModal)
     {
-        <div class="modal-overlay" @onclick="async () => await CloseModal()" @onclick:stopPropagation="false">
+        <div class="modal-overlay" @onclick="CloseModal" @onclick:stopPropagation="false">
             <div class="modal-dialog" @onclick:stopPropagation="true">
                 <div class="modal-header">
                     <h3>@(editMode ? "Edit User" : "Add User")</h3>
-                    <button class="modal-close" @onclick="async () => await CloseModal()">&times;</button>
+                    <button class="modal-close" @onclick="CloseModal" disabled="@saving">&times;</button>
                 </div>
                 <div class="modal-body">
                     <div class="form-row">
@@ -120,17 +163,12 @@
                         </div>
                     </div>
 
-                    @if (!string.IsNullOrEmpty(errorMessage))
-                    {
-                        <div class="form-error">@errorMessage</div>
-                    }
-
                     <div class="modal-actions">
                         @if (editMode)
                         {
                             <button type="button"
                                     class="btn-danger"
-                                    @onclick="() => DeleteUser(editUser.Id)"
+                                    @onclick="() => ShowDeleteConfirmation(editUser)"
                                     disabled="@saving"
                                     @onclick:stopPropagation="true">
                                 @if (saving)
@@ -142,7 +180,7 @@
                         }
                         <button type="button"
                                 class="btn-cancel"
-                                @onclick="async () => await CloseModal()"
+                                @onclick="CloseModal"
                                 disabled="@saving"
                                 @onclick:stopPropagation="true">
                             Cancel
@@ -159,29 +197,6 @@
                             Save
                         </button>
                     </div>
-                </div>
-            </div>
-        </div>
-    }
-
-    @* Simple delete confirmation modal *@
-    @if (showDeleteConfirm)
-    {
-        <div class="modal-overlay" @onclick="() => showDeleteConfirm = false" @onclick:stopPropagation="false">
-            <div class="modal-dialog modal-sm" @onclick:stopPropagation="true">
-                <div class="modal-header">
-                    <h3>Delete User</h3>
-                    <button class="modal-close" @onclick="() => showDeleteConfirm = false">&times;</button>
-                </div>
-                <div class="modal-body">
-                    <p style="font-size:.85rem;">
-                        Are you sure you want to delete user
-                        <strong>@userToDelete?.Name</strong>?
-                    </p>
-                </div>
-                <div class="modal-actions">
-                    <button class="btn-cancel" @onclick="() => showDeleteConfirm = false">Cancel</button>
-                    <button class="btn-danger" @onclick="PerformDelete">Delete</button>
                 </div>
             </div>
         </div>
@@ -209,13 +224,19 @@
     private UserVm editUser = new();
     private string errorMessage = string.Empty;
 
-    // delete confirm state
-    private bool showDeleteConfirm;
-    private UserVm? userToDelete;
+    // NEW: Alert modal state variables
+    private bool showSaveSuccess = false;
+    private string successTitle = "";
+    private string successMessage = "";
+    private bool showDeleteSuccess = false;
+    private bool showValidationError = false;
+    private bool showCloseConfirm = false;
+    private bool showDeleteConfirm = false;
+    private string deleteConfirmMessage = "";
+    private UserVm? userToDelete = null;
 
     protected override void OnInitialized()
     {
-        // seed demo admin user
         users = new List<UserVm>
         {
             new UserVm
@@ -274,16 +295,33 @@
         showModal = true;
     }
 
-    private async Task CloseModal()
+    private void CloseModal()
     {
         if (saving) return;
         
-        var confirmed = await JS.InvokeAsync<bool>("confirm", "Are you sure you want to close this form? Any unsaved changes will be lost.");
-        if (!confirmed) return;
+        // Check if there are changes
+        if (!string.IsNullOrWhiteSpace(editUser.Name) || !string.IsNullOrWhiteSpace(editUser.Email) || !string.IsNullOrWhiteSpace(editUser.Role))
+        {
+            showCloseConfirm = true;
+            return;
+        }
         
         showModal = false;
         errorMessage = string.Empty;
         editUser = new();
+    }
+
+    private void ConfirmCloseModal()
+    {
+        showCloseConfirm = false;
+        showModal = false;
+        errorMessage = string.Empty;
+        editUser = new();
+    }
+
+    private void CancelCloseModal()
+    {
+        showCloseConfirm = false;
     }
 
     private async Task SaveUser()
@@ -294,18 +332,21 @@
         if (string.IsNullOrWhiteSpace(editUser.Name))
         {
             errorMessage = "Name is required.";
+            showValidationError = true;
             return;
         }
 
         if (string.IsNullOrWhiteSpace(editUser.Email))
         {
             errorMessage = "Email is required.";
+            showValidationError = true;
             return;
         }
 
         if (string.IsNullOrWhiteSpace(editUser.Role))
         {
             errorMessage = "Role is required.";
+            showValidationError = true;
             return;
         }
 
@@ -322,6 +363,9 @@
                     existing.Role = editUser.Role;
                     existing.IsActive = editUser.IsActive;
                 }
+                
+                successTitle = "User Updated";
+                successMessage = $"User '{editUser.Name}' updated successfully!";
             }
             else
             {
@@ -335,10 +379,14 @@
                     IsActive = editUser.IsActive
                 };
                 users.Add(newUser);
+                
+                successTitle = "User Created";
+                successMessage = $"User '{editUser.Name}' created successfully!";
             }
 
-            await Task.Delay(150); // tiny delay to simulate async
+            await Task.Delay(150);
             showModal = false;
+            showSaveSuccess = true;
         }
         finally
         {
@@ -346,26 +394,29 @@
         }
     }
 
-    private void ConfirmDelete(UserVm user)
+    private void ShowDeleteConfirmation(UserVm user)
     {
         userToDelete = user;
+        deleteConfirmMessage = $"Are you sure you want to delete user '{user.Name}'?";
         showDeleteConfirm = true;
     }
 
-    private void PerformDelete()
+    private void CancelDelete()
     {
-        if (userToDelete != null)
-        {
-            users.RemoveAll(u => u.Id == userToDelete.Id);
-        }
         showDeleteConfirm = false;
         userToDelete = null;
     }
 
-    private void DeleteUser(int id)
+    private void ExecuteDelete()
     {
-        users.RemoveAll(u => u.Id == id);
-        showModal = false;
+        if (userToDelete != null)
+        {
+            users.RemoveAll(u => u.Id == userToDelete.Id);
+            showDeleteConfirm = false;
+            showModal = false;
+            showDeleteSuccess = true;
+            userToDelete = null;
+        }
     }
 
     private string RoleChipClass(string role) => role.ToLowerInvariant() switch
