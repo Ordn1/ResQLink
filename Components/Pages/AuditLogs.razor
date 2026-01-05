@@ -10,7 +10,7 @@
     @if (!Auth.IsAdmin())
     {
         <div class="access-denied">
-            <i class="bi bi-shield-x"></i>
+            <i class="bi bi-shield-fill"></i>
             <h2>Access Denied</h2>
             <p>You must be an administrator to view audit logs.</p>
         </div>
@@ -21,7 +21,7 @@
     <header class="page-header">
         <div>
             <p class="page-subtitle">
-                <i class="bi bi-journal-text"></i>
+                <i class="bi bi-journal-text-fill"></i>
                 Finance‑aligned activity tracking and forensic analysis
             </p>
         </div>
@@ -98,7 +98,7 @@
 
                 <div class="controls-right">
                     <button class="btn-primary" @onclick="ApplyFilters" disabled="@isLoading">
-                        <i class="bi bi-search"></i>
+                        <i class="bi bi-funnel-fill"></i>
                         <span>@(isLoading ? "Filtering..." : "Apply Filters")</span>
                     </button>
                 </div>
@@ -151,7 +151,7 @@
                 <div class="kpi-header">
                     <div class="kpi-label">CRITICAL</div>
                     <div class="kpi-icon-circle" style="background:#fee2e2; color:#7f1d1d;">
-                        <i class="bi bi-radioactive"></i>
+                        <i class="bi bi-lightning-fill"></i>
                     </div>
                 </div>
                 <div class="kpi-value" style="color:#dc2626;">
@@ -161,7 +161,7 @@
         </div>
     </section>
 
-    <!-- NEW: Table structure matching Manage User -->
+    <!-- Table structure matching Manage User -->
     <div class="audit-table-container">
         @if (isLoading)
         {
@@ -247,7 +247,7 @@
                 </tbody>
             </table>
 
-            <!-- NEW: Pagination matching Manage User -->
+            <!-- Pagination matching Manage User -->
             @if (TotalFiltered > 0)
             {
                 <div class="pagination-container">
@@ -255,7 +255,6 @@
                         Showing @StartIndex to @EndIndex of @TotalFiltered entries
                     </div>
                     <div class="pagination-controls">
-                        <!-- Keep page size selector but style it subtly to fit -->
                         <select @bind="pageSize" @bind:after="ResetPagination" class="page-size-select">
                             <option value="10">10 / page</option>
                             <option value="25">25 / page</option>
@@ -384,6 +383,7 @@
                 Message="You must be an administrator to view audit logs."
                 Type="AlertModal.AlertType.Warning" />
 </div>
+
 @code {
     private List<AuditLog> logs = new();
     private AuditLog? selectedLog;
@@ -482,7 +482,7 @@
         _pageIndex = 0;
     }
 
-    private string GetActionClass(string action) => "action-badge"; // All use default colored text now, specificity handled in CSS
+    private string GetActionClass(string action) => "action-badge";
 
     private string GetSeverityClass(string? severity) => severity?.ToUpperInvariant() switch
     {

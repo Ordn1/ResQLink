@@ -87,10 +87,11 @@ else
                         }
                     </button>
 
+                    @* Volunteers navigation button *@
                     <button class='nav-btn @ActiveClass("/volunteers")' 
                             @onclick='() => Go("/volunteers")'
                             title="Volunteers">
-                        <i class="bi bi-person-badge nav-icon"></i>
+                        <i class="bi bi-person-badge-fill nav-icon"></i>
                         @if (!_sidebarCollapsed)
                         {
                             <span class="nav-text">Volunteers</span>

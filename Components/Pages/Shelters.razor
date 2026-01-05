@@ -64,7 +64,7 @@
             <h2 class="panel-title">Shelters Overview</h2>
             <div class="panel-actions">
                 <button class="mini-btn btn-primary" @onclick="BeginCreate" disabled="@showForm">
-                    <i class="bi bi-house-add"></i> Add Shelter
+                    <i class="bi bi-plus-circle-fill"></i> Add Shelter
                 </button>
                 <button class="mini-btn" @onclick="RefreshAsync" title="Refresh">
                     <i class="bi bi-arrow-clockwise"></i>
@@ -75,7 +75,7 @@
         <div class="kpi-grid">
             <div class="kpi-card">
                 <div class="kpi-icon">
-                    <i class="bi bi-houses"></i>
+                    <i class="bi bi-house-heart-fill"></i>
                 </div>
                 <div class="kpi-content">
                     <div class="kpi-label">Total Shelters</div>
@@ -84,7 +84,7 @@
             </div>
             <div class="kpi-card">
                 <div class="kpi-icon">
-                    <i class="bi bi-check-circle"></i>
+                    <i class="bi bi-check-circle-fill"></i>
                 </div>
                 <div class="kpi-content">
                     <div class="kpi-label">Active</div>
@@ -93,7 +93,7 @@
             </div>
             <div class="kpi-card">
                 <div class="kpi-icon">
-                    <i class="bi bi-x-circle"></i>
+                    <i class="bi bi-x-circle-fill"></i>
                 </div>
                 <div class="kpi-content">
                     <div class="kpi-label">Inactive</div>
@@ -122,7 +122,7 @@
                 </select>
                 <button class="mini-btn" @onclick="ClearFilters">Clear</button>
                 <button class="mini-btn btn-primary" @onclick="BeginCreate" disabled="@showForm">
-                    <i class="bi bi-plus-circle"></i> New
+                    <i class="bi bi-plus-circle-fill"></i> New
                 </button>
             </div>
         </header>
@@ -159,19 +159,19 @@
                                         @onclick="() => BeginEdit(s.Id)"
                                         disabled="@(showForm || showDeleteConfirm)"
                                         title="Edit shelter">
-                                    <i class="bi bi-pencil"></i>
+                                    <i class="bi bi-pencil-fill"></i>
                                 </button>
                                 <button class="action-btn view"
                                         @onclick="() => ViewStock(s.Id)"
                                         disabled="@(showForm || showDeleteConfirm)"
                                         title="View stock">
-                                    <i class="bi bi-box-seam"></i>
+                                    <i class="bi bi-box-seam-fill"></i>
                                 </button>
                                 <button class="action-btn delete"
                                         @onclick="() => ShowArchiveConfirmation(s)"
                                         disabled="@(showForm || showDeleteConfirm || isArchiving)"
                                         title="Archive shelter">
-                                    <i class="bi bi-archive"></i>
+                                    <i class="bi bi-archive-fill"></i>
                                 </button>
                             </td>
                         </tr>
@@ -200,7 +200,7 @@
 
         <footer class="panel-foot">
             <div class="foot-left">
-                <i class="bi bi-info-circle"></i>
+                <i class="bi bi-info-circle-fill"></i>
                 Showing @StartIndex–@EndIndex of @FilteredCount shelters
             </div>
             <div class="foot-right">

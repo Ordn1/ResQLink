@@ -69,7 +69,7 @@
             <h2 class="panel-title">Disasters Overview</h2>
             <div class="panel-actions">
                 <button class="mini-btn btn-primary" @onclick="ShowCreateModal" disabled="@showModal">
-                    <i class="bi bi-plus-circle"></i> Add Disaster
+                    <i class="bi bi-plus-circle-fill"></i> Add Disaster
                 </button>
                 <button class="mini-btn" @onclick="Refresh" title="Refresh">
                     <i class="bi bi-arrow-clockwise"></i>
@@ -80,7 +80,7 @@
         <div class="kpi-grid">
             <div class="kpi-card">
                 <div class="kpi-icon">
-                    <i class="bi bi-exclamation-triangle"></i>
+                    <i class="bi bi-exclamation-triangle-fill"></i>
                 </div>
                 <div class="kpi-content">
                     <div class="kpi-label">Active</div>
@@ -89,7 +89,7 @@
             </div>
             <div class="kpi-card">
                 <div class="kpi-icon">
-                    <i class="bi bi-collection"></i>
+                    <i class="bi bi-layers-fill"></i>
                 </div>
                 <div class="kpi-content">
                     <div class="kpi-label">Total</div>
@@ -165,19 +165,19 @@
                                         @onclick="() => ShowEditModal(disaster)" 
                                         disabled="@(showModal || showDetailsModal)"
                                         title="Edit">
-                                    <i class="bi bi-pencil"></i>
+                                    <i class="bi bi-pencil-fill"></i>
                                 </button>
                                 <button class="action-btn view" 
                                         @onclick="() => ShowDetailsModal(disaster)" 
                                         disabled="@(showModal || showDetailsModal)"
                                         title="View Details">
-                                    <i class="bi bi-search"></i>
+                                    <i class="bi bi-eye-fill"></i>
                                 </button>
                                 <button class="action-btn delete" 
                                         @onclick="() => ShowDeleteConfirmation(disaster)" 
                                         disabled="@(showModal || showDetailsModal || showDeleteConfirm)"
                                         title="Archive">
-                                    <i class="bi bi-archive"></i>
+                                    <i class="bi bi-archive "></i>
                                 </button>
                             </td>
                         </tr>
