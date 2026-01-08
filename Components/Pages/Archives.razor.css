@@ -388,9 +388,9 @@
     }
 
 .btn-secondary {
-    background: #ecfdf5;
-    color: #059669;
-    border: 1px solid #d1fae5;
+    background: #f3f4f6;
+    color: #374151;
+    border: none;
     padding: 10px 20px;
     border-radius: 999px;
     cursor: pointer;
@@ -399,12 +399,11 @@
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    transition: all 0.2s;
+   
 }
 
     .btn-secondary:hover {
-        background: #d1fae5;
-        border-color: #10b981;
+        background: #e5e7eb;
     }
 
 /* Modal */
