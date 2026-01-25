@@ -1039,12 +1039,12 @@
     private bool CanViewSection(string sectionId)
     {
         // Admin can view all sections
-        if (Auth.IsAdmin())
+        if (Auth.IsAdmin () || Auth.IsSuperAdmin() )
             return true;
 
         return sectionId switch
         {
-            "executive-summary" => Auth.IsAdmin(), // Admin only
+            "executive-summary" => Auth.IsAdmin() || Auth.IsSuperAdmin(), // Admin and Supper Admin
             "disaster-overview" => Auth.IsOperationOfficer(), // Operation Officer
             "evacuee-stats" => Auth.IsOperationOfficer(), // Operation Officer
             "shelter-ops" => Auth.IsOperationOfficer(), // Operation Officer

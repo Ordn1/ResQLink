@@ -122,9 +122,9 @@
 
     protected override async Task OnInitializedAsync()
     {
-        // Load available roles (exclude Admin role from self-registration)
+        // Load available roles (exclude Admin and Super Admin from self-registration)
         var allRoles = await UserService.GetAllRolesAsync();
-        AvailableRoles = allRoles.Where(r => r.RoleName != "Admin").ToList();
+        AvailableRoles = allRoles.Where(r => r.RoleName != "Admin" && r.RoleName != "Super Admin").ToList();
     }
 
     private async Task VerifyAdmin()

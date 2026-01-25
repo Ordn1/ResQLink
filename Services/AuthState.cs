@@ -44,27 +44,34 @@ namespace ResQLink.Services
         public bool IsFinanceManager() => IsInRole("Finance Manager");
         public bool IsInventoryManager() => IsInRole("Inventory Manager");
         public bool IsAdmin() => IsInRole("Admin");
+        public bool IsSuperAdmin() => IsInRole("Super Admin");
         public bool IsOperationOfficer() => IsInRole("Operation Officer");
         public bool IsVolunteer() => IsInRole("Volunteer");
 
         public bool CanViewInventory() =>
-            HasAnyRole("Admin", "Inventory Manager", "Finance Manager");
+            IsSuperAdmin() || HasAnyRole("Admin", "Inventory Manager", "Finance Manager");
 
         public bool CanAccessReports() =>
-            HasAnyRole("Admin", "Finance Manager", "Operation Officer", "Inventory Manager");
+            IsSuperAdmin() || HasAnyRole("Admin", "Finance Manager", "Operation Officer", "Inventory Manager");
 
         public bool CanManageBudget() => 
-            IsInRole("Admin") || IsInRole("Finance Manager");
+            IsSuperAdmin() || IsInRole("Admin") || IsInRole("Finance Manager");
 
-        // Operation Officer and Admin can access disaster response pages (NOT Volunteers)
+        // Operation Officer, Admin, and Super Admin can access disaster response pages (NOT Volunteers)
         public bool CanAccessDisasterResponse() =>
-            HasAnyRole("Admin", "Operation Officer") || 
+            IsSuperAdmin() || HasAnyRole("Admin", "Operation Officer") || 
             (!IsInventoryManager() && !IsFinanceManager() && !IsVolunteer());
 
         public bool CanAccess(string path)
         {
             if (!IsAuthenticated) return false;
             path = path.ToLowerInvariant();
+
+            // Super Admin can access everything EXCEPT volunteer dashboard
+            if (IsSuperAdmin())
+            {
+                return path != "/volunteer-dashboard";
+            }
 
             // Volunteers can ONLY access their dashboard and settings
             if (IsVolunteer())
@@ -81,7 +88,7 @@ namespace ResQLink.Services
                 "/home" => !IsVolunteer(),
                 "/volunteer-dashboard" => IsVolunteer(),
                 
-                // Disaster response pages - accessible to Operation Officer and Admin (NOT Volunteers)
+                // Disaster response pages - accessible to Operation Officer, Admin, and Super Admin (NOT Volunteers)
                 "/disasters" => CanAccessDisasterResponse(),
                 "/evacuees" => CanAccessDisasterResponse(),
                 "/shelters" => CanAccessDisasterResponse(),
@@ -89,25 +96,27 @@ namespace ResQLink.Services
                 
                 // Inventory management - restricted
                 "/inventory" => CanViewInventory(),
-                "/categories" => HasAnyRole("Admin", "Inventory Manager"),
-                "/stocks" => HasAnyRole("Admin", "Inventory Manager"),
-                "/suppliers" => HasAnyRole("Admin", "Inventory Manager"),
+                "/categories" => IsSuperAdmin() || HasAnyRole("Admin", "Inventory Manager"),
+                "/stocks" => IsSuperAdmin() || HasAnyRole("Admin", "Inventory Manager"),
+                "/suppliers" => IsSuperAdmin() || HasAnyRole("Admin", "Inventory Manager"),
                 
                 // Finance
-                "/finance" => IsFinanceManager() || IsAdmin(),
+                "/finance" => IsSuperAdmin() || IsFinanceManager() || IsAdmin(),
                 
-                // Reports - accessible to Admin, Finance Manager, Operation Officer, and Inventory Manager
+                // Reports - accessible to Admin, Finance Manager, Operation Officer, Inventory Manager, and Super Admin
                 "/reports" => CanAccessReports(),
+                "/reports/enhanced" => CanAccessReports(),
                 
                 // Admin section
-                "/audit-logs" => IsAdmin(),
-                "/admin/audit-logs" => IsAdmin(),
-                "/manage-users" => IsAdmin(),
+                "/audit-logs" => IsSuperAdmin() || IsAdmin(),
+                "/admin/audit-logs" => IsSuperAdmin() || IsAdmin(),
+                "/admin/archives" => IsSuperAdmin() || IsAdmin(),
+                "/manage-users" => IsSuperAdmin() || IsAdmin(),
                 
                 // Settings - allow ALL authenticated roles
                 "/settings" => IsAuthenticated,
                 
-                _ => !IsVolunteer() // default deny for volunteers
+                _ => IsSuperAdmin() || !IsVolunteer() // Super Admin gets access by default, deny volunteers for unknown routes
             };
         }
     }

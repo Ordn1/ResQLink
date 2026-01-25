@@ -54,8 +54,8 @@ else
                     }
                 </button>
 
-                @* Show Disasters, Evacuees, Shelters, Volunteers for Operation Officer only (NOT Admin) *@
-                @if (Auth.CanAccessDisasterResponse() && !Auth.IsAdmin())
+                @* Show Disasters, Evacuees, Shelters, Volunteers for Operation Officer and Super Admin *@
+                @if (Auth.CanAccessDisasterResponse() && (Auth.IsOperationOfficer() || Auth.IsSuperAdmin()))
                 {
                     <button class='nav-btn @ActiveClass("/disasters")' 
                             @onclick='() => Go("/disasters")'
@@ -99,10 +99,10 @@ else
                     </button>
                 }
 
-                @* Show Inventory section for Inventory Manager and Finance Manager only (NOT Admin) *@
-                @if (Auth.CanViewInventory() && !Auth.IsAdmin())
+                @* Show Inventory section for Inventory Manager, Finance Manager, and Super Admin *@
+                @if (Auth.CanViewInventory() && (Auth.IsInventoryManager() || Auth.IsFinanceManager() || Auth.IsSuperAdmin()))
                 {
-                    @if (Auth.IsFinanceManager())
+                    @if (Auth.IsFinanceManager() && !Auth.IsSuperAdmin())
                     {
                         @* Finance Manager: Only show Inventory Overview (read-only) *@
                         <button class='nav-btn @ActiveClass("/inventory")' 
@@ -114,19 +114,10 @@ else
                                 <span class="nav-text">Inventory Overview</span>
                             }
                         </button>
-                        <button class='nav-btn @ActiveClass("/finance")' 
-                                @onclick='() => Go("/finance")'
-                                title="Finance">
-                            <i class="bi bi-cash-coin nav-icon"></i>
-                            @if (!_sidebarCollapsed)
-                            {
-                                <span class="nav-text">Finance</span>
-                            }
-                        </button>
                     }
-                    else if (Auth.IsInventoryManager())
+                    else if (Auth.IsInventoryManager() || Auth.IsSuperAdmin())
                     {
-                        @* Inventory Manager: Full inventory menu with dropdown *@
+                        @* Inventory Manager and Super Admin: Full inventory menu with dropdown *@
                         <div class="nav-item-with-menu">
 
                             <!-- Parent button -->
@@ -198,7 +189,21 @@ else
                     }
                 }
 
-                @* Show Reports for Finance Manager, Inventory Manager, Admin, and Operation Officer *@
+                @* Finance section - Show for Finance Manager and Super Admin *@
+                @if (Auth.IsFinanceManager() || Auth.IsSuperAdmin())
+                {
+                    <button class='nav-btn @ActiveClass("/finance")' 
+                            @onclick='() => Go("/finance")'
+                            title="Finance">
+                        <i class="bi bi-cash-coin nav-icon"></i>
+                        @if (!_sidebarCollapsed)
+                        {
+                            <span class="nav-text">Finance</span>
+                        }
+                    </button>
+                }
+
+                @* Show Reports for Finance Manager, Inventory Manager, Operation Officer, and Super Admin *@
                 @if (Auth.CanAccessReports())
                 {
                     <button class='nav-btn @ActiveClass("/reports")' 
@@ -212,8 +217,8 @@ else
                     </button>
                 }
 
-                @* Admin-only section *@
-                @if (Auth.IsAdmin())
+                @* Admin and Super Admin section *@
+                @if (Auth.IsAdmin() || Auth.IsSuperAdmin())
                 {
                     <button class='nav-btn @ActiveClass("/admin/audit-logs")' 
                             @onclick='() => Go("/admin/audit-logs")'

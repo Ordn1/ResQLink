@@ -8,29 +8,45 @@ public static class AuthorizationHelper
     private static readonly Dictionary<string, string[]> RoleAccess = new()
     {
         {
+            "Super Admin", new[]
+            {
+                "/home", "/evacuees", "/shelters", "/disasters", "/volunteers",
+                "/inventory", "/stocks", "/suppliers", "/categories",
+                "/finance", "/reports", "/reports/enhanced",
+                "/audit-logs", "/admin/audit-logs", "/admin/archives", "/manage-users", "/settings"
+            }
+        },
+        {
             "Admin", new[]
             {
-                "/home", "/evacuees", "/shelters", "/disasters",
+                "/home", "/evacuees", "/shelters", "/disasters", "/volunteers",
                 "/inventory", "/stocks", "/suppliers", "/categories",
-                "/reports", "/audit-logs", "/manage-users", "/settings"
+                "/finance", "/reports", "/reports/enhanced",
+                "/audit-logs", "/admin/audit-logs", "/admin/archives", "/manage-users", "/settings"
             }
         },
         {
             "Inventory Manager", new[]
             {
-                "/home", "/inventory", "/stocks", "/suppliers", "/categories", "/settings"
+                "/home", "/inventory", "/stocks", "/suppliers", "/categories", "/reports", "/settings"
             }
         },
         {
             "Finance Manager", new[]
             {
-                "/home", "/inventory", "/reports", "/settings"
+                "/home", "/inventory", "/finance", "/reports", "/reports/enhanced", "/settings"
+            }
+        },
+        {
+            "Operation Officer", new[]
+            {
+                "/home", "/evacuees", "/shelters", "/disasters", "/volunteers", "/reports", "/settings"
             }
         },
         {
             "Volunteer", new[]
             {
-                "/home", "/evacuees", "/shelters", "/disasters", "/settings"
+                "/volunteer-dashboard", "/settings"
             }
         }
     };
@@ -40,9 +56,17 @@ public static class AuthorizationHelper
         if (!authState.IsAuthenticated || authState.CurrentRole == null)
             return false;
 
-        // Admin has access to everything
+        // Super Admin has access to everything except volunteer dashboard
+        if (authState.CurrentRole.Equals("Super Admin", StringComparison.OrdinalIgnoreCase))
+        {
+            return !path.Equals("/volunteer-dashboard", StringComparison.OrdinalIgnoreCase);
+        }
+
+        // Admin has access to everything except volunteer dashboard
         if (authState.CurrentRole.Equals("Admin", StringComparison.OrdinalIgnoreCase))
-            return true;
+        {
+            return !path.Equals("/volunteer-dashboard", StringComparison.OrdinalIgnoreCase);
+        }
 
         // Check if the role has access to this path
         if (RoleAccess.TryGetValue(authState.CurrentRole, out var allowedPaths))
@@ -80,21 +104,30 @@ public static class AuthorizationHelper
                authState.CurrentRole.Equals("Admin", StringComparison.OrdinalIgnoreCase);
     }
 
+    public static bool IsSuperAdmin(this AuthState authState)
+    {
+        return authState.IsAuthenticated && 
+               authState.CurrentRole != null &&
+               authState.CurrentRole.Equals("Super Admin", StringComparison.OrdinalIgnoreCase);
+    }
+
     public static bool CanAccessInventoryManagement(this AuthState authState)
     {
-        // Only Admin and Inventory Manager can fully manage inventory (add/edit/delete)
-        return authState.IsAdmin() || authState.IsInventoryManager();
+        // Super Admin, Admin, and Inventory Manager can fully manage inventory (add/edit/delete)
+        return authState.IsSuperAdmin() || authState.IsAdmin() || authState.IsInventoryManager();
     }
 
     public static bool CanViewInventory(this AuthState authState)
     {
-        // Admin, Inventory Manager, and Finance Manager can view inventory
-        return authState.IsAdmin() || authState.IsInventoryManager() || authState.IsFinanceManager();
+        // Super Admin, Admin, Inventory Manager, and Finance Manager can view inventory
+        return authState.IsSuperAdmin() || authState.IsAdmin() || authState.IsInventoryManager() || authState.IsFinanceManager();
     }
 
     public static bool CanAccessReports(this AuthState authState)
     {
-        // Admin and Finance Manager can access reports
-        return authState.IsAdmin() || authState.IsFinanceManager();
+        // Super Admin, Admin, Finance Manager, Operation Officer, and Inventory Manager can access reports
+        return authState.IsSuperAdmin() || authState.IsAdmin() || authState.IsFinanceManager() || 
+               (authState.CurrentRole != null && authState.CurrentRole.Equals("Operation Officer", StringComparison.OrdinalIgnoreCase)) ||
+               authState.IsInventoryManager();
     }
 }

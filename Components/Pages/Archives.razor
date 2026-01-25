@@ -72,7 +72,7 @@
 @* ========== END ALERT MODALS ========== *@
 
 <div class="archives-root">
-    @if (!Auth.IsAdmin())
+    @if (!Auth.IsAdmin() && !Auth.IsSuperAdmin())
     {
         <div class="access-denied">
             <i class="bi bi-shield-x"></i>
@@ -370,7 +370,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        if (!Auth.IsAdmin())
+        if (!Auth.IsAdmin() && !Auth.IsSuperAdmin())
         {
             showAccessDenied = true;
             return;

@@ -28,6 +28,15 @@ public class UserService(
             await _db.SaveChangesAsync(ct);
         }
 
+        // Seed Super Admin role
+        var superAdminRole = await _db.UserRoles.FirstOrDefaultAsync(r => r.RoleName == "Super Admin", ct);
+        if (superAdminRole is null)
+        {
+            superAdminRole = new UserRole { RoleName = "Super Admin", Description = "Super administrator with access to all pages except volunteer dashboard" };
+            _db.UserRoles.Add(superAdminRole);
+            await _db.SaveChangesAsync(ct);
+        }
+
         // Seed Inventory Manager role
         var invManagerRole = await _db.UserRoles.FirstOrDefaultAsync(r => r.RoleName == "Inventory Manager", ct);
         if (invManagerRole is null)
@@ -95,16 +104,119 @@ public class UserService(
             _db.UserProfiles.Add(adminProfile);
             await _db.SaveChangesAsync(ct);
         }
+
+        // ===== FIXED: Super Admin User Seeding with Proper Username Case =====
+        // Check for existing Super Admin by email OR username (case-insensitive)
+        var superAdminUser = await _db.Users
+            .FirstOrDefaultAsync(u => u.Email == "supadm@example.com" || u.Username.ToLower() == "superadmin", ct);
+        
+        // Use plain text password - HashPassword will convert it to hash
+        var desiredPassword = "SuperAdmin01"; // Plain text password
+        var desiredHash = HashPassword(desiredPassword); // This creates: 63c3e96da7ed01899b8129348e0b7273e8006c907fa39f443f7e6fa83a93c2e4
+        var desiredUsername = "superadmin"; // Lowercase username
+        
+        if (superAdminUser is null)
+        {
+            // Create new Super Admin user with correct username case
+            Console.WriteLine("Creating new Super Admin user...");
+            superAdminUser = new User
+            {
+                Username = desiredUsername,
+                PasswordHash = desiredHash,
+                Email = "supadm@example.com",
+                RoleId = superAdminRole.RoleId,
+                IsActive = true,
+                FailedLoginAttempts = 0,
+                LockoutEnd = null,
+                RequiresPasswordReset = false,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            _db.Users.Add(superAdminUser);
+            await _db.SaveChangesAsync(ct);
+
+            // Create UserProfile for super admin
+            var superAdminProfile = new UserProfile
+            {
+                UserId = superAdminUser.UserId,
+                FirstName = "Super",
+                LastName = "Admin",
+                ContactNumber = string.Empty,
+                Address = string.Empty
+            };
+            _db.UserProfiles.Add(superAdminProfile);
+            await _db.SaveChangesAsync(ct);
+            
+            Console.WriteLine("✅ Super Admin user created successfully!");
+            Console.WriteLine($"   Username: {desiredUsername}");
+            Console.WriteLine($"   Email: supadm@example.com");
+            Console.WriteLine($"   Password: {desiredPassword}");
+        }
+        else
+        {
+            // Update existing Super Admin user
+            bool updated = false;
+            
+            // Fix username case if needed
+            if (superAdminUser.Username != desiredUsername)
+            {
+                Console.WriteLine($"🔧 Fixing username from '{superAdminUser.Username}' to '{desiredUsername}'");
+                superAdminUser.Username = desiredUsername;
+                updated = true;
+            }
+            
+            // Update password if different
+            if (superAdminUser.PasswordHash != desiredHash)
+            {
+                Console.WriteLine("🔐 Updating Super Admin password...");
+                superAdminUser.PasswordHash = desiredHash;
+                updated = true;
+            }
+            
+            // Unlock account and reset failed attempts
+            if (!superAdminUser.IsActive || superAdminUser.LockoutEnd != null || 
+                superAdminUser.FailedLoginAttempts > 0 || superAdminUser.RequiresPasswordReset)
+            {
+                Console.WriteLine("🔓 Unlocking Super Admin account...");
+                superAdminUser.IsActive = true;
+                superAdminUser.FailedLoginAttempts = 0;
+                superAdminUser.LockoutEnd = null;
+                superAdminUser.RequiresPasswordReset = false;
+                updated = true;
+            }
+            
+            if (updated)
+            {
+                superAdminUser.UpdatedAt = DateTime.UtcNow;
+                _db.Users.Update(superAdminUser);
+                await _db.SaveChangesAsync(ct);
+                
+                Console.WriteLine("✅ Super Admin user updated successfully!");
+                Console.WriteLine($"   Username: {superAdminUser.Username}");
+                Console.WriteLine($"   Email: {superAdminUser.Email}");
+                Console.WriteLine($"   Password: {desiredPassword}");
+                Console.WriteLine($"   Status: Active, Unlocked");
+            }
+            else
+            {
+                Console.WriteLine("✓ Super Admin user is already configured correctly.");
+            }
+        }
     }
 
     public async Task<User?> AuthenticateAsync(string username, string password, CancellationToken ct = default)
     {
+        // Log authentication attempt
+        Console.WriteLine($"🔍 Login attempt for username: '{username}'");
+        
         var user = await _db.Users
             .Include(u => u.Role)
             .FirstOrDefaultAsync(u => u.Username == username && u.IsActive, ct);
         
         if (user is null)
         {
+            Console.WriteLine($"❌ User not found or inactive: '{username}'");
+            
             // Log failed login attempt
             if (_auditService != null)
             {
@@ -124,10 +236,14 @@ public class UserService(
             return null;
         }
 
+        Console.WriteLine($"✓ User found: {user.Username} ({user.Email}) - Role: {user.Role?.RoleName}");
+
         // Check if account is locked
         if (IsAccountLocked(user))
         {
             var remainingMinutes = Math.Ceiling((user.LockoutEnd!.Value - DateTime.UtcNow).TotalMinutes);
+            Console.WriteLine($"🔒 Account is locked for {remainingMinutes} more minutes");
+            
             if (_auditService != null)
             {
                 await _auditService.LogAsync(
@@ -148,10 +264,14 @@ public class UserService(
 
         var isValid = VerifyPassword(password, user.PasswordHash);
         
+        Console.WriteLine($"🔐 Password verification: {(isValid ? "✅ SUCCESS" : "❌ FAILED")}");
+        
         if (!isValid)
         {
             // Record failed login attempt
             await RecordFailedLoginAttemptAsync(user, ct);
+            
+            Console.WriteLine($"   Failed attempts: {user.FailedLoginAttempts}");
             
             // Log failed attempt
             if (_auditService != null)
@@ -176,7 +296,9 @@ public class UserService(
         // Successful login - reset failed attempts
         await ResetLoginAttemptsAsync(user, ct);
         
-        // Log login attempt (success or failure)
+        Console.WriteLine($"✅ Login successful for {user.Username}");
+        
+        // Log login success
         if (_auditService != null)
         {
             await _auditService.LogAsync(
@@ -884,7 +1006,8 @@ public class UserService(
             .AsNoTracking()
             .FirstOrDefaultAsync(u => u.UserId == userId && u.IsActive, ct);
 
-        return user?.Role?.RoleName == "Admin";
+        // Allow both Admin and Super Admin to perform administrative operations
+        return user?.Role?.RoleName == "Admin" || user?.Role?.RoleName == "Super Admin";
     }
 
     public async Task<bool> UsernameExistsAsync(string username, CancellationToken ct = default)

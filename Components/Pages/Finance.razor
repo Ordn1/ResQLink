@@ -89,7 +89,7 @@
 
 @* ========== END ALERT MODALS ========== *@
 
-@if (!(Auth.IsInRole("Finance Manager") || Auth.IsInRole("Admin")))
+@if (!(Auth.IsInRole("Finance Manager") || Auth.IsInRole("Admin") || Auth.IsInRole("Super Admin")))
 {
     @* Trigger access denied modal *@
     showAccessDenied = true;
@@ -818,8 +818,30 @@ else
     @* Archive Confirmation Modal *@
    
 
-    @* Budget Archive modal *@
-   
+    @* Budget Archive modal
+    @if (showBudgetArchiveModal)
+    {
+        <div class="modal-overlay" @onclick="CloseBudgetArchiveModal" @onclick:stopPropagation="false">
+            <div class="modal-dialog" @onclick:stopPropagation="true">
+                <div class="modal-header">
+                    <h3>Archive Budget</h3>
+                    <button class="modal-close" @onclick="CloseBudgetArchiveModal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div style="margin-bottom: 16px;">
+                        Are you sure you want to archive the budget for <strong>@budgetToArchiveName</strong>?
+                    </div>
+                    <div class="modal-actions">
+                        <button class="btn-cancel" @onclick="CloseBudgetArchiveModal" disabled="@isBudgetArchiving">Cancel</button>
+                        <button class="btn-primary" @onclick="ArchiveBudget" disabled="@isBudgetArchiving">
+                            @(isBudgetArchiving ? "Archiving…" : "Archive Budget")
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+    *@
 </div>
 }
 
