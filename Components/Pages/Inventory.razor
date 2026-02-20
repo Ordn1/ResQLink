@@ -201,16 +201,6 @@
                             </div>
                         </div>
 
-                        <div style="margin: 12px 0;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                                <span style="font-size: 0.75rem; color: #64748b; font-weight: 500;">Stock Level</span>
-                                <span style="font-size: 0.75rem; color: #64748b; font-weight: 600;">@GetStockLevelPercentage(c)%</span>
-                            </div>
-                            <div class="progress-shell thin">
-                                <div class="progress-bar" style="width:@($"{GetStockLevelPercentage(c)}%"); background: @healthColor"></div>
-                            </div>
-                        </div>
-
                         <div class="cat-footer" style="background: #f8fafc; margin: -12px; margin-top: 12px; padding: 10px 12px; border-radius: 0 0 8px 8px;">
                             <div style="display: flex; align-items: center; gap: 4px; flex: 1;">
                                 <i class="bi bi-exclamation-triangle-fill" style="color: @(c.LowCount > 0 ? "#f59e0b" : "#cbd5e1"); font-size: 0.875rem;"></i>
@@ -451,13 +441,6 @@
         if (outCount > 0) return "bi-x-circle-fill";
         if (lowCount > 0) return "bi-exclamation-triangle-fill";
         return "bi-check-circle-fill";
-    }
-
-    private int GetStockLevelPercentage(CategorySummaryRow c)
-    {
-        if (c.ItemCount == 0) return 0;
-        var healthyItems = c.ItemCount - c.LowCount - c.OutCount;
-        return (int)Math.Round((healthyItems / (double)c.ItemCount) * 100);
     }
 
     private async void Refresh()
