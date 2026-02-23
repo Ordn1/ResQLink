@@ -90,7 +90,7 @@ namespace ResQLink
             {
                 var db = sp.GetRequiredService<AppDbContext>();
                 var audit = sp.GetService<AuditService>();
-                var archive = sp.GetService<ArchiveService>(); // Add ArchiveService
+                var archive = sp.GetService<ArchiveService>(); 
                 return new UserService(db, audit, archive);
             });
             builder.Services.AddScoped<IDisasterService>(sp =>

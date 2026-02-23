@@ -36,234 +36,271 @@ else
                 }
             </div>
 
-            <nav class="nav-stack">
+            <!-- Scrollable navigation area -->
+            <div class="sidebar-nav-wrapper">
+                <nav class="nav-stack">
 
-                <!-- Header Label - hide when collapsed -->
-                @if (!_sidebarCollapsed)
-                {
-                    <div class="nav-header-label">Menu</div>
-                }
-
-                <button class='nav-btn @ActiveClass("/home")' 
-                        @onclick='() => Go("/home")'
-                        title="Dashboard">
-                    <i class="bi bi-grid-fill nav-icon"></i>
+                    <!-- Header Label - hide when collapsed -->
                     @if (!_sidebarCollapsed)
                     {
-                        <span class="nav-text">Dashboard</span>
+                        <div class="nav-header-label"></div>
                     }
-                </button>
 
-                @* Show Disasters, Evacuees, Shelters, Volunteers for Operation Officer and Super Admin *@
-                @if (Auth.CanAccessDisasterResponse() && (Auth.IsOperationOfficer() || Auth.IsSuperAdmin()))
-                {
-                    <button class='nav-btn @ActiveClass("/disasters")' 
-                            @onclick='() => Go("/disasters")'
-                            title="Disasters">
-                        <i class="bi bi-exclamation-triangle-fill nav-icon"></i>
+                    <button class='nav-btn @ActiveClass("/home")' 
+                            @onclick='() => Go("/home")'
+                            title="Dashboard">
+                        <i class="bi bi-grid-fill nav-icon"></i>
                         @if (!_sidebarCollapsed)
                         {
-                            <span class="nav-text">Disasters</span>
+                            <span class="nav-text">Dashboard</span>
                         }
                     </button>
 
-                    <button class='nav-btn @ActiveClass("/evacuees")' 
-                            @onclick='() => Go("/evacuees")'
-                            title="Evacuees">
-                        <i class="bi bi-people-fill nav-icon"></i>
-                        @if (!_sidebarCollapsed)
-                        {
-                            <span class="nav-text">Evacuees</span>
-                        }
-                    </button>
-
-                    <button class='nav-btn @ActiveClass("/shelters")' 
-                            @onclick='() => Go("/shelters")'
-                            title="Shelters">
-                        <i class="bi bi-house-heart-fill nav-icon"></i>
-                        @if (!_sidebarCollapsed)
-                        {
-                            <span class="nav-text">Shelters</span>
-                        }
-                    </button>
-
-                    @* Volunteers navigation button *@
-                    <button class='nav-btn @ActiveClass("/volunteers")' 
-                            @onclick='() => Go("/volunteers")'
-                            title="Volunteers">
-                        <i class="bi bi-person-badge-fill nav-icon"></i>
-                        @if (!_sidebarCollapsed)
-                        {
-                            <span class="nav-text">Volunteers</span>
-                        }
-                    </button>
-                }
-
-                @* Show Inventory section for Inventory Manager, Finance Manager, and Super Admin *@
-                @if (Auth.CanViewInventory() && (Auth.IsInventoryManager() || Auth.IsFinanceManager() || Auth.IsSuperAdmin()))
-                {
-                    @if (Auth.IsFinanceManager() && !Auth.IsSuperAdmin())
+                    @* Show Disasters, Evacuees, Shelters, Volunteers for Operation Officer and Super Admin *@
+                    @if (Auth.CanAccessDisasterResponse() && (Auth.IsOperationOfficer() || Auth.IsSuperAdmin()))
                     {
-                        @* Finance Manager: Only show Inventory Overview (read-only) *@
-                        <button class='nav-btn @ActiveClass("/inventory")' 
-                                @onclick='() => Go("/inventory")'
-                                title="Inventory Overview">
-                            <i class="bi bi-box-seam-fill nav-icon"></i>
+                        <button class='nav-btn @ActiveClass("/disasters")' 
+                                @onclick='() => Go("/disasters")'
+                                title="Disasters">
+                            <i class="bi bi-exclamation-triangle-fill nav-icon"></i>
                             @if (!_sidebarCollapsed)
                             {
-                                <span class="nav-text">Inventory Overview</span>
+                                <span class="nav-text">Disasters</span>
+                            }
+                        </button>
+
+                        <button class='nav-btn @ActiveClass("/evacuees")' 
+                                @onclick='() => Go("/evacuees")'
+                                title="Evacuees">
+                            <i class="bi bi-people-fill nav-icon"></i>
+                            @if (!_sidebarCollapsed)
+                            {
+                                <span class="nav-text">Evacuees</span>
+                            }
+                        </button>
+
+                        <button class='nav-btn @ActiveClass("/shelters")' 
+                                @onclick='() => Go("/shelters")'
+                                title="Shelters">
+                            <i class="bi bi-house-heart-fill nav-icon"></i>
+                            @if (!_sidebarCollapsed)
+                            {
+                                <span class="nav-text">Shelters</span>
+                            }
+                        </button>
+
+                        @* Volunteers navigation button *@
+                        <button class='nav-btn @ActiveClass("/volunteers")' 
+                                @onclick='() => Go("/volunteers")'
+                                title="Volunteers">
+                            <i class="bi bi-person-badge-fill nav-icon"></i>
+                            @if (!_sidebarCollapsed)
+                            {
+                                <span class="nav-text">Volunteers</span>
                             }
                         </button>
                     }
-                    else if (Auth.IsInventoryManager() || Auth.IsSuperAdmin())
-                    {
-                        @* Inventory Manager and Super Admin: Full inventory menu with dropdown *@
-                        <div class="nav-item-with-menu">
 
-                            <!-- Parent button -->
-                            <button class='nav-btn @(IsInventoryActive ? "active" : "")'
-                                    @onclick="ToggleInventoryMenu" 
-                                    @onclick:stopPropagation="true"
-                                    title="Inventory">
+                    @* Show Inventory section for Inventory Manager, Finance Manager, and Super Admin *@
+                    @if (Auth.CanViewInventory() && (Auth.IsInventoryManager() || Auth.IsFinanceManager() || Auth.IsSuperAdmin()))
+                    {
+                        @if (Auth.IsFinanceManager() && !Auth.IsSuperAdmin())
+                        {
+                            @* Finance Manager: Only show Inventory Overview (read-only) *@
+                            <button class='nav-btn @ActiveClass("/inventory")' 
+                                    @onclick='() => Go("/inventory")'
+                                    title="Inventory Overview">
                                 <i class="bi bi-box-seam-fill nav-icon"></i>
                                 @if (!_sidebarCollapsed)
                                 {
-                                    <span class="nav-text">
-                                        Inventory
-                                        <i class="bi @(InventoryOpen ? "bi-chevron-up" : "bi-chevron-down")" style="font-size: 0.7rem;"></i>
-                                    </span>
+                                    <span class="nav-text">Inventory Overview</span>
+                                }
+                            </button>
+                        }
+                        else if (Auth.IsInventoryManager() || Auth.IsSuperAdmin())
+                        {
+                            @* Inventory Manager and Super Admin: Full inventory menu with dropdown *@
+                            <div class="nav-item-with-menu">
+
+                                <!-- Parent button -->
+                                <button class='nav-btn @(IsInventoryActive ? "active" : "")'
+                                        @onclick="ToggleInventoryMenu" 
+                                        @onclick:stopPropagation="true"
+                                        title="Inventory">
+                                    <i class="bi bi-box-seam-fill nav-icon"></i>
+                                    @if (!_sidebarCollapsed)
+                                    {
+                                        <span class="nav-text">
+                                            Inventory
+                                            <i class="bi @(InventoryOpen ? "bi-chevron-up" : "bi-chevron-down")" style="font-size: 0.7rem;"></i>
+                                        </span>
+                                    }
+                                </button>
+
+                                @* Dropdown for expanded sidebar *@
+                                @if (InventoryOpen && !_sidebarCollapsed)
+                                {
+                                    <div class="inventory-dropdown" @onclick:stopPropagation="true">
+
+                                        <!-- Inventory Overview -->
+                                        <button class="dropdown-link @(IsActive("/inventory") ? "active-link" : "")"
+                                                @onclick="() => GoInventory()">
+                                            Overview
+                                        </button>
+
+                                        <!-- Dynamic Categories -->
+                                        @foreach (var category in InventoryCategories)
+                                        {
+                                            var categoryPath = $"/inventory/category/{category.Slug}";
+                                            <button class="dropdown-link @(IsActive(categoryPath) ? "active-link" : "")"
+                                                    @onclick="@(() => GoInventoryCategory(category.Slug))">
+                                                @category.Label
+                                            </button>
+                                        }
+
+                                        <!-- Manage Categories -->
+                                        <button class="dropdown-link @(IsActive("/categories") ? "active-link" : "")"
+                                                @onclick="() => GoCategories()">
+                                            + Manage Categories
+                                        </button>
+
+                                    </div>
+                                }
+
+                                @* Flyout popup for collapsed sidebar *@
+                                @if (InventoryOpen && _sidebarCollapsed)
+                                {
+                                    <div class="inventory-flyout" @onclick:stopPropagation="true">
+                                        <div class="flyout-header">Inventory</div>
+
+                                        <!-- Inventory Overview -->
+                                        <button class="flyout-link @(IsActive("/inventory") ? "active-link" : "")"
+                                                @onclick="() => GoInventoryAndClose()">
+                                            <i class="bi bi-eye nav-icon-sm"></i>
+                                            Overview
+                                        </button>
+
+                                        <!-- Dynamic Categories -->
+                                        @foreach (var category in InventoryCategories)
+                                        {
+                                            var categoryPath = $"/inventory/category/{category.Slug}";
+                                            <button class="flyout-link @(IsActive(categoryPath) ? "active-link" : "")"
+                                                    @onclick="@(() => GoInventoryCategoryAndClose(category.Slug))">
+                                                <i class="bi bi-tag nav-icon-sm"></i>
+                                                @category.Label
+                                            </button>
+                                        }
+
+                                        <!-- Manage Categories -->
+                                        <button class="flyout-link @(IsActive("/categories") ? "active-link" : "")"
+                                                @onclick="() => GoCategoriesAndClose()">
+                                            <i class="bi bi-gear nav-icon-sm"></i>
+                                            + Manage Categories
+                                        </button>
+                                    </div>
+                                }
+                            </div>
+
+                            <!-- Stocks -->
+                            <button class='nav-btn @ActiveClass("/stocks")' 
+                                    @onclick='() => Go("/stocks")'
+                                    title="Stocks">
+                                <i class="bi bi-graph-up-arrow nav-icon"></i>
+                                @if (!_sidebarCollapsed)
+                                {
+                                    <span class="nav-text">Stocks</span>
                                 }
                             </button>
 
-                            @if (InventoryOpen && !_sidebarCollapsed)
-                            {
-                                <div class="inventory-dropdown" @onclick:stopPropagation="true">
-
-                                    <!-- Inventory Overview -->
-                                    <button class="dropdown-link @(IsActive("/inventory") ? "active-link" : "")"
-                                            @onclick="() => GoInventory()">
-                                        Overview
-                                    </button>
-
-                                    <!-- Dynamic Categories -->
-                                    @foreach (var category in InventoryCategories)
-                                    {
-                                        var categoryPath = $"/inventory/category/{category.Slug}";
-                                        <button class="dropdown-link @(IsActive(categoryPath) ? "active-link" : "")"
-                                                @onclick="@(() => GoInventoryCategory(category.Slug))">
-                                            @category.Label
-                                        </button>
-                                    }
-
-                                    <!-- Manage Categories -->
-                                    <button class="dropdown-link @(IsActive("/categories") ? "active-link" : "")"
-                                            @onclick="() => GoCategories()">
-                                        + Manage Categories
-                                    </button>
-
-                                </div>
-                            }
-                        </div>
-
-                        <!-- Stocks -->
-                        <button class='nav-btn @ActiveClass("/stocks")' 
-                                @onclick='() => Go("/stocks")'
-                                title="Stocks">
-                            <i class="bi bi-graph-up-arrow nav-icon"></i>
-                            @if (!_sidebarCollapsed)
-                            {
-                                <span class="nav-text">Stocks</span>
-                            }
-                        </button>
-
-                        <!-- Suppliers -->
-                        <button class='nav-btn @ActiveClass("/suppliers")' 
-                                @onclick='() => Go("/suppliers")'
-                                title="Suppliers">
-                            <i class="bi bi-truck nav-icon"></i>
-                            @if (!_sidebarCollapsed)
-                            {
-                                <span class="nav-text">Suppliers</span>
-                            }
-                        </button>
+                            <!-- Suppliers -->
+                            <button class='nav-btn @ActiveClass("/suppliers")' 
+                                    @onclick='() => Go("/suppliers")'
+                                    title="Suppliers">
+                                <i class="bi bi-truck nav-icon"></i>
+                                @if (!_sidebarCollapsed)
+                                {
+                                    <span class="nav-text">Suppliers</span>
+                                }
+                            </button>
+                        }
                     }
-                }
 
-                @* Finance section - Show for Finance Manager and Super Admin *@
-                @if (Auth.IsFinanceManager() || Auth.IsSuperAdmin())
-                {
-                    <button class='nav-btn @ActiveClass("/finance")' 
-                            @onclick='() => Go("/finance")'
-                            title="Finance">
-                        <i class="bi bi-cash-coin nav-icon"></i>
-                        @if (!_sidebarCollapsed)
-                        {
-                            <span class="nav-text">Finance</span>
-                        }
-                    </button>
-                }
-
-                @* Show Reports for Finance Manager, Inventory Manager, Operation Officer, and Super Admin *@
-                @if (Auth.CanAccessReports())
-                {
-                    <button class='nav-btn @ActiveClass("/reports")' 
-                            @onclick='() => Go("/reports")'
-                            title="Reports">
-                        <i class="bi bi-file-text-fill nav-icon"></i>
-                        @if (!_sidebarCollapsed)
-                        {
-                            <span class="nav-text">Reports</span>
-                        }
-                    </button>
-                }
-
-                @* Admin and Super Admin section *@
-                @if (Auth.IsAdmin() || Auth.IsSuperAdmin())
-                {
-                    <button class='nav-btn @ActiveClass("/admin/audit-logs")' 
-                            @onclick='() => Go("/admin/audit-logs")'
-                            title="Audit Logs">
-                        <i class="bi bi-clock-history nav-icon"></i>
-                        @if (!_sidebarCollapsed)
-                        {
-                            <span class="nav-text">Audit Logs</span>
-                        }
-                    </button>
-
-                    <button class='nav-btn @ActiveClass("/admin/archives")' 
-                            @onclick='() => Go("/admin/archives")'
-                            title="Archives">
-                        <i class="bi bi-archive-fill nav-icon"></i>
-                        @if (!_sidebarCollapsed)
-                        {
-                            <span class="nav-text">Archives</span>
-                        }
-                    </button>
-
-                    <button class='nav-btn @ActiveClass("/manage-users")' 
-                            @onclick='() => Go("/manage-users")'
-                            title="Manage Users">
-                        <i class="bi bi-person-badge-fill nav-icon"></i>
-                        @if (!_sidebarCollapsed)
-                        {
-                            <span class="nav-text">Manage Users</span>
-                        }
-                    </button>
-                }
-
-                @* Settings available to all non-volunteer roles *@
-                <button class='nav-btn @ActiveClass("/settings")' 
-                        @onclick='() => Go("/settings")'
-                        title="Settings">
-                    <i class="bi bi-gear-fill nav-icon"></i>
-                    @if (!_sidebarCollapsed)
+                    @* Finance section - Show for Finance Manager and Super Admin *@
+                    @if (Auth.IsFinanceManager() || Auth.IsSuperAdmin())
                     {
-                        <span class="nav-text">Settings</span>
+                        <button class='nav-btn @ActiveClass("/finance")' 
+                                @onclick='() => Go("/finance")'
+                                title="Finance">
+                            <i class="bi bi-cash-coin nav-icon"></i>
+                            @if (!_sidebarCollapsed)
+                            {
+                                <span class="nav-text">Finance</span>
+                            }
+                        </button>
                     }
-                </button>
-            </nav>
 
-            <!-- Sidebar Footer with Collapse and Logout Buttons -->
+                    @* Show Reports for Finance Manager, Inventory Manager, Operation Officer, and Super Admin *@
+                    @if (Auth.CanAccessReports())
+                    {
+                        <button class='nav-btn @ActiveClass("/reports")' 
+                                @onclick='() => Go("/reports")'
+                                title="Reports">
+                            <i class="bi bi-file-text-fill nav-icon"></i>
+                            @if (!_sidebarCollapsed)
+                            {
+                                <span class="nav-text">Reports</span>
+                            }
+                        </button>
+                    }
+
+                    @* Admin and Super Admin section *@
+                    @if (Auth.IsAdmin() || Auth.IsSuperAdmin())
+                    {
+                        <button class='nav-btn @ActiveClass("/admin/audit-logs")' 
+                                @onclick='() => Go("/admin/audit-logs")'
+                                title="Audit Logs">
+                            <i class="bi bi-clock-history nav-icon"></i>
+                            @if (!_sidebarCollapsed)
+                            {
+                                <span class="nav-text">Audit Logs</span>
+                            }
+                        </button>
+
+                        <button class='nav-btn @ActiveClass("/admin/archives")' 
+                                @onclick='() => Go("/admin/archives")'
+                                title="Archives">
+                            <i class="bi bi-archive-fill nav-icon"></i>
+                            @if (!_sidebarCollapsed)
+                            {
+                                <span class="nav-text">Archives</span>
+                            }
+                        </button>
+
+                        <button class='nav-btn @ActiveClass("/manage-users")' 
+                                @onclick='() => Go("/manage-users")'
+                                title="Manage Users">
+                            <i class="bi bi-person-badge-fill nav-icon"></i>
+                            @if (!_sidebarCollapsed)
+                            {
+                                <span class="nav-text">Manage Users</span>
+                            }
+                        </button>
+                    }
+
+                    @* Settings available to all non-volunteer roles *@
+                    <button class='nav-btn @ActiveClass("/settings")' 
+                            @onclick='() => Go("/settings")'
+                            title="Settings">
+                        <i class="bi bi-gear-fill nav-icon"></i>
+                        @if (!_sidebarCollapsed)
+                        {
+                            <span class="nav-text">Settings</span>
+                        }
+                    </button>
+                </nav>
+            </div>
+
+            <!-- Fixed Sidebar Footer with Logout Button -->
             <div class="sidebar-footer">
                 <!-- Logout Button -->
                 <button class="logout-btn nav-btn" 
@@ -441,11 +478,8 @@ else
     {
         try
         {
-            // Don't toggle if sidebar is collapsed
-            if (!_sidebarCollapsed)
-            {
-                InventoryOpen = !InventoryOpen;
-            }
+            // Allow toggle in both expanded and collapsed states
+            InventoryOpen = !InventoryOpen;
         }
         catch (Exception ex)
         {
@@ -471,6 +505,25 @@ else
     private void GoInventory() => Go("/inventory");
     private void GoInventoryCategory(string slug) => Go($"/inventory/category/{slug}");
     private void GoCategories() => Go("/categories");
+
+    // Navigation methods that also close the flyout menu
+    private void GoInventoryAndClose()
+    {
+        InventoryOpen = false;
+        Go("/inventory");
+    }
+
+    private void GoInventoryCategoryAndClose(string slug)
+    {
+        InventoryOpen = false;
+        Go($"/inventory/category/{slug}");
+    }
+
+    private void GoCategoriesAndClose()
+    {
+        InventoryOpen = false;
+        Go("/categories");
+    }
 
     private void Go(string href)
     {

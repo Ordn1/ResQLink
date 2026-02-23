@@ -35,9 +35,10 @@
     overflow: hidden;
 }
 
-/* Collapsed sidebar shows icons only */
+/* Collapsed sidebar - keep overflow hidden on the sidebar itself */
 .app-shell.sidebar-collapsed .shell-sidebar {
     width: var(--sidebar-collapsed-width);
+    overflow: hidden;
 }
 
 .sidebar-brand {
@@ -87,15 +88,49 @@
     object-fit: contain;
 }
 
+/* Scrollable navigation wrapper */
+.sidebar-nav-wrapper {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-height: 0; /* Important for flex child scrolling */
+}
+
+/* Collapsed sidebar nav wrapper - enable scrolling */
+.app-shell.sidebar-collapsed .sidebar-nav-wrapper {
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+/* Custom scrollbar for the nav wrapper */
+.sidebar-nav-wrapper::-webkit-scrollbar {
+    width: 6px;
+}
+
+.sidebar-nav-wrapper::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.sidebar-nav-wrapper::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 3px;
+}
+
+.sidebar-nav-wrapper::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
+}
+
+/* Collapsed sidebar scrollbar - thinner */
+.app-shell.sidebar-collapsed .sidebar-nav-wrapper::-webkit-scrollbar {
+    width: 4px;
+}
+
 /* Navigation Menu */
 .nav-stack {
     padding: 20px 16px;
     display: flex;
     flex-direction: column;
     gap: 8px;
-    overflow-y: auto;
-    overflow-x: hidden;
-    flex: 1;
 }
 
 .app-shell.sidebar-collapsed .nav-stack {
@@ -143,6 +178,7 @@
     position: relative;
     margin-bottom: 2px;
     white-space: nowrap;
+    flex-shrink: 0; /* Prevent buttons from shrinking */
 }
 
 .app-shell.sidebar-collapsed .nav-btn {
@@ -192,10 +228,13 @@
 /* --- Submenu / Inventory Dropdown --- */
 .nav-item-with-menu {
     width: 100%;
+    position: relative;
+    flex-shrink: 0; /* Prevent from shrinking */
 }
 
 .app-shell.sidebar-collapsed .nav-item-with-menu {
     width: 48px;
+    position: static; /* Change to static so flyout positions relative to sidebar */
 }
 
 .inventory-dropdown {
@@ -233,6 +272,89 @@
     color: #16a34a !important;
     font-weight: 800 !important;
     box-shadow: inset 4px 0 0 0 #16a34a !important;
+}
+
+/* --- Inventory Flyout for Collapsed Sidebar --- */
+.inventory-flyout {
+    position: fixed; /* Use fixed positioning instead of absolute */
+    left: calc(var(--sidebar-collapsed-width) + 8px);
+    background: #1e293b;
+    border-radius: 8px;
+    padding: 0.5rem 0;
+    min-width: 200px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+    z-index: 1001;
+    animation: flyoutFadeIn 0.2s ease;
+    display: flex;
+    flex-direction: column;
+}
+
+@keyframes flyoutFadeIn {
+    from {
+        opacity: 0;
+        transform: translateX(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.flyout-header {
+    padding: 0.75rem 1rem 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: rgba(255, 255, 255, 0.5);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    margin-bottom: 0.25rem;
+}
+
+.flyout-link {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.625rem 1rem;
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 0.875rem;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.flyout-link:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+}
+
+.flyout-link.active-link {
+    background: rgba(22, 163, 74, 0.3);
+    color: #4ade80;
+    font-weight: 600;
+}
+
+.nav-icon-sm {
+    font-size: 0.875rem;
+    opacity: 0.7;
+    width: 16px;
+    flex-shrink: 0;
+}
+
+/* Ensure flyout is visible when collapsed */
+.app-shell.sidebar-collapsed .inventory-flyout {
+    display: flex !important;
+    flex-direction: column !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+/* Hide tooltip when flyout is shown */
+.app-shell.sidebar-collapsed .nav-item-with-menu .nav-btn:hover::after {
+    display: none !important;
 }
 
 /* --- Main Content Area --- */
@@ -635,10 +757,10 @@
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s ease;
-    margin-bottom: 0.5rem;
     white-space: nowrap;
     text-align: left;
     position: relative;
+    flex-shrink: 0; /* Prevent from shrinking */
 }
 
 .logout-btn:hover {
@@ -690,21 +812,20 @@
     width: 22px;
 }
 
-/* Update sidebar footer to stack buttons vertically */
+/* Fixed sidebar footer at bottom */
 .sidebar-footer {
     padding: 1rem;
     border-top: 1px solid var(--border-color);
-    margin-top: auto;
+    background: var(--bg-surface);
     display: flex !important;
     flex-direction: column;
     gap: 0.5rem;
-    align-items: center;
-    transition: padding 0.3s ease;
-    visibility: visible !important;
+    align-items: stretch;
+    flex-shrink: 0; /* Prevent footer from shrinking */
 }
 
 .app-shell.sidebar-collapsed .sidebar-footer {
-    padding: 1rem 0.5rem;
+    padding: 1rem 1rem;
     align-items: center;
     display: flex !important;
     visibility: visible !important;
@@ -775,4 +896,29 @@
     padding: 0 !important;
     align-items: center !important;
     justify-content: center !important;
+}
+
+/* Inventory flyout - shown when sidebar is collapsed */
+.nav-item-with-menu {
+    position: relative;
+    width: 100%;
+}
+
+/* When collapsed, the nav-item-with-menu should still be positioned properly */
+.app-shell.sidebar-collapsed .nav-item-with-menu {
+    width: 48px;
+    position: static;
+}
+
+/* CRITICAL: Override any hiding of the flyout when collapsed */
+.app-shell.sidebar-collapsed .inventory-flyout {
+    display: flex !important;
+    flex-direction: column !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+/* Hide the tooltip on the inventory button when flyout is open */
+.app-shell.sidebar-collapsed .nav-item-with-menu .nav-btn:hover::after {
+    display: none !important;
 }
